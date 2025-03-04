@@ -1,11 +1,12 @@
 from flask import Flask
-from flask import render_template
+from flask import render_template, jsonify
 
 app = Flask(__name__)
 
 
-@app.route('/')
-def index():
+
+@app.route('/data_json')
+def data_json():
     dummy_data = [
         {
             "id": 1,
@@ -24,8 +25,15 @@ def index():
             "minute": "00:00",
         },
     ]
+    return jsonify(dummy_data)
+    
+
+@app.route('/')
+def index():
+    dummy_data = data_json()
+
     return render_template(
         'index.html',
-        matches=dummy_data
+        matches=dummy_data.json
         
     )
