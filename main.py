@@ -11,10 +11,10 @@ def data_json():
     game_data = {
         # Player information - names and total scores
         "players": [
-            {"id": 1, "name": "Player 1", "total_score": 501},
-            {"id": 2, "name": "Player 2", "total_score": 501},
-            {"id": 3, "name": "Player 3", "total_score": 501},
-            {"id": 4, "name": "Player 4", "total_score": 501}
+            {"id": 1, "name": "Player 1", "total_score": 190},
+            {"id": 2, "name": "Player 2", "total_score": 275},
+            {"id": 3, "name": "Player 3", "total_score": 305},
+            {"id": 4, "name": "Player 4", "total_score": 350}
         ],
         
         # Turn data - for each turn, what each player scored
@@ -41,12 +41,12 @@ def data_json():
         
         # Current active turn information
         "current_turn": 2,
-        "current_player": 1,
+        "current_player": 4,
         
         # Current throw information for display beneath dartboard
         "current_throws": [
-            {"throw_number": 1, "points": 60},
-            {"throw_number": 2, "points": 60},
+            {"throw_number": 1, "points": 10},
+            {"throw_number": 2, "points": 30},
             {"throw_number": 3, "points": 20}
         ]
     }
