@@ -143,6 +143,7 @@
 <style>
   .turn-header, .player-header {
     background-color: #e9ecef;
+    color: #212529;
   }
   
   .card-header {
@@ -158,5 +159,30 @@
   td {
     white-space: pre-line;
     vertical-align: middle;
+  }
+  
+  /* Alternating row colors */
+  #scoreTable tbody tr:nth-child(odd) {
+    background-color: rgba(0, 0, 100, 0.7);
+  }
+  
+  #scoreTable tbody tr:nth-child(even) {
+    background-color: rgba(0, 0, 70, 0.7);
+  }
+  
+  /* Highlight the current active turn */
+  #scoreTable tbody tr.active-turn {
+    background-color: rgba(0, 100, 100, 0.5);
+  }
+  
+  /* Add hover effect for better UX */
+  #scoreTable tbody tr:hover {
+    background-color: rgba(50, 50, 150, 0.8);
+  }
+  
+  /* Make the totals row stand out */
+  #scoreTable tfoot tr {
+    background-color: rgba(80, 80, 120, 0.9);
+    font-weight: bold;
   }
 </style>
