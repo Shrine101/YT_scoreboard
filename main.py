@@ -3,53 +3,65 @@ from flask import render_template, jsonify
 
 app = Flask(__name__)
 
-
+def get_db_connection():
+    """Create a connection to the SQLite database"""
+    conn = sqlite3.connect('game.db')
+    conn.row_factory = sqlite3.Row  # This enables column access by name
+    return conn
 
 @app.route('/data_json')
 def data_json():
-    # The game state including player information, turns, and current throws
-    game_data = {
-        # Player information - names and total scores
-        "players": [
-            {"id": 1, "name": "Player 1", "total_score": 190},
-            {"id": 2, "name": "Player 2", "total_score": 275},
-            {"id": 3, "name": "Player 3", "total_score": 305},
-            {"id": 4, "name": "Player 4", "total_score": 350}
-        ],
+    # Create a connection to the database
+    conn = get_db_connection()
+    
+    # Build game_data dictionary from database queries
+    game_data = {}
+    
+    # Get players
+    players = []
+    for row in conn.execute('SELECT id, name, total_score FROM players ORDER BY id'):
+        players.append({
+            "id": row['id'],
+            "name": row['name'],
+            "total_score": row['total_score']
+        })
+    game_data["players"] = players
+    
+    # Get turns and scores
+    turns = []
+    for turn_row in conn.execute('SELECT turn_number FROM turns ORDER BY turn_number'):
+        turn_number = turn_row['turn_number']
         
-        # Turn data - for each turn, what each player scored
-        "turns": [
-            {
-                "turn_number": 1,
-                "scores": [
-                    {"player_id": 1, "points": 180},
-                    {"player_id": 2, "points": 140},
-                    {"player_id": 3, "points": 120},
-                    {"player_id": 4, "points": 100}
-                ]
-            },
-            {
-                "turn_number": 2,
-                "scores": [
-                    {"player_id": 1, "points": 140},
-                    {"player_id": 2, "points": 95},
-                    {"player_id": 3, "points": 85},
-                    {"player_id": 4, "points": 60}
-                ]
-            }
-        ],
+        # Get scores for this turn
+        scores = []
+        for score_row in conn.execute('SELECT player_id, points FROM turn_scores WHERE turn_number = ? ORDER BY player_id', (turn_number,)):
+            scores.append({
+                "player_id": score_row['player_id'],
+                "points": score_row['points']
+            })
         
-        # Current active turn information
-        "current_turn": 2,
-        "current_player": 4,
-        
-        # Current throw information for display beneath dartboard
-        "current_throws": [
-            {"throw_number": 1, "points": 10},
-            {"throw_number": 2, "points": 30},
-            {"throw_number": 3, "points": 20}
-        ]
-    }
+        turns.append({
+            "turn_number": turn_number,
+            "scores": scores
+        })
+    game_data["turns"] = turns
+    
+    # Get current game state
+    state_row = conn.execute('SELECT current_turn, current_player FROM game_state WHERE id = 1').fetchone()
+    game_data["current_turn"] = state_row['current_turn']
+    game_data["current_player"] = state_row['current_player']
+    
+    # Get current throws
+    current_throws = []
+    for throw_row in conn.execute('SELECT throw_number, points FROM current_throws ORDER BY throw_number'):
+        current_throws.append({
+            "throw_number": throw_row['throw_number'],
+            "points": throw_row['points']
+        })
+    game_data["current_throws"] = current_throws
+    
+    # Close the connection
+    conn.close()
     
     return jsonify(game_data)
     
