@@ -76,10 +76,10 @@ def data_json():
 
 @app.route('/')
 def index():
-    dummy_data = data_json()
+    game_data = data_json()
 
     return render_template(
         'index.html',
-        matches=dummy_data.json
+        game_data = game_data.json
         
     )

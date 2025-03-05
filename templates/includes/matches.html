@@ -1,82 +1,162 @@
-<table class="table table-dark table-striped">
-  <thead>
-    <tr>
-      <th scope="col">ID</th>
-      <th scope="col">Player</th>
-      <th scope="col">Total Score</th>
-      <th scope="col" colspan="3">Details</th>
-    </tr>
-  </thead>
-  <tbody id="table_body">
-    <!-- Table body for player scores and turns -->
-     {% for item in matches %}
-       {% if item.row_type == "player_score" %}
-       <tr class="table-primary">
-          <td id="id_{{ item.id }}">{{ item.id }}</td>
-          <td id="player_name_{{ item.id }}">{{ item.player_name }}</td>
-          <td id="total_score_{{ item.id }}">{{ item.total_score }}</td>
-          <td colspan="3">Current Score</td>
-       </tr>
-       {% else %}
-       <tr>
-          <td id="id_{{ item.id }}">{{ item.id }}</td>
-          <td id="player_name_{{ item.id }}">{{ item.player_name }}</td>
-          <td id="turn_number_{{ item.id }}">Turn {{ item.turn_number }}</td>
-          <td id="first_throw_{{ item.id }}">1st: {{ item.first_throw }}</td>
-          <td id="second_throw_{{ item.id }}">2nd: {{ item.second_throw }}</td>
-          <td id="third_throw_{{ item.id }}">3rd: {{ item.third_throw }}</td>
-       </tr>
-       {% endif %}
-     {% endfor %}
-  </tbody>
-</table>
-<script>
-  setInterval( function(){
-      fetch('/data_json').then(
-          response => response.json()
-      ).then(
-          data =>
-            data.forEach(item =>
-              updateElement(item)
-            )
-      )
-  }, 1000
-  );
-
-  function updateElement(item) {
-  Object.entries(item).forEach(([k,v]) => {
-      element = document.getElementById(k + "_" + item.id);
-      if (element) {
-          // Get Previous value first
-          previousValue = element.innerHTML;
+<!-- Darts scoreboard layout -->
+<div class="row">
+  <!-- Left side: Turns and scores table -->
+  <div class="col-md-8">
+    <div class="table-responsive">
+      <table class="table table-bordered" id="scoreTable">
+        <thead>
+          <tr>
+            <th class="text-center turn-header">TURN #</th>
+            {% for player in game_data.players %}
+            <th class="text-center player-header" id="player{{ player.id }}_name">{{ player.name }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody id="turns_body">
+          <!-- Generate rows for each turn -->
+          {% for turn in game_data.turns %}
+          <tr>
+            <td class="text-center">{{ turn.turn_number }}</td>
+            {% for player in game_data.players %}
+              <td class="text-center" id="turn_{{ turn.turn_number }}_player_{{ player.id }}">
+                {% for score in turn.scores %}
+                  {% if score.player_id == player.id %}
+                    {{ player.name }}
+                    Turn {{ turn.turn_number }} Points
+                    {{ score.points }}
+                  {% endif %}
+                {% endfor %}
+              </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
           
-          // Format the value based on the field type
-          let formattedValue = v.toString();
-          if (k === "turn_number") {
-              formattedValue = "Turn " + v;
-          } else if (k === "first_throw") {
-              formattedValue = "1st: " + v;
-          } else if (k === "second_throw") {
-              formattedValue = "2nd: " + v;
-          } else if (k === "third_throw") {
-              formattedValue = "3rd: " + v;
-          }
+          <!-- Add empty rows for future turns -->
+          {% for i in range(game_data.turns|length + 1, 11) %}
+          <tr>
+            <td class="text-center">{{ i }}</td>
+            {% for player in game_data.players %}
+              <td class="text-center" id="turn_{{ i }}_player_{{ player.id }}"></td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td class="text-center"><strong>TOTAL</strong></td>
+            {% for player in game_data.players %}
+            <td class="text-center" id="player{{ player.id }}_total">{{ player.total_score }}</td>
+            {% endfor %}
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+  
+  <!-- Right side: Dartboard and current throws -->
+  <div class="col-md-4 text-center">
+    <div class="dartboard-container mb-4">
+      <img src="{{ url_for('static', filename='images/dartboard.jpg') }}" 
+        alt="Dartboard" class="img-fluid" style="max-height: 400px;">
+    </div>
+    
+    <div class="row mt-4">
+      {% for throw in game_data.current_throws %}
+      <div class="col-4">
+        <div class="card">
+          <div class="card-header p-2">
+            <strong>THROW {{ throw.throw_number }}<br>POINTS</strong>
+          </div>
+          <div class="card-body" id="throw{{ throw.throw_number }}_points">
+            {{ throw.points }}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
 
-          // If Previous value is not equal to the new value, change it!
-          if (previousValue !== formattedValue) {
-              blinkUpdate(element, formattedValue);
+<script>
+  // Function to update the display with new data
+  function updateGame(game_data) {
+    // Update player names and totals
+    for (let i = 0; i < game_data.players.length; i++) {
+      const player = game_data.players[i];
+      const nameElement = document.getElementById(`player${player.id}_name`);
+      const totalElement = document.getElementById(`player${player.id}_total`);
+      
+      if (nameElement) nameElement.textContent = player.name;
+      if (totalElement) totalElement.textContent = player.total_score;
+    }
+    
+    // Update turn scores
+    for (let i = 0; i < game_data.turns.length; i++) {
+      const turn = game_data.turns[i];
+      
+      for (let j = 0; j < turn.scores.length; j++) {
+        const score = turn.scores[j];
+        const cellElement = document.getElementById(`turn_${turn.turn_number}_player_${score.player_id}`);
+        
+        if (cellElement) {
+          const playerName = game_data.players.find(p => p.id === score.player_id).name;
+          const newContent = `${playerName}\nTurn ${turn.turn_number} Points\n${score.points}`;
+          
+          if (cellElement.textContent !== newContent) {
+            blinkUpdate(cellElement, newContent);
           }
+        }
       }
-  })
+    }
+    
+    // Update current throws
+    for (let i = 0; i < game_data.current_throws.length; i++) {
+      const throwData = game_data.current_throws[i];
+      const throwElement = document.getElementById(`throw${throwData.throw_number}_points`);
+      
+      if (throwElement && throwElement.textContent !== throwData.points.toString()) {
+        blinkUpdate(throwElement, throwData.points.toString());
+      }
+    }
   }
 
   function blinkUpdate(element, newValue, newColor='#00ff00') {
-      previousColor = element.style.color;
-      element.innerHTML = newValue;
-      element.style.color = newColor;
-      // Set back to original color after timeout ms
-      setTimeout(() => {
-          element.style.color = previousColor
-      }, 2000)
+    previousColor = element.style.color;
+    element.textContent = newValue;
+    element.style.color = newColor;
+    
+    // Set back to original color after timeout ms
+    setTimeout(() => {
+      element.style.color = previousColor;
+    }, 2000);
   }
+  
+  // Set up polling for updates
+  setInterval(function() {
+    fetch('/data_json')
+      .then(response => response.json())
+      .then(data => updateGame(data))
+      .catch(error => console.error('Error fetching data:', error));
+  }, 1000);
 </script>
+
+<style>
+  .turn-header, .player-header {
+    background-color: #e9ecef;
+  }
+  
+  .card-header {
+    background-color: #6c757d;
+    color: white;
+  }
+  
+  .card-body {
+    font-size: 24px;
+    font-weight: bold;
+  }
+  
+  td {
+    white-space: pre-line;
+    vertical-align: middle;
+  }
+</style>
