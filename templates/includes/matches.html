@@ -21,8 +21,6 @@
               <td class="text-center" id="turn_{{ turn.turn_number }}_player_{{ player.id }}">
                 {% for score in turn.scores %}
                   {% if score.player_id == player.id %}
-                    {{ player.name }}
-                    Turn {{ turn.turn_number }} Points
                     {{ score.points }}
                   {% endif %}
                 {% endfor %}
@@ -99,8 +97,7 @@
         const cellElement = document.getElementById(`turn_${turn.turn_number}_player_${score.player_id}`);
         
         if (cellElement) {
-          const playerName = game_data.players.find(p => p.id === score.player_id).name;
-          const newContent = `${playerName}\nTurn ${turn.turn_number} Points\n${score.points}`;
+          const newContent = `${score.points}`;
           
           if (cellElement.textContent !== newContent) {
             blinkUpdate(cellElement, newContent);
@@ -157,12 +154,16 @@
     color: #000000;
   }
   
-  td {
-    white-space: pre-line;
-    vertical-align: middle;
-    color: #ffffff;
+  #scoreTable tbody td {
+  font-size: 24px;
+  font-weight: bold;
+  text-align: center;
+  vertical-align: middle;
+  color: #ffffff;
   }
   
+
+
   /*
   
   Alternating row colors 
