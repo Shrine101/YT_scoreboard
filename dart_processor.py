@@ -9,7 +9,7 @@ class DartProcessor:
         self.game_db_path = game_db_path
         self.poll_interval = poll_interval
         
-        # Initialize timestamp to current time
+        # Initialize timestamp to current local time
         self.last_throw_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         print(f"Dart processor initialized. Only processing throws after: {self.last_throw_timestamp}")
 
@@ -179,7 +179,7 @@ class DartProcessor:
             
             # Move to next player
             self.advance_to_next_player()
-            
+        
         # Update timestamp to this throw's timestamp to avoid processing it again
         self.last_throw_timestamp = throw['timestamp']
         

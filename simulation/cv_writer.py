@@ -26,7 +26,7 @@ class CVDatabaseWriter:
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS throws (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    timestamp DATETIME,
                     score INTEGER NOT NULL,
                     multiplier INTEGER NOT NULL,
                     position_x REAL,
@@ -41,15 +41,18 @@ class CVDatabaseWriter:
             return
 
         score, multiplier, position = throw_data
+        # Get current local time as a string in the format SQLite expects
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
         try:
             with self.get_db_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
-                    INSERT INTO throws (score, multiplier, position_x, position_y)
-                    VALUES (?, ?, ?, ?)
-                ''', (score, multiplier, position[0], position[1]))
+                    INSERT INTO throws (timestamp, score, multiplier, position_x, position_y)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (current_time, score, multiplier, position[0], position[1]))
                 conn.commit()
-                print(f"Recorded throw: Score={score}, Multiplier={multiplier}")
+                print(f"Recorded throw at {current_time}: Score={score}, Multiplier={multiplier}")
         except sqlite3.Error as e:
             print(f"Database error: {e}")
         except Exception as e:
