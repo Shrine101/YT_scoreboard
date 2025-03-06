@@ -119,7 +119,7 @@ if __name__ == '__main__':
         start_dart_processor()
         
         # Run the Flask app
-        app.run(debug=True)
+        app.run(debug=False)
     finally:
         # Make sure to clean up the dart processor when the app exits
         if dart_processor is not None:
