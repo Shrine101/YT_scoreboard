@@ -8,6 +8,16 @@ import signal
 
 
 app = Flask(__name__)
+dart_processor = None  # Define the global variable
+
+def start_dart_processor():
+    """Start the dart processor as a separate process"""
+    global dart_processor
+    print("Starting dart processor...")
+    dart_processor = subprocess.Popen(['python', 'dart_processor.py'], 
+                                     stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE)
+    print(f"Dart processor started with PID {dart_processor.pid}")
 
 def get_db_connection():
     """Create a connection to the SQLite database"""
@@ -74,19 +84,16 @@ def data_json():
 
 @app.route('/')
 def index():
-    game_data = data_json()
+    response = data_json()
+    # Fix: get the actual JSON data from the response
+    game_data = response.get_json()
 
     return render_template(
         'index.html',
-        game_data = game_data.json
-        
+        game_data = game_data
     )
 
-@app.before_first_request
-def before_first_request():
-    """Start the dart processor before serving the first request"""
-    start_dart_processor()
-
+# Use with_appcontext instead of before_first_request
 @app.teardown_appcontext
 def teardown_dart_processor(exception):
     """Clean up dart processor when app shuts down"""
