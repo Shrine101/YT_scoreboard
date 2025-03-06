@@ -5,7 +5,7 @@ import subprocess
 import threading
 import os
 import signal 
-
+from intialize_db import initialize_database
 
 app = Flask(__name__)
 dart_processor = None  # Define the global variable
@@ -112,6 +112,9 @@ def teardown_dart_processor(exception):
 
 if __name__ == '__main__':
     try:
+
+        # Initialize database before starting the app
+        initialize_database()
         # Start the dart processor when the app starts
         start_dart_processor()
         
