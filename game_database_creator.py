@@ -46,7 +46,7 @@ CREATE TABLE current_throws (
     points INTEGER NOT NULL
 )
 ''')
-
+"""
 # Insert sample data matching your current game_data
 # Players
 cursor.executemany('INSERT INTO players (id, name, total_score) VALUES (?, ?, ?)', [
@@ -72,6 +72,7 @@ cursor.execute('INSERT INTO game_state (id, current_turn, current_player) VALUES
 # Current throws
 current_throws = [(1, 10), (2, 30), (3, 20)]
 cursor.executemany('INSERT INTO current_throws (throw_number, points) VALUES (?, ?)', current_throws)
+"""
 
 # Commit changes and close connection
 conn.commit()
