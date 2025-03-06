@@ -78,10 +78,10 @@ def initialize_database():
             
             # Insert players
             cursor.executemany('INSERT INTO players (id, name, total_score) VALUES (?, ?, ?)', [
-                (1, 'Player 1', 0),
-                (2, 'Player 2', 0),
-                (3, 'Player 3', 0),
-                (4, 'Player 4', 0)
+                (1, 'Player 1', 301),
+                (2, 'Player 2', 301),
+                (3, 'Player 3', 301),
+                (4, 'Player 4', 301)
             ])
             
             # Insert first turn

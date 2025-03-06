@@ -101,10 +101,21 @@ class DartProcessor:
                     (turn_number, player_id, points)
                 )
             
+            # Update player's total score - MODIFIED for 301 game
+            # Get sum of all points scored by this player
+            cursor.execute(
+                'SELECT SUM(points) as total_points FROM turn_scores WHERE player_id = ?',
+                (player_id,)
+            )
+            total_points = cursor.fetchone()['total_points'] or 0
+            
+            # Subtract from 301 to get current score
+            new_score = 301 - total_points
+            
             # Update player's total score
             cursor.execute(
-                'UPDATE players SET total_score = (SELECT SUM(points) FROM turn_scores WHERE player_id = ?) WHERE id = ?',
-                (player_id, player_id)
+                'UPDATE players SET total_score = ? WHERE id = ?',
+                (new_score, player_id)
             )
             
             conn.commit()
@@ -168,11 +179,6 @@ class DartProcessor:
         if throw_position == 3 or all(t['points'] > 0 for t in current_throws):
             # Calculate total points for this player's turn
             total_points = sum(t['points'] for t in current_throws) + points
-            if throw_position <= len(current_throws):
-                # Subtract the points we just added (they're not in current_throws yet)
-                total_points -= points
-                # Add the points from this throw
-                total_points += points
             
             # Add score to turn_scores
             self.add_score_to_turn(current_turn, current_player, total_points)
