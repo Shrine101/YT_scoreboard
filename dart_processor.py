@@ -11,6 +11,11 @@ class DartProcessor:
         
         # Initialize timestamp to current local time
         self.last_throw_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        # Track if we're waiting after a third throw
+        self.waiting_after_third_throw = False
+        self.third_throw_time = None
+        self.third_throw_data = None
+        
         print(f"Dart processor initialized. Only processing throws after: {self.last_throw_timestamp}")
 
     @contextmanager
@@ -177,14 +182,27 @@ class DartProcessor:
         
         # Check if this completes a set of 3 throws
         if throw_position == 3 or all(t['points'] > 0 for t in current_throws):
-            # Calculate total points for this player's turn
-            total_points = sum(t['points'] for t in current_throws) + points
-            
-            # Add score to turn_scores
-            self.add_score_to_turn(current_turn, current_player, total_points)
-            
-            # Move to next player
-            self.advance_to_next_player()
+            # For third throw, we need to set the delayed processing
+            if not self.waiting_after_third_throw:
+                self.waiting_after_third_throw = True
+                self.third_throw_time = datetime.now()
+                
+                # Save the data needed for later processing
+                total_points = sum(t['points'] for t in current_throws) 
+                # Add the current throw's points (not yet in current_throws)
+                if throw_position == 3:
+                    total_points += points
+                
+                self.third_throw_data = {
+                    'current_turn': current_turn,
+                    'current_player': current_player,
+                    'total_points': total_points
+                }
+                
+                print(f"Third throw detected! Will process after delay: {score}x{multiplier}={points} points")
+            else:
+                # This shouldn't happen in normal operation
+                print("Warning: Got a new throw while waiting to process the previous third throw")
         
         # Update timestamp to this throw's timestamp to avoid processing it again
         self.last_throw_timestamp = throw['timestamp']
@@ -192,18 +210,50 @@ class DartProcessor:
         print(f"Processed throw: {score}x{multiplier}={points} points "
               f"(Player {current_player}, Turn {current_turn}, Throw {throw_position})")
 
+    def process_third_throw_completion(self):
+        """Complete the processing of a third throw after delay"""
+        if self.waiting_after_third_throw:
+            # Check if enough time has passed (3 seconds)
+            elapsed = (datetime.now() - self.third_throw_time).total_seconds()
+            if elapsed >= 3.0:
+                print(f"Completing third throw processing after {elapsed:.1f}s delay")
+                
+                # Add score to turn_scores
+                self.add_score_to_turn(
+                    self.third_throw_data['current_turn'],
+                    self.third_throw_data['current_player'],
+                    self.third_throw_data['total_points']
+                )
+                
+                # Move to next player
+                self.advance_to_next_player()
+                
+                # Reset the waiting state
+                self.waiting_after_third_throw = False
+                self.third_throw_time = None
+                self.third_throw_data = None
+                
+                print("Advanced to next player")
+                return True
+        return False
+
     def run(self):
         """Main processing loop"""
         print("Dart processor running, press Ctrl+C to stop...")
         
         try:
             while True:
-                # Get new throws from CV database
-                new_throws = self.get_new_throws()
-                
-                # Process each new throw
-                for throw in new_throws:
-                    self.process_throw(throw)
+                # First check if we need to complete a delayed third throw processing
+                if self.waiting_after_third_throw:
+                    self.process_third_throw_completion()
+                else:
+                    # Only process new throws if we're not waiting for third throw completion
+                    # Get new throws from CV database
+                    new_throws = self.get_new_throws()
+                    
+                    # Process each new throw
+                    for throw in new_throws:
+                        self.process_throw(throw)
                 
                 # Sleep for a bit before next poll
                 time.sleep(self.poll_interval)
