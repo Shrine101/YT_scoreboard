@@ -5,6 +5,7 @@ import subprocess
 import threading
 import os
 import signal 
+import atexit
 from initialize_db import initialize_database
 
 app = Flask(__name__)
@@ -16,6 +17,21 @@ def start_dart_processor():
     print("Starting dart processor...")
     dart_processor = subprocess.Popen(['python', 'dart_processor.py'])
     print(f"Dart processor started with PID {dart_processor.pid}")
+
+def stop_dart_processor():
+    """Clean up dart processor when app shuts down"""
+    global dart_processor
+    if dart_processor is not None:
+        print(f"Stopping dart processor (PID {dart_processor.pid})...")
+        try:
+            # Try to terminate gracefully first
+            dart_processor.terminate()
+            dart_processor.wait(timeout=3)  # Wait up to 3 seconds for termination
+        except subprocess.TimeoutExpired:
+            # Force kill if it doesn't terminate within timeout
+            print("Dart processor didn't terminate, forcing kill...")
+            dart_processor.kill()
+        print("Dart processor stopped")
 
 def get_db_connection():
     """Create a connection to the SQLite database"""
@@ -91,28 +107,11 @@ def index():
         game_data = game_data
     )
 
-# Use with_appcontext instead of before_first_request
-@app.teardown_appcontext
-def teardown_dart_processor(exception):
-    """Clean up dart processor when app shuts down"""
-    global dart_processor
-    if dart_processor is not None:
-        print(f"Stopping dart processor (PID {dart_processor.pid})...")
-        try:
-            # Try to terminate gracefully first
-            dart_processor.terminate()
-            dart_processor.wait(timeout=3)  # Wait up to 3 seconds for termination
-        except subprocess.TimeoutExpired:
-            # Force kill if it doesn't terminate within timeout
-            print("Dart processor didn't terminate, forcing kill...")
-            dart_processor.kill()
-        print("Dart processor stopped")
-
 if __name__ == '__main__':
     try:
-
         # Initialize database before starting the app
         initialize_database()
+        
         # Start the dart processor when the app starts
         start_dart_processor()
         
@@ -120,5 +119,4 @@ if __name__ == '__main__':
         app.run(debug=False)
     finally:
         # Make sure to clean up the dart processor when the app exits
-        if dart_processor is not None:
-            dart_processor.terminate()
+        stop_dart_processor()
