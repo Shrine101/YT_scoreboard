@@ -5,7 +5,7 @@ import subprocess
 import threading
 import os
 import signal 
-from intialize_db import initialize_database
+from initialize_db import initialize_database
 
 app = Flask(__name__)
 dart_processor = None  # Define the global variable
