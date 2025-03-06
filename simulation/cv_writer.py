@@ -53,6 +53,7 @@ class CVDatabaseWriter:
                 ''', (current_time, score, multiplier, position[0], position[1]))
                 conn.commit()
                 print(f"Recorded throw at {current_time}: Score={score}, Multiplier={multiplier}")
+                print("")
         except sqlite3.Error as e:
             print(f"Database error: {e}")
         except Exception as e:
