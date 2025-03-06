@@ -1,6 +1,11 @@
 from flask import Flask
 from flask import render_template, jsonify
 import sqlite3
+import subprocess
+import threading
+import os
+import signal 
+
 
 app = Flask(__name__)
 
@@ -76,3 +81,36 @@ def index():
         game_data = game_data.json
         
     )
+
+@app.before_first_request
+def before_first_request():
+    """Start the dart processor before serving the first request"""
+    start_dart_processor()
+
+@app.teardown_appcontext
+def teardown_dart_processor(exception):
+    """Clean up dart processor when app shuts down"""
+    global dart_processor
+    if dart_processor is not None:
+        print(f"Stopping dart processor (PID {dart_processor.pid})...")
+        try:
+            # Try to terminate gracefully first
+            dart_processor.terminate()
+            dart_processor.wait(timeout=3)  # Wait up to 3 seconds for termination
+        except subprocess.TimeoutExpired:
+            # Force kill if it doesn't terminate within timeout
+            print("Dart processor didn't terminate, forcing kill...")
+            dart_processor.kill()
+        print("Dart processor stopped")
+
+if __name__ == '__main__':
+    try:
+        # Start the dart processor when the app starts
+        start_dart_processor()
+        
+        # Run the Flask app
+        app.run(debug=True)
+    finally:
+        # Make sure to clean up the dart processor when the app exits
+        if dart_processor is not None:
+            dart_processor.terminate()
