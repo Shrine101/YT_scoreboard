@@ -14,9 +14,7 @@ def start_dart_processor():
     """Start the dart processor as a separate process"""
     global dart_processor
     print("Starting dart processor...")
-    dart_processor = subprocess.Popen(['python', 'dart_processor.py'], 
-                                     stdout=subprocess.PIPE,
-                                     stderr=subprocess.PIPE)
+    dart_processor = subprocess.Popen(['python', 'dart_processor.py'])
     print(f"Dart processor started with PID {dart_processor.pid}")
 
 def get_db_connection():
