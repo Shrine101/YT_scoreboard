@@ -345,43 +345,58 @@ def get_throw_details():
             # For current turn, get data from current_throws
             cursor.execute('SELECT throw_number, points FROM current_throws ORDER BY throw_number')
             throws = [dict(row) for row in cursor.fetchall()]
+            
+            # Enhance with score and multiplier data if available
+            for throw in throws:
+                cursor.execute('''
+                    SELECT score, multiplier 
+                    FROM turn_throw_details 
+                    WHERE turn_number = ? AND player_id = ? AND throw_number = ?
+                ''', (turn_number, player_id, throw.get('throw_number')))
+                
+                details = cursor.fetchone()
+                if details:
+                    throw['score'] = details['score']
+                    throw['multiplier'] = details['multiplier']
         else:
-            # For past turns, check throw_details
+            # For past turns, get the detailed throw data if it exists
             cursor.execute('''
-                SELECT throw_number, points 
-                FROM throw_details 
+                SELECT throw_number, score, multiplier, points
+                FROM turn_throw_details
                 WHERE turn_number = ? AND player_id = ?
                 ORDER BY throw_number
             ''', (turn_number, player_id))
+            
             throws = [dict(row) for row in cursor.fetchall()]
             
-            # If no throw details exist, get the turn total and estimate
+            # If no detailed throws exist, check if the turn exists in turn_scores
             if not throws:
                 cursor.execute('''
                     SELECT points 
                     FROM turn_scores 
                     WHERE turn_number = ? AND player_id = ?
                 ''', (turn_number, player_id))
-                row = cursor.fetchone()
                 
-                if row:
-                    total_points = row['points']
-                    # Estimate points per throw (divide total by 3)
-                    points_per_throw = total_points // 3
-                    remainder = total_points % 3
-                    
-                    # Create estimated throws
+                turn_score = cursor.fetchone()
+                
+                # If the turn exists but has no throw details
+                if turn_score:
+                    # Create empty throws just to indicate the turn exists
                     throws = [
-                        {"throw_number": 1, "points": points_per_throw + (1 if remainder > 0 else 0)},
-                        {"throw_number": 2, "points": points_per_throw + (1 if remainder > 1 else 0)},
-                        {"throw_number": 3, "points": points_per_throw}
+                        {"throw_number": 1, "points": 0, "score": 0, "multiplier": 0},
+                        {"throw_number": 2, "points": 0, "score": 0, "multiplier": 0},
+                        {"throw_number": 3, "points": 0, "score": 0, "multiplier": 0}
                     ]
+                    
+                    # Add a property to indicate missing details
+                    for throw in throws:
+                        throw['missing_details'] = True
                 else:
-                    # No score recorded yet, return zeros
+                    # No turn exists at all, return empty throws
                     throws = [
-                        {"throw_number": 1, "points": 0},
-                        {"throw_number": 2, "points": 0},
-                        {"throw_number": 3, "points": 0}
+                        {"throw_number": 1, "points": 0, "score": 0, "multiplier": 0},
+                        {"throw_number": 2, "points": 0, "score": 0, "multiplier": 0},
+                        {"throw_number": 3, "points": 0, "score": 0, "multiplier": 0}
                     ]
         
         conn.close()

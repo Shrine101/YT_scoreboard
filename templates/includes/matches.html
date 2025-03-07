@@ -269,15 +269,25 @@
         // Find the throw data for this throw number
         const throwInfo = throwData.find(t => t.throw_number === i);
         const points = throwInfo ? throwInfo.points : 0;
+        const missingDetails = throwInfo && throwInfo.missing_details === true;
         
         // Update the display
         displayElement.textContent = points;
         
-        // Highlight the throw if it has points (non-zero)
-        if (points > 0) {
-          displayElement.classList.add('has-points');
+        // Add special styling for missing details
+        if (missingDetails) {
+          displayElement.classList.add('missing-details');
+          displayElement.title = 'No detailed throw data available';
         } else {
-          displayElement.classList.remove('has-points');
+          displayElement.classList.remove('missing-details');
+          displayElement.title = '';
+          
+          // Highlight the throw if it has points (non-zero)
+          if (points > 0) {
+            displayElement.classList.add('has-points');
+          } else {
+            displayElement.classList.remove('has-points');
+          }
         }
       }
     }
@@ -288,14 +298,21 @@
       const selectedThrowNumber = parseInt(throwSelect.value);
       const selectedThrow = throwData.find(t => t.throw_number === selectedThrowNumber);
       
-      if (selectedThrow && selectedThrow.points > 0) {
-        // Pre-fill the form with score and multiplier for this throw
-        calculateScoreAndMultiplier(selectedThrow.points);
-      } else {
-        // Reset form values if no throw data or zero points
+      // Clear form for missing details or zero points
+      if (!selectedThrow || selectedThrow.missing_details || selectedThrow.points === 0) {
         document.getElementById('scoreInput').value = '';
         document.getElementById('multiplierInput').value = '1';
         document.getElementById('totalPoints').textContent = '0';
+      } else {
+        // Use the actual score and multiplier if provided by the API
+        if (selectedThrow.score !== undefined && selectedThrow.multiplier !== undefined) {
+          document.getElementById('scoreInput').value = selectedThrow.score;
+          document.getElementById('multiplierInput').value = selectedThrow.multiplier;
+          document.getElementById('totalPoints').textContent = selectedThrow.points;
+        } else {
+          // Fall back to calculation if not provided
+          calculateScoreAndMultiplier(selectedThrow.points);
+        }
       }
     }
   }
@@ -446,7 +463,20 @@
           const throws = Array.isArray(data) ? data : (data.throws || data);
           const selectedThrow = throws.find(t => t.throw_number === parseInt(this.value));
           if (selectedThrow) {
-            calculateScoreAndMultiplier(selectedThrow.points);
+            if (selectedThrow.missing_details) {
+              // Clear form for missing details
+              document.getElementById('scoreInput').value = '';
+              document.getElementById('multiplierInput').value = '1';
+              document.getElementById('totalPoints').textContent = '0';
+            } else if (selectedThrow.score !== undefined && selectedThrow.multiplier !== undefined) {
+              // Use actual values
+              document.getElementById('scoreInput').value = selectedThrow.score;
+              document.getElementById('multiplierInput').value = selectedThrow.multiplier;
+              document.getElementById('totalPoints').textContent = selectedThrow.points;
+            } else {
+              // Calculate from points
+              calculateScoreAndMultiplier(selectedThrow.points);
+            }
           }
         })
         .catch(error => {
@@ -639,6 +669,13 @@
   .has-points {
     background-color: #28a745;
     color: white;
+  }
+
+  .missing-details {
+    background-color: #6c757d;
+    color: white;
+    opacity: 0.7;
+    cursor: help;
   }
 
   #currentThrowsDisplay {
