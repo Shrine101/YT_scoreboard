@@ -122,14 +122,18 @@ def update_throw():
         game_state = cursor.execute('SELECT current_turn, current_player, game_over FROM game_state WHERE id = 1').fetchone()
         current_turn = game_state['current_turn']
         current_player = game_state['current_player']
+        game_over = game_state['game_over']
         
         # Make sure the turn exists
         cursor.execute('SELECT 1 FROM turns WHERE turn_number = ?', (turn_number,))
         if not cursor.fetchone():
             cursor.execute('INSERT INTO turns (turn_number) VALUES (?)', (turn_number,))
         
+        # Check if this is a current turn override or past turn modification
+        is_current_turn_override = (turn_number == current_turn and player_id == current_player and not game_over)
+        
         # Different handling based on whether this is for the current turn or a past turn
-        if turn_number == current_turn and player_id == current_player:
+        if is_current_turn_override:
             # This is the current player's current turn
             # Update the throw in current_throws
             cursor.execute(
@@ -199,6 +203,27 @@ def update_throw():
                         
                     )
                 )
+                
+            # Check if we need to advance to the next turn/player
+            if throw_number == 3:
+                # If we're manually entering the 3rd throw, advance to the next player
+                player_count = cursor.execute('SELECT COUNT(*) as count FROM players').fetchone()['count']
+                
+                # Calculate next player and turn
+                next_player = current_player % player_count + 1  # Cycle to next player (1-based)
+                next_turn = current_turn + (1 if next_player == 1 else 0)  # Increment turn if we wrapped around
+                
+                # Update game state
+                cursor.execute(
+                    'UPDATE game_state SET current_player = ?, current_turn = ? WHERE id = 1',
+                    (next_player, next_turn)
+                )
+                
+                # Reset current throws
+                cursor.execute('UPDATE current_throws SET points = 0, score = 0, multiplier = 0')
+                
+                print(f"Manual override: Advanced to Player {next_player}, Turn {next_turn}")
+                
         else:
             # This is a past turn or different player
             # Get existing turn data
@@ -304,11 +329,19 @@ def update_throw():
         # Close connection
         conn.close()
         
-        return jsonify({
+        # Return success response with additional info for UI update
+        response_data = {
             'message': f'Throw updated successfully! Points: {points}',
             'points': points,
             'new_total': new_score
-        })
+        }
+        
+        # Add info about turn advancement if applicable
+        if is_current_turn_override and throw_number == 3:
+            response_data['advanced_turn'] = True
+            response_data['next_player'] = current_player % cursor.execute('SELECT COUNT(*) FROM players').fetchone()[0] + 1
+        
+        return jsonify(response_data)
         
     except Exception as e:
         # Log the error

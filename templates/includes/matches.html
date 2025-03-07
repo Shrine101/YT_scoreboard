@@ -474,7 +474,7 @@
         });
     });
     
-    // When the save button is clicked
+    // When the save button is clicked - UPDATED CODE
     saveOverrideBtn.addEventListener('click', function() {
       // Validate the form
       const turnNumber = turnSelect.value;
@@ -522,10 +522,48 @@
         return response.json();
       })
       .then(data => {
-        alert(data.message || 'Throw updated successfully');
+        // Determine if we should close the modal based on turn advancement
+        let closeModal = true;
         
-        // Fetch updated throw details to refresh the display
-        fetchThrowDetails(parseInt(turnNumber), parseInt(playerId));
+        // Check if the game advanced to next player
+        if (data.advanced_turn) {
+          // If the game advanced turns, close the modal as we're done with this player
+          manualOverrideModal.hide();
+          alert(`Throw updated successfully! Points: ${data.points}. Advanced to next player.`);
+        } else {
+          // If we didn't advance turns, we might want to set up for the next throw
+          const currentThrowNum = parseInt(throwNumber);
+          if (currentThrowNum < 3) {
+            // If this wasn't the third throw, ask if they want to enter the next throw
+            if (confirm(`Throw ${currentThrowNum} updated successfully! Points: ${data.points}. Would you like to enter Throw ${currentThrowNum + 1}?`)) {
+              // Set the throw selector to the next throw
+              throwSelect.value = (currentThrowNum + 1).toString();
+              
+              // Reset the form for the next throw
+              scoreInput.value = '';
+              multiplierInput.value = '1';
+              totalPoints.textContent = '0';
+              
+              // Update the throw display to show the current throw values
+              fetch(`/get_throw_details?turn_number=${turnNumber}&player_id=${playerId}`)
+                .then(response => response.json())
+                .then(throwData => {
+                  updateThrowDisplay(throwData);
+                });
+              
+              // Don't close the modal
+              closeModal = false;
+            }
+          } else {
+            // This was the third throw but didn't advance (maybe updating past data)
+            alert(`Throw updated successfully! Points: ${data.points}.`);
+          }
+        }
+        
+        // Close the modal if needed
+        if (closeModal) {
+          manualOverrideModal.hide();
+        }
         
         // Refresh the game data
         fetch('/data_json')
