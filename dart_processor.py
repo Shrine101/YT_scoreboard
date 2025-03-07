@@ -77,6 +77,42 @@ class DartProcessor:
             )
             conn.commit()
 
+    def record_throw_details(self, turn_number, player_id, throw_number, score, multiplier, points):
+        """Record the details of an individual throw in the turn_throw_details table"""
+        with self.get_game_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Check if the table exists first
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='turn_throw_details'")
+            if not cursor.fetchone():
+                # The table doesn't exist yet - this should not normally happen if initialize_db was run
+                print("Warning: turn_throw_details table doesn't exist, throw details will not be recorded")
+                return
+            
+            # Check if this throw already exists
+            cursor.execute('''
+                SELECT 1 FROM turn_throw_details 
+                WHERE turn_number = ? AND player_id = ? AND throw_number = ?
+            ''', (turn_number, player_id, throw_number))
+            
+            exists = cursor.fetchone() is not None
+            
+            if exists:
+                # Update existing throw
+                cursor.execute('''
+                    UPDATE turn_throw_details 
+                    SET score = ?, multiplier = ?, points = ?
+                    WHERE turn_number = ? AND player_id = ? AND throw_number = ?
+                ''', (score, multiplier, points, turn_number, player_id, throw_number))
+            else:
+                # Insert new throw
+                cursor.execute('''
+                    INSERT INTO turn_throw_details (turn_number, player_id, throw_number, score, multiplier, points)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (turn_number, player_id, throw_number, score, multiplier, points))
+            
+            conn.commit()
+
     def add_score_to_turn(self, turn_number, player_id, points):
         """Add or update a player's score for a specific turn"""
         with self.get_game_connection() as conn:
@@ -200,6 +236,16 @@ class DartProcessor:
         # Update the current throw
         self.update_current_throw(throw_position, points)
         
+        # Record detailed throw information
+        self.record_throw_details(
+            current_turn,    # Current turn number
+            current_player,  # Current player ID 
+            throw_position,  # Throw number (1, 2, or 3)
+            score,           # Raw score (1-20 or 25 for bullseye)
+            multiplier,      # Multiplier (1, 2, or 3)
+            points           # Total points (score * multiplier)
+        )
+        
         # Check if this completes a set of 3 throws
         if throw_position == 3 or all(t['points'] > 0 for t in current_throws):
             # For third throw, we need to set the delayed processing
@@ -263,61 +309,6 @@ class DartProcessor:
                 
                 return True
         return False
-    
-    # Add this method to the DartProcessor class in dart_processor.py
-
-    def record_throw_details(self, turn_number, player_id, throw_number, score, multiplier, points):
-        """Record the details of an individual throw in the turn_throw_details table"""
-        with self.get_game_connection() as conn:
-            cursor = conn.cursor()
-            
-            # Check if the table exists first
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='turn_throw_details'")
-            if not cursor.fetchone():
-                # The table doesn't exist yet - this should not normally happen if initialize_db was run
-                print("Warning: turn_throw_details table doesn't exist, throw details will not be recorded")
-                return
-            
-            # Check if this throw already exists
-            cursor.execute('''
-                SELECT 1 FROM turn_throw_details 
-                WHERE turn_number = ? AND player_id = ? AND throw_number = ?
-            ''', (turn_number, player_id, throw_number))
-            
-            exists = cursor.fetchone() is not None
-            
-            if exists:
-                # Update existing throw
-                cursor.execute('''
-                    UPDATE turn_throw_details 
-                    SET score = ?, multiplier = ?, points = ?
-                    WHERE turn_number = ? AND player_id = ? AND throw_number = ?
-                ''', (score, multiplier, points, turn_number, player_id, throw_number))
-            else:
-                # Insert new throw
-                cursor.execute('''
-                    INSERT INTO turn_throw_details (turn_number, player_id, throw_number, score, multiplier, points)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ''', (turn_number, player_id, throw_number, score, multiplier, points))
-            
-            conn.commit()
-
-    # Now, in the process_throw method of the DartProcessor class,
-    # add the following code after the line that updates the current throw:
-
-    # Find the line:
-    self.update_current_throw(throw_position, points)
-
-    # Add this immediately after:
-    # Record detailed throw information
-    self.record_throw_details(
-        current_turn,    # Current turn number
-        current_player,  # Current player ID 
-        throw_position,  # Throw number (1, 2, or 3)
-        score,           # Raw score (1-20 or 25 for bullseye)
-        multiplier,      # Multiplier (1, 2, or 3)
-        points           # Total points (score * multiplier)
-    )
 
     def run(self):
         """Main processing loop"""
