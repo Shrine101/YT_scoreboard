@@ -103,7 +103,7 @@ def get_valid_input(prompt, min_val, max_val, input_type=int):
 
 def main():
     # Create the database directory if it doesn't exist
-    database_path = 'simulation/cv_data.db'
+    database_path = 'cv_data.db'
     os.makedirs(os.path.dirname(database_path), exist_ok=True)
     
     dart_entry = ManualDartEntry(database_path)
