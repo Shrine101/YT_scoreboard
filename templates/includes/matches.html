@@ -53,6 +53,70 @@
       </div>
       {% endfor %}
     </div>
+    
+    <!-- Manual Override Button -->
+    <div class="row mt-3">
+      <div class="col-12 text-center">
+        <button id="manual-override-btn" class="btn btn-warning">
+          <strong>Manual Override</strong>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Manual Override Modal -->
+<div class="modal fade" id="manualOverrideModal" tabindex="-1" aria-labelledby="manualOverrideModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark text-white">
+      <div class="modal-header">
+        <h5 class="modal-title" id="manualOverrideModalLabel">Manual Throw Override</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="overrideForm">
+          <div class="mb-3">
+            <label for="turnSelect" class="form-label">Turn Number:</label>
+            <select class="form-select" id="turnSelect" required>
+              <!-- Will be populated via JavaScript -->
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="playerSelect" class="form-label">Player:</label>
+            <select class="form-select" id="playerSelect" required>
+              <!-- Will be populated via JavaScript -->
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="throwSelect" class="form-label">Throw Number:</label>
+            <select class="form-select" id="throwSelect" required>
+              <option value="1">Throw 1</option>
+              <option value="2">Throw 2</option>
+              <option value="3">Throw 3</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="scoreInput" class="form-label">Score (1-20, 25 for bullseye):</label>
+            <input type="number" class="form-control" id="scoreInput" min="1" max="25" required>
+          </div>
+          <div class="mb-3">
+            <label for="multiplierInput" class="form-label">Multiplier:</label>
+            <select class="form-select" id="multiplierInput" required>
+              <option value="1">1 (Single)</option>
+              <option value="2">2 (Double)</option>
+              <option value="3">3 (Triple)</option>
+            </select>
+          </div>
+          <div class="alert alert-info">
+            Total points: <span id="totalPoints">0</span>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveOverrideBtn">Save Changes</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -180,6 +244,178 @@
       .then(data => updateGame(data))
       .catch(error => console.error('Error fetching data:', error));
   }, 1000);
+  
+  // Manual Override functionality
+  document.addEventListener('DOMContentLoaded', function() {
+    const manualOverrideBtn = document.getElementById('manual-override-btn');
+    const saveOverrideBtn = document.getElementById('saveOverrideBtn');
+    const scoreInput = document.getElementById('scoreInput');
+    const multiplierInput = document.getElementById('multiplierInput');
+    const totalPoints = document.getElementById('totalPoints');
+    
+    // Initialize the Bootstrap modal
+    const manualOverrideModal = new bootstrap.Modal(document.getElementById('manualOverrideModal'));
+    
+    // Populate the total points when score or multiplier changes
+    function updateTotalPoints() {
+      const score = parseInt(scoreInput.value) || 0;
+      const multiplier = parseInt(multiplierInput.value) || 0;
+      totalPoints.textContent = score * multiplier;
+    }
+    
+    scoreInput.addEventListener('input', updateTotalPoints);
+    multiplierInput.addEventListener('change', updateTotalPoints);
+    
+    // When the bullseye (25) is selected, limit multiplier to 1 or 2
+    scoreInput.addEventListener('change', function() {
+      if (parseInt(this.value) === 25) {
+        // Bullseye can only have multiplier 1 or 2
+        multiplierInput.innerHTML = `
+          <option value="1">1 (Single)</option>
+          <option value="2">2 (Double)</option>
+        `;
+        
+        // If multiplier was 3, reset to 1
+        if (parseInt(multiplierInput.value) === 3) {
+          multiplierInput.value = 1;
+        }
+      } else {
+        // Regular score can have multiplier 1, 2, or 3
+        multiplierInput.innerHTML = `
+          <option value="1">1 (Single)</option>
+          <option value="2">2 (Double)</option>
+          <option value="3">3 (Triple)</option>
+        `;
+      }
+      updateTotalPoints();
+    });
+    
+    // When the manual override button is clicked
+    manualOverrideBtn.addEventListener('click', function() {
+      // Fetch current game data to populate the form
+      fetch('/data_json')
+        .then(response => response.json())
+        .then(data => {
+          // Populate turn select dropdown
+          const turnSelect = document.getElementById('turnSelect');
+          turnSelect.innerHTML = '';
+          
+          // Create options for existing turns and the current turn
+          const existingTurns = new Set(data.turns.map(turn => turn.turn_number));
+          
+          // Add current turn if not in existing turns
+          if (!existingTurns.has(data.current_turn)) {
+            existingTurns.add(data.current_turn);
+          }
+          
+          // Sort turns numerically
+          const sortedTurns = Array.from(existingTurns).sort((a, b) => a - b);
+          
+          // Add options to select
+          sortedTurns.forEach(turn => {
+            const option = document.createElement('option');
+            option.value = turn;
+            option.textContent = `Turn ${turn}`;
+            if (turn === data.current_turn) {
+              option.textContent += ' (Current)';
+              option.selected = true;
+            }
+            turnSelect.appendChild(option);
+          });
+          
+          // Populate player select dropdown
+          const playerSelect = document.getElementById('playerSelect');
+          playerSelect.innerHTML = '';
+          
+          data.players.forEach(player => {
+            const option = document.createElement('option');
+            option.value = player.id;
+            option.textContent = `${player.name} (${player.total_score})`;
+            if (player.id === data.current_player) {
+              option.textContent += ' (Current)';
+              option.selected = true;
+            }
+            playerSelect.appendChild(option);
+          });
+          
+          // Reset throw selection, score, and multiplier
+          document.getElementById('throwSelect').value = "1";
+          document.getElementById('scoreInput').value = "";
+          document.getElementById('multiplierInput').value = "1";
+          updateTotalPoints();
+          
+          // Show the modal
+          manualOverrideModal.show();
+        })
+        .catch(error => {
+          console.error('Error fetching game data:', error);
+          alert('Failed to load game data. Please try again.');
+        });
+    });
+    
+    // When the save button is clicked
+    saveOverrideBtn.addEventListener('click', function() {
+      // Validate the form
+      const turnNumber = document.getElementById('turnSelect').value;
+      const playerId = document.getElementById('playerSelect').value;
+      const throwNumber = document.getElementById('throwSelect').value;
+      const score = document.getElementById('scoreInput').value;
+      const multiplier = document.getElementById('multiplierInput').value;
+      
+      if (!turnNumber || !playerId || !throwNumber || !score || !multiplier) {
+        alert('Please fill in all fields');
+        return;
+      }
+      
+      // Validate score range
+      const scoreVal = parseInt(score);
+      if (isNaN(scoreVal) || (scoreVal < 1 || scoreVal > 20) && scoreVal !== 25) {
+        alert('Score must be between 1-20 or 25 for bullseye');
+        return;
+      }
+      
+      // Validate multiplier for bullseye
+      if (scoreVal === 25 && parseInt(multiplier) > 2) {
+        alert('Bullseye can only have a multiplier of 1 or 2');
+        return;
+      }
+      
+      // Send the update request to the server
+      fetch('/update_throw', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          turn_number: parseInt(turnNumber),
+          player_id: parseInt(playerId),
+          throw_number: parseInt(throwNumber),
+          score: scoreVal,
+          multiplier: parseInt(multiplier)
+        }),
+      })
+      .then(response => {
+        if (!response.ok) {
+          return response.json().then(err => { throw new Error(err.error || 'Unknown error'); });
+        }
+        return response.json();
+      })
+      .then(data => {
+        alert(data.message || 'Throw updated successfully');
+        manualOverrideModal.hide();
+        
+        // Refresh the game data
+        fetch('/data_json')
+          .then(response => response.json())
+          .then(gameData => updateGame(gameData))
+          .catch(error => console.error('Error fetching data:', error));
+      })
+      .catch(error => {
+        console.error('Error updating throw:', error);
+        alert(`Failed to update throw: ${error.message}`);
+      });
+    });
+  });
 </script>
 
 <style>
@@ -207,29 +443,6 @@
   color: #ffffff;
   }
   
-
-
-  /*
-  
-  Alternating row colors 
-  #scoreTable tbody tr:nth-child(odd) {
-    background-color: rgba(0, 0, 100, 0.7);
-  }
-  
-  #scoreTable tbody tr:nth-child(even) {
-    background-color: rgba(0, 0, 70, 0.7);
-  }
-  
-  Highlight the current active turn 
-  #scoreTable tbody tr.active-turn {
-    background-color: rgba(0, 100, 100, 0.5);
-  }
-  
-  Add hover effect for better UX 
-  #scoreTable tbody tr:hover {
-    background-color: rgba(50, 50, 150, 0.8);
-  }
-  */
   /*Make the totals row stand out */
   #scoreTable tfoot tr {
   font-size: 24px;
@@ -239,5 +452,10 @@
   color: #ffffff;
   }
   
-
+  /* Style for the manual override button */
+  #manual-override-btn {
+    font-size: 18px;
+    padding: 8px 16px;
+    margin-top: 15px;
+  }
 </style>

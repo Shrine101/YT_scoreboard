@@ -1,5 +1,4 @@
-from flask import Flask
-from flask import render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 import sqlite3
 import subprocess
 import threading
@@ -95,6 +94,132 @@ def data_json():
     conn.close()
     
     return jsonify(game_data)
+
+@app.route('/update_throw', methods=['POST'])
+def update_throw():
+    """Update a specific throw for a player in a turn"""
+    try:
+        # Get the data from the request
+        data = request.json
+        turn_number = data.get('turn_number')
+        player_id = data.get('player_id')
+        throw_number = data.get('throw_number')
+        score = data.get('score')
+        multiplier = data.get('multiplier')
+        
+        # Validate inputs
+        if not all([turn_number, player_id, throw_number, score, multiplier]):
+            return jsonify({'error': 'Missing required fields'}), 400
+            
+        # Calculate points
+        points = score * multiplier
+        
+        # Get connection to database
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Different handling based on whether this is for the current turn or a past turn
+        game_state = cursor.execute('SELECT current_turn, current_player FROM game_state WHERE id = 1').fetchone()
+        current_turn = game_state['current_turn']
+        current_player = game_state['current_player']
+        
+        if turn_number == current_turn and player_id == current_player:
+            # This is the current player's current turn
+            # Update the throw in current_throws
+            cursor.execute(
+                'UPDATE current_throws SET points = ? WHERE throw_number = ?',
+                (points, throw_number)
+            )
+            
+            # Get all current throws to calculate total
+            cursor.execute('SELECT SUM(points) as total_points FROM current_throws')
+            total_current_points = cursor.fetchone()['total_points'] or 0
+            
+            # Check if there's an existing score for this turn/player
+            cursor.execute(
+                'SELECT points FROM turn_scores WHERE turn_number = ? AND player_id = ?',
+                (turn_number, player_id)
+            )
+            existing_score = cursor.fetchone()
+            
+            if existing_score:
+                # Update existing score
+                cursor.execute(
+                    'UPDATE turn_scores SET points = ? WHERE turn_number = ? AND player_id = ?',
+                    (total_current_points, turn_number, player_id)
+                )
+            else:
+                # Create new score entry
+                cursor.execute(
+                    'INSERT INTO turn_scores (turn_number, player_id, points) VALUES (?, ?, ?)',
+                    (turn_number, player_id, total_current_points)
+                )
+                
+        else:
+            # This is a past turn or different player
+            # Check if the turn exists
+            cursor.execute('SELECT 1 FROM turns WHERE turn_number = ?', (turn_number,))
+            if not cursor.fetchone():
+                # Create the turn if it doesn't exist
+                cursor.execute('INSERT INTO turns (turn_number) VALUES (?)', (turn_number,))
+            
+            # Check if there's an existing score for this player in this turn
+            cursor.execute(
+                'SELECT points FROM turn_scores WHERE turn_number = ? AND player_id = ?',
+                (turn_number, player_id)
+            )
+            existing = cursor.fetchone()
+            
+            if existing:
+                # For simplicity, we'll just update the total points for this turn directly
+                # In a real scenario, you might want to track individual throws
+                cursor.execute(
+                    'UPDATE turn_scores SET points = ? WHERE turn_number = ? AND player_id = ?',
+                    (points, turn_number, player_id)
+                )
+            else:
+                # Insert new score
+                cursor.execute(
+                    'INSERT INTO turn_scores (turn_number, player_id, points) VALUES (?, ?, ?)',
+                    (turn_number, player_id, points)
+                )
+        
+        # Recalculate player's total score (301 - sum of all points)
+        cursor.execute(
+            'SELECT SUM(points) as total_points FROM turn_scores WHERE player_id = ?',
+            (player_id,)
+        )
+        total_points = cursor.fetchone()['total_points'] or 0
+        
+        # Update the player's total score
+        new_score = 301 - total_points
+        cursor.execute(
+            'UPDATE players SET total_score = ? WHERE id = ?',
+            (new_score, player_id)
+        )
+        
+        # Check if player has won (score exactly 0)
+        if new_score == 0:
+            cursor.execute('UPDATE game_state SET game_over = 1 WHERE id = 1')
+        
+        # Commit changes
+        conn.commit()
+        
+        # Close connection
+        conn.close()
+        
+        return jsonify({
+            'message': f'Throw updated successfully! Points: {points}',
+            'points': points,
+            'new_total': new_score
+        })
+        
+    except Exception as e:
+        # Log the error
+        print(f"Error updating throw: {e}")
+        
+        # Return error response
+        return jsonify({'error': str(e)}), 500
     
 
 @app.route('/')
