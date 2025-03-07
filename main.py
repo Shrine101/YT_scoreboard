@@ -317,6 +317,81 @@ def update_throw():
         return jsonify({'error': str(e)}), 500
     
 
+@app.route('/get_throw_details', methods=['GET'])
+def get_throw_details():
+    """Get details of individual throws for a specific turn and player"""
+    try:
+        turn_number = request.args.get('turn_number')
+        player_id = request.args.get('player_id')
+        
+        if not turn_number or not player_id:
+            return jsonify({'error': 'Missing turn number or player ID'}), 400
+            
+        # Parse as integers
+        turn_number = int(turn_number)
+        player_id = int(player_id)
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Check if this is the current turn for the current player
+        cursor.execute('SELECT current_turn, current_player FROM game_state WHERE id = 1')
+        game_state = cursor.fetchone()
+        is_current = (turn_number == game_state['current_turn'] and player_id == game_state['current_player'])
+        
+        throws = []
+        
+        if is_current:
+            # For current turn, get data from current_throws
+            cursor.execute('SELECT throw_number, points FROM current_throws ORDER BY throw_number')
+            throws = [dict(row) for row in cursor.fetchall()]
+        else:
+            # For past turns, check throw_details
+            cursor.execute('''
+                SELECT throw_number, points 
+                FROM throw_details 
+                WHERE turn_number = ? AND player_id = ?
+                ORDER BY throw_number
+            ''', (turn_number, player_id))
+            throws = [dict(row) for row in cursor.fetchall()]
+            
+            # If no throw details exist, get the turn total and estimate
+            if not throws:
+                cursor.execute('''
+                    SELECT points 
+                    FROM turn_scores 
+                    WHERE turn_number = ? AND player_id = ?
+                ''', (turn_number, player_id))
+                row = cursor.fetchone()
+                
+                if row:
+                    total_points = row['points']
+                    # Estimate points per throw (divide total by 3)
+                    points_per_throw = total_points // 3
+                    remainder = total_points % 3
+                    
+                    # Create estimated throws
+                    throws = [
+                        {"throw_number": 1, "points": points_per_throw + (1 if remainder > 0 else 0)},
+                        {"throw_number": 2, "points": points_per_throw + (1 if remainder > 1 else 0)},
+                        {"throw_number": 3, "points": points_per_throw}
+                    ]
+                else:
+                    # No score recorded yet, return zeros
+                    throws = [
+                        {"throw_number": 1, "points": 0},
+                        {"throw_number": 2, "points": 0},
+                        {"throw_number": 3, "points": 0}
+                    ]
+        
+        conn.close()
+        return jsonify(throws)
+        
+    except Exception as e:
+        print(f"Error getting throw details: {e}")
+        return jsonify({'error': str(e)}), 500
+    
+
 @app.route('/')
 def index():
     response = data_json()
