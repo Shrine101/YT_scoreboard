@@ -90,9 +90,7 @@
           <div class="mb-3">
             <label for="throwSelect" class="form-label">Throw Number:</label>
             <select class="form-select" id="throwSelect" required>
-              <option value="1">Throw 1</option>
-              <option value="2">Throw 2</option>
-              <option value="3">Throw 3</option>
+              <!-- Will be populated with current throw values -->
             </select>
           </div>
           <div class="mb-3">
@@ -237,6 +235,103 @@
     }, 2000);
   }
   
+  // Function to fetch throw details for a turn and player
+  function fetchThrowDetails(turnNumber, playerId) {
+    fetch(`/get_throw_details?turn_number=${turnNumber}&player_id=${playerId}`)
+      .then(response => response.json())
+      .then(throws => {
+        // Update the UI to show the throw details
+        const throwSelect = document.getElementById('throwSelect');
+        
+        // Save current selection if any
+        const currentSelection = throwSelect.value;
+        
+        // Clear existing options
+        throwSelect.innerHTML = '';
+        
+        // Add options with the current throw points
+        throws.forEach(throwData => {
+          const option = document.createElement('option');
+          option.value = throwData.throw_number;
+          option.textContent = `Throw ${throwData.throw_number} (${throwData.points} points)`;
+          throwSelect.appendChild(option);
+        });
+        
+        // Restore selection if possible, otherwise select the first throw
+        if (currentSelection && throwSelect.querySelector(`option[value="${currentSelection}"]`)) {
+          throwSelect.value = currentSelection;
+        } else if (throws.length > 0) {
+          throwSelect.value = throws[0].throw_number;
+        }
+        
+        // Update the form with the selected throw's details
+        const selectedThrow = throws.find(t => t.throw_number === parseInt(throwSelect.value));
+        if (selectedThrow) {
+          calculateScoreAndMultiplier(selectedThrow.points);
+        }
+      })
+      .catch(error => {
+        console.error('Error fetching throw details:', error);
+      });
+  }
+
+  // Function to estimate score and multiplier from points
+  function calculateScoreAndMultiplier(points) {
+    const scoreInput = document.getElementById('scoreInput');
+    const multiplierInput = document.getElementById('multiplierInput');
+    
+    if (points === 0) {
+      // No throw data yet
+      scoreInput.value = '';
+      multiplierInput.value = '1';
+      return;
+    }
+    
+    // Try to determine if it's a bullseye (25 or 50)
+    if (points === 25) {
+      scoreInput.value = '25';
+      multiplierInput.value = '1';
+      return;
+    } else if (points === 50) {
+      scoreInput.value = '25';
+      multiplierInput.value = '2';
+      return;
+    }
+    
+    // Try to find a reasonable guess for score and multiplier
+    // Check for triples first (most distinctive)
+    for (let score = 1; score <= 20; score++) {
+      if (score * 3 === points) {
+        scoreInput.value = score;
+        multiplierInput.value = '3';
+        return;
+      }
+    }
+    
+    // Check for doubles
+    for (let score = 1; score <= 20; score++) {
+      if (score * 2 === points) {
+        scoreInput.value = score;
+        multiplierInput.value = '2';
+        return;
+      }
+    }
+    
+    // Must be a single
+    if (points >= 1 && points <= 20) {
+      scoreInput.value = points;
+      multiplierInput.value = '1';
+      return;
+    }
+    
+    // If we can't determine a clean value, just set the points
+    scoreInput.value = points;
+    multiplierInput.value = '1';
+    
+    // Update total points display
+    updateTotalPoints();
+  }
+  
   // Set up polling for updates
   setInterval(function() {
     fetch('/data_json')
@@ -252,6 +347,9 @@
     const scoreInput = document.getElementById('scoreInput');
     const multiplierInput = document.getElementById('multiplierInput');
     const totalPoints = document.getElementById('totalPoints');
+    const turnSelect = document.getElementById('turnSelect');
+    const playerSelect = document.getElementById('playerSelect');
+    const throwSelect = document.getElementById('throwSelect');
     
     // Initialize the Bootstrap modal
     const manualOverrideModal = new bootstrap.Modal(document.getElementById('manualOverrideModal'));
@@ -290,6 +388,38 @@
       updateTotalPoints();
     });
     
+    // When turn selection changes
+    turnSelect.addEventListener('change', function() {
+      const turnNumber = parseInt(this.value);
+      const playerId = parseInt(playerSelect.value);
+      fetchThrowDetails(turnNumber, playerId);
+    });
+
+    // When player selection changes
+    playerSelect.addEventListener('change', function() {
+      const playerId = parseInt(this.value);
+      const turnNumber = parseInt(turnSelect.value);
+      fetchThrowDetails(turnNumber, playerId);
+    });
+
+    // When throw selection changes
+    throwSelect.addEventListener('change', function() {
+      const turnNumber = parseInt(turnSelect.value);
+      const playerId = parseInt(playerSelect.value);
+      
+      fetch(`/get_throw_details?turn_number=${turnNumber}&player_id=${playerId}`)
+        .then(response => response.json())
+        .then(throws => {
+          const selectedThrow = throws.find(t => t.throw_number === parseInt(this.value));
+          if (selectedThrow) {
+            calculateScoreAndMultiplier(selectedThrow.points);
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching throw details:', error);
+        });
+    });
+    
     // When the manual override button is clicked
     manualOverrideBtn.addEventListener('click', function() {
       // Fetch current game data to populate the form
@@ -297,7 +427,6 @@
         .then(response => response.json())
         .then(data => {
           // Populate turn select dropdown
-          const turnSelect = document.getElementById('turnSelect');
           turnSelect.innerHTML = '';
           
           // Create options for existing turns and the current turn
@@ -324,7 +453,6 @@
           });
           
           // Populate player select dropdown
-          const playerSelect = document.getElementById('playerSelect');
           playerSelect.innerHTML = '';
           
           data.players.forEach(player => {
@@ -338,11 +466,10 @@
             playerSelect.appendChild(option);
           });
           
-          // Reset throw selection, score, and multiplier
-          document.getElementById('throwSelect').value = "1";
-          document.getElementById('scoreInput').value = "";
-          document.getElementById('multiplierInput').value = "1";
-          updateTotalPoints();
+          // Fetch throw details for the selected turn/player
+          const initialTurnNumber = parseInt(turnSelect.value);
+          const initialPlayerId = parseInt(playerSelect.value);
+          fetchThrowDetails(initialTurnNumber, initialPlayerId);
           
           // Show the modal
           manualOverrideModal.show();
@@ -356,11 +483,11 @@
     // When the save button is clicked
     saveOverrideBtn.addEventListener('click', function() {
       // Validate the form
-      const turnNumber = document.getElementById('turnSelect').value;
-      const playerId = document.getElementById('playerSelect').value;
-      const throwNumber = document.getElementById('throwSelect').value;
-      const score = document.getElementById('scoreInput').value;
-      const multiplier = document.getElementById('multiplierInput').value;
+      const turnNumber = turnSelect.value;
+      const playerId = playerSelect.value;
+      const throwNumber = throwSelect.value;
+      const score = scoreInput.value;
+      const multiplier = multiplierInput.value;
       
       if (!turnNumber || !playerId || !throwNumber || !score || !multiplier) {
         alert('Please fill in all fields');
