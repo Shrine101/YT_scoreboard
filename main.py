@@ -157,32 +157,127 @@ def update_throw():
                 
         else:
             # This is a past turn or different player
-            # Check if the turn exists
-            cursor.execute('SELECT 1 FROM turns WHERE turn_number = ?', (turn_number,))
-            if not cursor.fetchone():
-                # Create the turn if it doesn't exist
-                cursor.execute('INSERT INTO turns (turn_number) VALUES (?)', (turn_number,))
+            # For past turns, we need a different approach since we don't store individual throws
             
-            # Check if there's an existing score for this player in this turn
+            # First, retrieve any existing turn data
             cursor.execute(
                 'SELECT points FROM turn_scores WHERE turn_number = ? AND player_id = ?',
                 (turn_number, player_id)
             )
-            existing = cursor.fetchone()
+            existing_turn = cursor.fetchone()
             
-            if existing:
-                # For simplicity, we'll just update the total points for this turn directly
-                # In a real scenario, you might want to track individual throws
-                cursor.execute(
-                    'UPDATE turn_scores SET points = ? WHERE turn_number = ? AND player_id = ?',
-                    (points, turn_number, player_id)
-                )
-            else:
-                # Insert new score
+            # If this is a completely new turn entry, just insert the points for one throw
+            if not existing_turn:
+                # Make sure the turn exists in the turns table
+                cursor.execute('SELECT 1 FROM turns WHERE turn_number = ?', (turn_number,))
+                if not cursor.fetchone():
+                    cursor.execute('INSERT INTO turns (turn_number) VALUES (?)', (turn_number,))
+                
+                # Insert the new score with just this throw's points
                 cursor.execute(
                     'INSERT INTO turn_scores (turn_number, player_id, points) VALUES (?, ?, ?)',
                     (turn_number, player_id, points)
                 )
+            else:
+                # We need to retrieve the old throw value and replace it with the new one
+                
+                # First, get the current total points for this turn
+                current_total = existing_turn['points']
+                
+                # We need to determine what portion of the total to replace
+                # Get all three throw values from temporary storage or from the user
+                
+                # For this implementation, we'll temporarily store individual throw values 
+                # in a new table called throw_details
+                
+                # Check if we already have throw details for this turn/player
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS throw_details (
+                        turn_number INTEGER,
+                        player_id INTEGER,
+                        throw_number INTEGER,
+                        points INTEGER,
+                        PRIMARY KEY (turn_number, player_id, throw_number)
+                    )
+                ''')
+                
+                # Check if this specific throw already exists in our details table
+                cursor.execute(
+                    'SELECT points FROM throw_details WHERE turn_number = ? AND player_id = ? AND throw_number = ?',
+                    (turn_number, player_id, throw_number)
+                )
+                existing_throw = cursor.fetchone()
+                
+                if existing_throw:
+                    # Calculate the adjustment to the total
+                    old_points = existing_throw['points']
+                    point_difference = points - old_points
+                    
+                    # Update the total score with the difference
+                    new_total = current_total + point_difference
+                    
+                    # Update the throw details
+                    cursor.execute(
+                        'UPDATE throw_details SET points = ? WHERE turn_number = ? AND player_id = ? AND throw_number = ?',
+                        (points, turn_number, player_id, throw_number)
+                    )
+                    
+                    # Update the turn_scores with the new total
+                    cursor.execute(
+                        'UPDATE turn_scores SET points = ? WHERE turn_number = ? AND player_id = ?',
+                        (new_total, turn_number, player_id)
+                    )
+                else:
+                    # We don't have details for this throw yet
+                    # Need to determine if we have other throws for this turn
+                    cursor.execute(
+                        'SELECT COUNT(*) as count FROM throw_details WHERE turn_number = ? AND player_id = ?',
+                        (turn_number, player_id)
+                    )
+                    throw_count = cursor.fetchone()['count']
+                    
+                    if throw_count == 0:
+                        # First throw we're tracking for this turn
+                        # Create entries for all three throws
+                        # Estimate points per throw (divide total by 3)
+                        points_per_throw = current_total // 3
+                        
+                        # Insert all three with default values
+                        for t in range(1, 4):
+                            default_points = points if t == int(throw_number) else points_per_throw
+                            cursor.execute(
+                                'INSERT INTO throw_details (turn_number, player_id, throw_number, points) VALUES (?, ?, ?, ?)',
+                                (turn_number, player_id, t, default_points)
+                            )
+                        
+                        # Calculate new total (replacing one of the thirds with the actual score)
+                        new_total = current_total - points_per_throw + points
+                        
+                        # Update the turn_scores with the new total
+                        cursor.execute(
+                            'UPDATE turn_scores SET points = ? WHERE turn_number = ? AND player_id = ?',
+                            (new_total, turn_number, player_id)
+                        )
+                    else:
+                        # We have some throws but not this one
+                        # Insert this throw
+                        cursor.execute(
+                            'INSERT INTO throw_details (turn_number, player_id, throw_number, points) VALUES (?, ?, ?, ?)',
+                            (turn_number, player_id, throw_number, points)
+                        )
+                        
+                        # Get sum of all throws we know about
+                        cursor.execute(
+                            'SELECT SUM(points) as known_total FROM throw_details WHERE turn_number = ? AND player_id = ?',
+                            (turn_number, player_id)
+                        )
+                        known_total = cursor.fetchone()['known_total']
+                        
+                        # Update the turn_scores with the new total
+                        cursor.execute(
+                            'UPDATE turn_scores SET points = ? WHERE turn_number = ? AND player_id = ?',
+                            (known_total, turn_number, player_id)
+                        )
         
         # Recalculate player's total score (301 - sum of all points)
         cursor.execute(
