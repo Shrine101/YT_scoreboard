@@ -118,166 +118,167 @@ def update_throw():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Different handling based on whether this is for the current turn or a past turn
-        game_state = cursor.execute('SELECT current_turn, current_player FROM game_state WHERE id = 1').fetchone()
+        # Get current game state
+        game_state = cursor.execute('SELECT current_turn, current_player, game_over FROM game_state WHERE id = 1').fetchone()
         current_turn = game_state['current_turn']
         current_player = game_state['current_player']
         
+        # Make sure the turn exists
+        cursor.execute('SELECT 1 FROM turns WHERE turn_number = ?', (turn_number,))
+        if not cursor.fetchone():
+            cursor.execute('INSERT INTO turns (turn_number) VALUES (?)', (turn_number,))
+        
+        # Different handling based on whether this is for the current turn or a past turn
         if turn_number == current_turn and player_id == current_player:
             # This is the current player's current turn
             # Update the throw in current_throws
             cursor.execute(
-                'UPDATE current_throws SET points = ? WHERE throw_number = ?',
-                (points, throw_number)
+                'UPDATE current_throws SET score = ?, multiplier = ?, points = ? WHERE throw_number = ?',
+                (score, multiplier, points, throw_number)
             )
             
-            # Get all current throws to calculate total
+            # Calculate total points for current throws
             cursor.execute('SELECT SUM(points) as total_points FROM current_throws')
             total_current_points = cursor.fetchone()['total_points'] or 0
             
             # Check if there's an existing score for this turn/player
             cursor.execute(
-                'SELECT points FROM turn_scores WHERE turn_number = ? AND player_id = ?',
+                'SELECT 1 FROM turn_scores WHERE turn_number = ? AND player_id = ?',
                 (turn_number, player_id)
             )
-            existing_score = cursor.fetchone()
             
-            if existing_score:
-                # Update existing score
+            if cursor.fetchone():
+                # Get current throw details
                 cursor.execute(
-                    'UPDATE turn_scores SET points = ? WHERE turn_number = ? AND player_id = ?',
-                    (total_current_points, turn_number, player_id)
+                    '''SELECT 
+                        throw_number, score, multiplier, points 
+                    FROM current_throws 
+                    ORDER BY throw_number'''
+                )
+                throw_details = cursor.fetchall()
+                
+                # Update existing score with all throw details
+                cursor.execute(
+                    '''UPDATE turn_scores 
+                    SET points = ?,
+                        throw1 = ?, throw1_multiplier = ?, throw1_points = ?,
+                        throw2 = ?, throw2_multiplier = ?, throw2_points = ?,
+                        throw3 = ?, throw3_multiplier = ?, throw3_points = ?
+                    WHERE turn_number = ? AND player_id = ?''',
+                    (
+                        total_current_points,
+                        throw_details[0]['score'], throw_details[0]['multiplier'], throw_details[0]['points'],
+                        throw_details[1]['score'], throw_details[1]['multiplier'], throw_details[1]['points'],
+                        throw_details[2]['score'], throw_details[2]['multiplier'], throw_details[2]['points'],
+                        turn_number, player_id
+                    )
                 )
             else:
-                # Create new score entry
+                # Get current throw details
                 cursor.execute(
-                    'INSERT INTO turn_scores (turn_number, player_id, points) VALUES (?, ?, ?)',
-                    (turn_number, player_id, total_current_points)
+                    '''SELECT 
+                        throw_number, score, multiplier, points 
+                    FROM current_throws 
+                    ORDER BY throw_number'''
                 )
+                throw_details = cursor.fetchall()
                 
+                # Insert new score entry with all throw details
+                cursor.execute(
+                    '''INSERT INTO turn_scores (
+                        turn_number, player_id, points,
+                        throw1, throw1_multiplier, throw1_points,
+                        throw2, throw2_multiplier, throw2_points,
+                        throw3, throw3_multiplier, throw3_points
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                    (
+                        turn_number, player_id, total_current_points,
+                        throw_details[0]['score'], throw_details[0]['multiplier'], throw_details[0]['points'],
+                        throw_details[1]['score'], throw_details[1]['multiplier'], throw_details[1]['points'],
+                        throw_details[2]['score'], throw_details[2]['multiplier'], throw_details[2]['points'],
+                        
+                    )
+                )
         else:
             # This is a past turn or different player
-            # For past turns, we need a different approach since we don't store individual throws
-            
-            # First, retrieve any existing turn data
+            # Get existing turn data
             cursor.execute(
-                'SELECT points FROM turn_scores WHERE turn_number = ? AND player_id = ?',
+                '''SELECT 
+                    throw1, throw1_multiplier, throw1_points,
+                    throw2, throw2_multiplier, throw2_points,
+                    throw3, throw3_multiplier, throw3_points,
+                    points
+                FROM turn_scores 
+                WHERE turn_number = ? AND player_id = ?''',
                 (turn_number, player_id)
             )
-            existing_turn = cursor.fetchone()
             
-            # If this is a completely new turn entry, just insert the points for one throw
-            if not existing_turn:
-                # Make sure the turn exists in the turns table
-                cursor.execute('SELECT 1 FROM turns WHERE turn_number = ?', (turn_number,))
-                if not cursor.fetchone():
-                    cursor.execute('INSERT INTO turns (turn_number) VALUES (?)', (turn_number,))
+            row = cursor.fetchone()
+            
+            if row:
+                # Update the specific throw while keeping other throws the same
+                throw_column = f'throw{throw_number}'
+                multiplier_column = f'throw{throw_number}_multiplier'
+                points_column = f'throw{throw_number}_points'
                 
-                # Insert the new score with just this throw's points
+                # Calculate new total points
+                old_throw_points = row[points_column]
+                new_total_points = row['points'] - old_throw_points + points
+                
+                # Update query with specific throw fields
+                update_query = f'''
+                UPDATE turn_scores 
+                SET {throw_column} = ?, 
+                    {multiplier_column} = ?, 
+                    {points_column} = ?,
+                    points = ?
+                WHERE turn_number = ? AND player_id = ?
+                '''
+                
                 cursor.execute(
-                    'INSERT INTO turn_scores (turn_number, player_id, points) VALUES (?, ?, ?)',
-                    (turn_number, player_id, points)
+                    update_query,
+                    (score, multiplier, points, new_total_points, turn_number, player_id)
                 )
             else:
-                # We need to retrieve the old throw value and replace it with the new one
+                # Create a new record with just this throw
+                throw1 = 0
+                throw1_multiplier = 0
+                throw1_points = 0
+                throw2 = 0
+                throw2_multiplier = 0
+                throw2_points = 0
+                throw3 = 0
+                throw3_multiplier = 0
+                throw3_points = 0
                 
-                # First, get the current total points for this turn
-                current_total = existing_turn['points']
+                # Set the appropriate throw values
+                if throw_number == 1:
+                    throw1 = score
+                    throw1_multiplier = multiplier
+                    throw1_points = points
+                elif throw_number == 2:
+                    throw2 = score
+                    throw2_multiplier = multiplier
+                    throw2_points = points
+                elif throw_number == 3:
+                    throw3 = score
+                    throw3_multiplier = multiplier
+                    throw3_points = points
                 
-                # We need to determine what portion of the total to replace
-                # Get all three throw values from temporary storage or from the user
-                
-                # For this implementation, we'll temporarily store individual throw values 
-                # in a new table called throw_details
-                
-                # Check if we already have throw details for this turn/player
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS throw_details (
-                        turn_number INTEGER,
-                        player_id INTEGER,
-                        throw_number INTEGER,
-                        points INTEGER,
-                        PRIMARY KEY (turn_number, player_id, throw_number)
-                    )
-                ''')
-                
-                # Check if this specific throw already exists in our details table
                 cursor.execute(
-                    'SELECT points FROM throw_details WHERE turn_number = ? AND player_id = ? AND throw_number = ?',
-                    (turn_number, player_id, throw_number)
+                    '''INSERT INTO turn_scores (
+                        turn_number, player_id, points,
+                        throw1, throw1_multiplier, throw1_points,
+                        throw2, throw2_multiplier, throw2_points,
+                        throw3, throw3_multiplier, throw3_points
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                    (
+                        turn_number, player_id, points,
+                        throw1, throw1_multiplier, throw1_points,
+                        throw2, throw2_multiplier, throw2_points,
+                        throw3, throw3_multiplier, throw3_points
+                    )
                 )
-                existing_throw = cursor.fetchone()
-                
-                if existing_throw:
-                    # Calculate the adjustment to the total
-                    old_points = existing_throw['points']
-                    point_difference = points - old_points
-                    
-                    # Update the total score with the difference
-                    new_total = current_total + point_difference
-                    
-                    # Update the throw details
-                    cursor.execute(
-                        'UPDATE throw_details SET points = ? WHERE turn_number = ? AND player_id = ? AND throw_number = ?',
-                        (points, turn_number, player_id, throw_number)
-                    )
-                    
-                    # Update the turn_scores with the new total
-                    cursor.execute(
-                        'UPDATE turn_scores SET points = ? WHERE turn_number = ? AND player_id = ?',
-                        (new_total, turn_number, player_id)
-                    )
-                else:
-                    # We don't have details for this throw yet
-                    # Need to determine if we have other throws for this turn
-                    cursor.execute(
-                        'SELECT COUNT(*) as count FROM throw_details WHERE turn_number = ? AND player_id = ?',
-                        (turn_number, player_id)
-                    )
-                    throw_count = cursor.fetchone()['count']
-                    
-                    if throw_count == 0:
-                        # First throw we're tracking for this turn
-                        # Create entries for all three throws
-                        # Estimate points per throw (divide total by 3)
-                        points_per_throw = current_total // 3
-                        
-                        # Insert all three with default values
-                        for t in range(1, 4):
-                            default_points = points if t == int(throw_number) else points_per_throw
-                            cursor.execute(
-                                'INSERT INTO throw_details (turn_number, player_id, throw_number, points) VALUES (?, ?, ?, ?)',
-                                (turn_number, player_id, t, default_points)
-                            )
-                        
-                        # Calculate new total (replacing one of the thirds with the actual score)
-                        new_total = current_total - points_per_throw + points
-                        
-                        # Update the turn_scores with the new total
-                        cursor.execute(
-                            'UPDATE turn_scores SET points = ? WHERE turn_number = ? AND player_id = ?',
-                            (new_total, turn_number, player_id)
-                        )
-                    else:
-                        # We have some throws but not this one
-                        # Insert this throw
-                        cursor.execute(
-                            'INSERT INTO throw_details (turn_number, player_id, throw_number, points) VALUES (?, ?, ?, ?)',
-                            (turn_number, player_id, throw_number, points)
-                        )
-                        
-                        # Get sum of all throws we know about
-                        cursor.execute(
-                            'SELECT SUM(points) as known_total FROM throw_details WHERE turn_number = ? AND player_id = ?',
-                            (turn_number, player_id)
-                        )
-                        known_total = cursor.fetchone()['known_total']
-                        
-                        # Update the turn_scores with the new total
-                        cursor.execute(
-                            'UPDATE turn_scores SET points = ? WHERE turn_number = ? AND player_id = ?',
-                            (known_total, turn_number, player_id)
-                        )
         
         # Recalculate player's total score (301 - sum of all points)
         cursor.execute(
@@ -343,61 +344,35 @@ def get_throw_details():
         
         if is_current:
             # For current turn, get data from current_throws
-            cursor.execute('SELECT throw_number, points FROM current_throws ORDER BY throw_number')
+            cursor.execute('SELECT throw_number, score, multiplier, points FROM current_throws ORDER BY throw_number')
             throws = [dict(row) for row in cursor.fetchall()]
-            
-            # Enhance with score and multiplier data if available
-            for throw in throws:
-                cursor.execute('''
-                    SELECT score, multiplier 
-                    FROM turn_throw_details 
-                    WHERE turn_number = ? AND player_id = ? AND throw_number = ?
-                ''', (turn_number, player_id, throw.get('throw_number')))
-                
-                details = cursor.fetchone()
-                if details:
-                    throw['score'] = details['score']
-                    throw['multiplier'] = details['multiplier']
         else:
-            # For past turns, get the detailed throw data if it exists
+            # For past turns, get from turn_scores
             cursor.execute('''
-                SELECT throw_number, score, multiplier, points
-                FROM turn_throw_details
+                SELECT 
+                    throw1 as score1, throw1_multiplier as multiplier1, throw1_points as points1,
+                    throw2 as score2, throw2_multiplier as multiplier2, throw2_points as points2,
+                    throw3 as score3, throw3_multiplier as multiplier3, throw3_points as points3
+                FROM turn_scores 
                 WHERE turn_number = ? AND player_id = ?
-                ORDER BY throw_number
             ''', (turn_number, player_id))
             
-            throws = [dict(row) for row in cursor.fetchall()]
+            row = cursor.fetchone()
             
-            # If no detailed throws exist, check if the turn exists in turn_scores
-            if not throws:
-                cursor.execute('''
-                    SELECT points 
-                    FROM turn_scores 
-                    WHERE turn_number = ? AND player_id = ?
-                ''', (turn_number, player_id))
-                
-                turn_score = cursor.fetchone()
-                
-                # If the turn exists but has no throw details
-                if turn_score:
-                    # Create empty throws just to indicate the turn exists
-                    throws = [
-                        {"throw_number": 1, "points": 0, "score": 0, "multiplier": 0},
-                        {"throw_number": 2, "points": 0, "score": 0, "multiplier": 0},
-                        {"throw_number": 3, "points": 0, "score": 0, "multiplier": 0}
-                    ]
-                    
-                    # Add a property to indicate missing details
-                    for throw in throws:
-                        throw['missing_details'] = True
-                else:
-                    # No turn exists at all, return empty throws
-                    throws = [
-                        {"throw_number": 1, "points": 0, "score": 0, "multiplier": 0},
-                        {"throw_number": 2, "points": 0, "score": 0, "multiplier": 0},
-                        {"throw_number": 3, "points": 0, "score": 0, "multiplier": 0}
-                    ]
+            if row:
+                # Convert row data to throw objects
+                throws = [
+                    {"throw_number": 1, "score": row['score1'], "multiplier": row['multiplier1'], "points": row['points1']},
+                    {"throw_number": 2, "score": row['score2'], "multiplier": row['multiplier2'], "points": row['points2']},
+                    {"throw_number": 3, "score": row['score3'], "multiplier": row['multiplier3'], "points": row['points3']}
+                ]
+            else:
+                # No data found, return empty throws
+                throws = [
+                    {"throw_number": 1, "score": 0, "multiplier": 0, "points": 0},
+                    {"throw_number": 2, "score": 0, "multiplier": 0, "points": 0},
+                    {"throw_number": 3, "score": 0, "multiplier": 0, "points": 0}
+                ]
         
         conn.close()
         return jsonify(throws)

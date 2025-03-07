@@ -57,7 +57,7 @@ class DartProcessor:
             state = cursor.fetchone()
             
             # Get current throws
-            cursor.execute('SELECT throw_number, points FROM current_throws ORDER BY throw_number')
+            cursor.execute('SELECT throw_number, points, score, multiplier FROM current_throws ORDER BY throw_number')
             throws = [dict(throw) for throw in cursor.fetchall()]
             
             return {
@@ -67,54 +67,18 @@ class DartProcessor:
                 'current_throws': throws
             }
 
-    def update_current_throw(self, throw_number, points):
-        """Update a specific throw in the current_throws table"""
+    def update_current_throw(self, throw_number, score, multiplier, points):
+        """Update a specific throw in the current_throws table with score, multiplier and points"""
         with self.get_game_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                'UPDATE current_throws SET points = ? WHERE throw_number = ?',
-                (points, throw_number)
+                'UPDATE current_throws SET score = ?, multiplier = ?, points = ? WHERE throw_number = ?',
+                (score, multiplier, points, throw_number)
             )
             conn.commit()
 
-    def record_throw_details(self, turn_number, player_id, throw_number, score, multiplier, points):
-        """Record the details of an individual throw in the turn_throw_details table"""
-        with self.get_game_connection() as conn:
-            cursor = conn.cursor()
-            
-            # Check if the table exists first
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='turn_throw_details'")
-            if not cursor.fetchone():
-                # The table doesn't exist yet - this should not normally happen if initialize_db was run
-                print("Warning: turn_throw_details table doesn't exist, throw details will not be recorded")
-                return
-            
-            # Check if this throw already exists
-            cursor.execute('''
-                SELECT 1 FROM turn_throw_details 
-                WHERE turn_number = ? AND player_id = ? AND throw_number = ?
-            ''', (turn_number, player_id, throw_number))
-            
-            exists = cursor.fetchone() is not None
-            
-            if exists:
-                # Update existing throw
-                cursor.execute('''
-                    UPDATE turn_throw_details 
-                    SET score = ?, multiplier = ?, points = ?
-                    WHERE turn_number = ? AND player_id = ? AND throw_number = ?
-                ''', (score, multiplier, points, turn_number, player_id, throw_number))
-            else:
-                # Insert new throw
-                cursor.execute('''
-                    INSERT INTO turn_throw_details (turn_number, player_id, throw_number, score, multiplier, points)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ''', (turn_number, player_id, throw_number, score, multiplier, points))
-            
-            conn.commit()
-
-    def add_score_to_turn(self, turn_number, player_id, points):
-        """Add or update a player's score for a specific turn"""
+    def add_score_to_turn(self, turn_number, player_id, total_points, current_throws):
+        """Add or update a player's score for a specific turn with individual throw details"""
         with self.get_game_connection() as conn:
             cursor = conn.cursor()
             
@@ -122,6 +86,14 @@ class DartProcessor:
             cursor.execute('SELECT 1 FROM turns WHERE turn_number = ?', (turn_number,))
             if not cursor.fetchone():
                 cursor.execute('INSERT INTO turns (turn_number) VALUES (?)', (turn_number,))
+            
+            # Map throws to their respective columns
+            throw_columns = {}
+            for throw in current_throws:
+                throw_num = throw['throw_number']
+                throw_columns[f'throw{throw_num}'] = throw['score']
+                throw_columns[f'throw{throw_num}_multiplier'] = throw['multiplier']
+                throw_columns[f'throw{throw_num}_points'] = throw['points']
             
             # Check if player already has a score for this turn
             cursor.execute(
@@ -131,16 +103,43 @@ class DartProcessor:
             existing = cursor.fetchone()
             
             if existing:
-                # Update existing score
+                # Update existing score with individual throw details
+                update_query = '''
+                UPDATE turn_scores 
+                SET points = ?, 
+                    throw1 = ?, throw1_multiplier = ?, throw1_points = ?,
+                    throw2 = ?, throw2_multiplier = ?, throw2_points = ?,
+                    throw3 = ?, throw3_multiplier = ?, throw3_points = ?
+                WHERE turn_number = ? AND player_id = ?
+                '''
                 cursor.execute(
-                    'UPDATE turn_scores SET points = ? WHERE turn_number = ? AND player_id = ?',
-                    (points, turn_number, player_id)
+                    update_query,
+                    (
+                        total_points,
+                        throw_columns.get('throw1', 0), throw_columns.get('throw1_multiplier', 0), throw_columns.get('throw1_points', 0),
+                        throw_columns.get('throw2', 0), throw_columns.get('throw2_multiplier', 0), throw_columns.get('throw2_points', 0),
+                        throw_columns.get('throw3', 0), throw_columns.get('throw3_multiplier', 0), throw_columns.get('throw3_points', 0),
+                        turn_number, player_id
+                    )
                 )
             else:
-                # Insert new score
+                # Insert new score with individual throw details
+                insert_query = '''
+                INSERT INTO turn_scores (
+                    turn_number, player_id, points,
+                    throw1, throw1_multiplier, throw1_points,
+                    throw2, throw2_multiplier, throw2_points,
+                    throw3, throw3_multiplier, throw3_points
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                '''
                 cursor.execute(
-                    'INSERT INTO turn_scores (turn_number, player_id, points) VALUES (?, ?, ?)',
-                    (turn_number, player_id, points)
+                    insert_query,
+                    (
+                        turn_number, player_id, total_points,
+                        throw_columns.get('throw1', 0), throw_columns.get('throw1_multiplier', 0), throw_columns.get('throw1_points', 0),
+                        throw_columns.get('throw2', 0), throw_columns.get('throw2_multiplier', 0), throw_columns.get('throw2_points', 0),
+                        throw_columns.get('throw3', 0), throw_columns.get('throw3_multiplier', 0), throw_columns.get('throw3_points', 0)
+                    )
                 )
             
             # Update player's total score - MODIFIED for 301 game
@@ -149,10 +148,10 @@ class DartProcessor:
                 'SELECT SUM(points) as total_points FROM turn_scores WHERE player_id = ?',
                 (player_id,)
             )
-            total_points = cursor.fetchone()['total_points'] or 0
+            total_player_points = cursor.fetchone()['total_points'] or 0
             
             # Subtract from 301 to get current score
-            new_score = 301 - total_points
+            new_score = 301 - total_player_points
             
             # Update player's total score
             cursor.execute(
@@ -198,7 +197,7 @@ class DartProcessor:
             )
             
             # Reset current throws
-            cursor.execute('UPDATE current_throws SET points = 0')
+            cursor.execute('UPDATE current_throws SET points = 0, score = 0, multiplier = 0')
             
             conn.commit()
             
@@ -233,18 +232,8 @@ class DartProcessor:
                 throw_position = t['throw_number']
                 break
         
-        # Update the current throw
-        self.update_current_throw(throw_position, points)
-        
-        # Record detailed throw information
-        self.record_throw_details(
-            current_turn,    # Current turn number
-            current_player,  # Current player ID 
-            throw_position,  # Throw number (1, 2, or 3)
-            score,           # Raw score (1-20 or 25 for bullseye)
-            multiplier,      # Multiplier (1, 2, or 3)
-            points           # Total points (score * multiplier)
-        )
+        # Update the current throw with score, multiplier, and points
+        self.update_current_throw(throw_position, score, multiplier, points)
         
         # Check if this completes a set of 3 throws
         if throw_position == 3 or all(t['points'] > 0 for t in current_throws):
@@ -259,6 +248,7 @@ class DartProcessor:
                 if throw_position == 3:
                     total_points += points
                 
+                # Refresh current_throws to include the latest throw
                 self.third_throw_data = {
                     'current_turn': current_turn,
                     'current_player': current_player,
@@ -281,11 +271,15 @@ class DartProcessor:
             if elapsed >= 3.0:
                 print(f"Completing third throw processing after {elapsed:.1f}s delay")
                 
-                # Add score to turn_scores
+                # Get current game state to get the updated current_throws
+                game_state = self.get_current_game_state()
+                
+                # Add score to turn_scores with all throw details
                 self.add_score_to_turn(
                     self.third_throw_data['current_turn'],
                     self.third_throw_data['current_player'],
-                    self.third_throw_data['total_points']
+                    self.third_throw_data['total_points'],
+                    game_state['current_throws']
                 )
                 
                 # Check game state again to see if the game is over after scoring

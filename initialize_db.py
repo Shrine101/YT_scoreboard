@@ -20,12 +20,6 @@ def initialize_database():
             
             if tables_exist:
                 print("Clearing existing data...")
-                # Before deleting data, check if turn_throw_details table exists
-                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='turn_throw_details'")
-                if cursor.fetchone():
-                    # Clear the new table first (foreign key constraint)
-                    cursor.execute("DELETE FROM turn_throw_details")
-                
                 # Clear existing data instead of removing the database
                 cursor.execute("DELETE FROM turn_scores")
                 cursor.execute("DELETE FROM current_throws")
@@ -54,6 +48,15 @@ def initialize_database():
                     turn_number INTEGER,
                     player_id INTEGER,
                     points INTEGER NOT NULL,
+                    throw1 INTEGER DEFAULT 0,
+                    throw2 INTEGER DEFAULT 0,
+                    throw3 INTEGER DEFAULT 0,
+                    throw1_multiplier INTEGER DEFAULT 0,
+                    throw2_multiplier INTEGER DEFAULT 0,
+                    throw3_multiplier INTEGER DEFAULT 0,
+                    throw1_points INTEGER DEFAULT 0,
+                    throw2_points INTEGER DEFAULT 0,
+                    throw3_points INTEGER DEFAULT 0,
                     PRIMARY KEY (turn_number, player_id),
                     FOREIGN KEY (turn_number) REFERENCES turns(turn_number),
                     FOREIGN KEY (player_id) REFERENCES players(id)
@@ -74,30 +77,13 @@ def initialize_database():
                 cursor.execute('''
                 CREATE TABLE current_throws (
                     throw_number INTEGER PRIMARY KEY,
-                    points INTEGER NOT NULL
+                    points INTEGER NOT NULL,
+                    score INTEGER DEFAULT 0,
+                    multiplier INTEGER DEFAULT 0
                 )
                 ''')
                 
                 print("Tables created successfully.")
-            
-            # Check if the turn_throw_details table exists
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='turn_throw_details'")
-            if not cursor.fetchone():
-                # Add the new table for tracking individual throw details
-                print("Creating turn_throw_details table...")
-                cursor.execute('''
-                CREATE TABLE turn_throw_details (
-                    turn_number INTEGER,
-                    player_id INTEGER,
-                    throw_number INTEGER,
-                    score INTEGER NOT NULL,
-                    multiplier INTEGER NOT NULL,
-                    points INTEGER NOT NULL,
-                    PRIMARY KEY (turn_number, player_id, throw_number),
-                    FOREIGN KEY (turn_number) REFERENCES turns(turn_number),
-                    FOREIGN KEY (player_id) REFERENCES players(id)
-                )
-                ''')
             
             # Insert initial data
             print("Inserting initial data...")
@@ -117,10 +103,10 @@ def initialize_database():
             cursor.execute('INSERT INTO game_state (id, current_turn, current_player, game_over) VALUES (1, 1, 1, 0)')
             
             # Insert current throws
-            cursor.executemany('INSERT INTO current_throws (throw_number, points) VALUES (?, ?)', [
-                (1, 0),
-                (2, 0),
-                (3, 0)
+            cursor.executemany('INSERT INTO current_throws (throw_number, points, score, multiplier) VALUES (?, ?, ?, ?)', [
+                (1, 0, 0, 0),
+                (2, 0, 0, 0),
+                (3, 0, 0, 0)
             ])
             
             # Commit changes and close connection
