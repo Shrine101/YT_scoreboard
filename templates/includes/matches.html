@@ -1,5 +1,10 @@
 <!-- Darts scoreboard layout -->
 <div class="row">
+  <div id="game-over-banner" class="col-12 mb-4" style="display: none;">
+    <div class="alert alert-success text-center py-3">
+      <h2 class="mb-0" style="font-size: 36px; font-weight: bold;">GAME OVER!</h2>
+    </div>
+  </div>
   <!-- Left side: Turns and scores table -->
   <div class="col-md-8">
     <div class="table-responsive">
@@ -78,6 +83,34 @@
 <script>
   // Function to update the display with new data
   function updateGame(game_data) {
+    // Check if game is over and update banner
+    const gameOverBanner = document.getElementById('game-over-banner');
+    if (game_data.game_over) {
+      gameOverBanner.style.display = 'block';
+      
+      // Find player with score 0 (the winner)
+      const winner = game_data.players.find(player => player.total_score === 0);
+      if (winner) {
+        // Highlight the winner's name and score in the table
+        const nameElement = document.getElementById(`player${winner.id}_name`);
+        const totalElement = document.getElementById(`player${winner.id}_total`);
+        
+        if (nameElement) {
+          nameElement.style.backgroundColor = 'rgba(40, 167, 69, 0.7)';
+          nameElement.style.color = 'white';
+          nameElement.style.fontWeight = 'bold';
+        }
+        
+        if (totalElement) {
+          totalElement.style.backgroundColor = 'rgba(40, 167, 69, 0.7)';
+          totalElement.style.color = 'white';
+          totalElement.style.fontWeight = 'bold';
+        }
+      }
+    } else {
+      gameOverBanner.style.display = 'none';
+    }
+    
     // Update player names and totals
     for (let i = 0; i < game_data.players.length; i++) {
       const player = game_data.players[i];

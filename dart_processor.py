@@ -51,9 +51,9 @@ class DartProcessor:
     def get_current_game_state(self):
         """Get the current game state from game database"""
         with self.get_game_connection() as conn:
-            # Get current turn and player
+            # Get current turn, player, and game_over flag
             cursor = conn.cursor()
-            cursor.execute('SELECT current_turn, current_player FROM game_state WHERE id = 1')
+            cursor.execute('SELECT current_turn, current_player, game_over FROM game_state WHERE id = 1')
             state = cursor.fetchone()
             
             # Get current throws
@@ -63,6 +63,7 @@ class DartProcessor:
             return {
                 'current_turn': state['current_turn'],
                 'current_player': state['current_player'],
+                'game_over': state['game_over'],
                 'current_throws': throws
             }
 
@@ -123,6 +124,11 @@ class DartProcessor:
                 (new_score, player_id)
             )
             
+            # Check if the player has won (score exactly 0)
+            if new_score == 0:
+                print(f"Player {player_id} has won the game with score of 0!")
+                cursor.execute('UPDATE game_state SET game_over = 1 WHERE id = 1')
+            
             conn.commit()
 
     def advance_to_next_player(self):
@@ -131,8 +137,13 @@ class DartProcessor:
             cursor = conn.cursor()
             
             # Get current state and player count
-            cursor.execute('SELECT current_turn, current_player FROM game_state WHERE id = 1')
+            cursor.execute('SELECT current_turn, current_player, game_over FROM game_state WHERE id = 1')
             state = cursor.fetchone()
+            
+            # If game is over, don't advance
+            if state['game_over']:
+                print("Game is over, not advancing to next player")
+                return None, None
             
             cursor.execute('SELECT COUNT(*) as count FROM players')
             player_count = cursor.fetchone()['count']
@@ -169,6 +180,15 @@ class DartProcessor:
         current_turn = game_state['current_turn']
         current_player = game_state['current_player']
         current_throws = game_state['current_throws']
+        game_over = game_state['game_over']
+        
+        # Always update timestamp to avoid reprocessing this throw
+        self.last_throw_timestamp = throw['timestamp']
+        
+        # Skip processing if the game is over
+        if game_over:
+            print(f"Game is over. Skipping throw processing: {score}x{multiplier}={points} points")
+            return
         
         # Find the next empty throw position (or the first if all are used)
         throw_position = 1
@@ -204,9 +224,6 @@ class DartProcessor:
                 # This shouldn't happen in normal operation
                 print("Warning: Got a new throw while waiting to process the previous third throw")
         
-        # Update timestamp to this throw's timestamp to avoid processing it again
-        self.last_throw_timestamp = throw['timestamp']
-        
         print(f"Processed throw: {score}x{multiplier}={points} points "
               f"(Player {current_player}, Turn {current_turn}, Throw {throw_position})")
 
@@ -225,15 +242,25 @@ class DartProcessor:
                     self.third_throw_data['total_points']
                 )
                 
-                # Move to next player
-                self.advance_to_next_player()
+                # Check game state again to see if the game is over after scoring
+                with self.get_game_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute('SELECT game_over FROM game_state WHERE id = 1')
+                    game_over = cursor.fetchone()['game_over']
+                
+                # Only advance to next player if game isn't over
+                if not game_over:
+                    # Move to next player
+                    self.advance_to_next_player()
+                    print("Advanced to next player")
+                else:
+                    print("Game is over, not advancing to next player")
                 
                 # Reset the waiting state
                 self.waiting_after_third_throw = False
                 self.third_throw_time = None
                 self.third_throw_data = None
                 
-                print("Advanced to next player")
                 return True
         return False
 

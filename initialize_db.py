@@ -59,6 +59,7 @@ def initialize_database():
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     current_turn INTEGER NOT NULL,
                     current_player INTEGER NOT NULL,
+                    game_over BOOLEAN NOT NULL DEFAULT 0,
                     FOREIGN KEY (current_turn) REFERENCES turns(turn_number),
                     FOREIGN KEY (current_player) REFERENCES players(id)
                 )
@@ -87,8 +88,8 @@ def initialize_database():
             # Insert first turn
             cursor.execute('INSERT INTO turns (turn_number) VALUES (?)', (1,))
             
-            # Insert game state
-            cursor.execute('INSERT INTO game_state (id, current_turn, current_player) VALUES (1, 1, 1)')
+            # Insert game state with game_over set to 0 (false)
+            cursor.execute('INSERT INTO game_state (id, current_turn, current_player, game_over) VALUES (1, 1, 1, 0)')
             
             # Insert current throws
             cursor.executemany('INSERT INTO current_throws (throw_number, points) VALUES (?, ?)', [

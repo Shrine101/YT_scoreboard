@@ -77,9 +77,10 @@ def data_json():
     game_data["turns"] = turns
     
     # Get current game state
-    state_row = conn.execute('SELECT current_turn, current_player FROM game_state WHERE id = 1').fetchone()
+    state_row = conn.execute('SELECT current_turn, current_player, game_over FROM game_state WHERE id = 1').fetchone()
     game_data["current_turn"] = state_row['current_turn']
     game_data["current_player"] = state_row['current_player']
+    game_data["game_over"] = state_row['game_over']
     
     # Get current throws
     current_throws = []
