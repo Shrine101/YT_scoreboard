@@ -11,9 +11,6 @@ class ManualDartEntry:
     @contextmanager
     def get_db_connection(self):
         """Create a connection to the SQLite database"""
-        # Ensure the directory exists
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         try:
@@ -102,9 +99,8 @@ def get_valid_input(prompt, min_val, max_val, input_type=int):
             print(f"Invalid input. Please enter a valid {input_type.__name__}.")
 
 def main():
-    # Create the database directory if it doesn't exist
+    # Use the default path in the current directory
     database_path = 'cv_data.db'
-    os.makedirs(os.path.dirname(database_path), exist_ok=True)
     
     dart_entry = ManualDartEntry(database_path)
     
