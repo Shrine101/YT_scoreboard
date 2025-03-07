@@ -18,31 +18,7 @@
           </tr>
         </thead>
         <tbody id="turns_body">
-          <!-- Generate rows for each turn -->
-          {% for turn in game_data.turns %}
-          <tr>
-            <td class="text-center">{{ turn.turn_number }}</td>
-            {% for player in game_data.players %}
-              <td class="text-center" id="turn_{{ turn.turn_number }}_player_{{ player.id }}">
-                {% for score in turn.scores %}
-                  {% if score.player_id == player.id %}
-                    {{ score.points }}
-                  {% endif %}
-                {% endfor %}
-              </td>
-            {% endfor %}
-          </tr>
-          {% endfor %}
-          
-          <!-- Add empty rows for future turns -->
-          {% for i in range(game_data.turns|length + 1, 11) %}
-          <tr>
-            <td class="text-center">{{ i }}</td>
-            {% for player in game_data.players %}
-              <td class="text-center" id="turn_{{ i }}_player_{{ player.id }}"></td>
-            {% endfor %}
-          </tr>
-          {% endfor %}
+          <!-- This section will be managed by JavaScript -->
         </tbody>
         <tfoot>
           <tr>
@@ -121,23 +97,59 @@
       if (totalElement) totalElement.textContent = player.total_score;
     }
     
-    // Update turn scores
-    for (let i = 0; i < game_data.turns.length; i++) {
-      const turn = game_data.turns[i];
+    // Determine which turns to display (last 10 turns)
+    const maxTurnsToShow = 10;
+    let turnsToDisplay = game_data.turns;
+    
+    if (game_data.turns.length > maxTurnsToShow) {
+      // Show only the last 10 turns
+      turnsToDisplay = game_data.turns.slice(-maxTurnsToShow);
+    }
+    
+    // Rebuild the turns table
+    const tbody = document.getElementById('turns_body');
+    let tableHTML = '';
+    
+    // Add rows for the turns to display
+    for (const turn of turnsToDisplay) {
+      tableHTML += `<tr><td class="text-center">${turn.turn_number}</td>`;
       
-      for (let j = 0; j < turn.scores.length; j++) {
-        const score = turn.scores[j];
-        const cellElement = document.getElementById(`turn_${turn.turn_number}_player_${score.player_id}`);
+      for (const player of game_data.players) {
+        tableHTML += `<td class="text-center" id="turn_${turn.turn_number}_player_${player.id}">`;
         
-        if (cellElement) {
-          const newContent = `${score.points}`;
-          
-          if (cellElement.textContent !== newContent) {
-            blinkUpdate(cellElement, newContent);
-          }
+        // Find score for this player
+        const score = turn.scores.find(s => s.player_id === player.id);
+        if (score) {
+          tableHTML += score.points;
         }
+        
+        tableHTML += `</td>`;
+      }
+      
+      tableHTML += `</tr>`;
+    }
+    
+    // Add empty rows if we have fewer than 10 turns
+    if (turnsToDisplay.length < maxTurnsToShow) {
+      const nextTurnNumber = game_data.turns.length > 0 
+        ? Math.max(...game_data.turns.map(t => t.turn_number)) + 1 
+        : 1;
+      
+      for (let i = 0; i < maxTurnsToShow - turnsToDisplay.length; i++) {
+        const turnNumber = nextTurnNumber + i;
+        
+        tableHTML += `<tr><td class="text-center">${turnNumber}</td>`;
+        
+        for (const player of game_data.players) {
+          tableHTML += `<td class="text-center" id="turn_${turnNumber}_player_${player.id}"></td>`;
+        }
+        
+        tableHTML += `</tr>`;
       }
     }
+    
+    // Update the table
+    tbody.innerHTML = tableHTML;
     
     // Update current throws
     for (let i = 0; i < game_data.current_throws.length; i++) {
