@@ -158,6 +158,9 @@
 <script>
   // Function to update the display with new data
   function updateGame(game_data) {
+    // Store current game data globally for delayed updates
+    window.currentGameData = game_data;
+    
     // Check if game is over and update banner
     const gameOverBanner = document.getElementById('game-over-banner');
     if (game_data.game_over) {
@@ -191,16 +194,76 @@
       if (game_data.animation_type === 'bust') {
         // Show bust banner for bust animations
         document.getElementById('bust-banner').style.display = 'block';
-      } else {
-        // Hide bust banner for other animations
+        
+        // Continue with normal updates for bust animations
+        updatePlayerHighlights(game_data);
+        updateScoreTable(game_data);
+        updateNormalThrows(game_data);
+      } else if (game_data.animation_type === 'third_throw') {
+        // Hide bust banner for third throw animations
         document.getElementById('bust-banner').style.display = 'none';
+        
+        // For third throw animations, only update the throw display initially
+        // and delay the scoreboard update
+        const thirdThrow = game_data.current_throws.find(t => t.throw_number === 3);
+        if (thirdThrow) {
+          const throwElement = document.getElementById(`throw3_points`);
+          if (throwElement) {
+            // Check if we already started this animation
+            if (!window.animatingThirdThrow) {
+              window.animatingThirdThrow = true;
+              
+              // Set the throw immediately to the new value but with green color
+              throwElement.textContent = thirdThrow.points.toString();
+              throwElement.style.color = '#00ff00';
+              
+              // Also update other throws without blinking (but don't update scoreboard yet)
+              for (let i = 1; i <= 2; i++) {
+                const throw_data = game_data.current_throws.find(t => t.throw_number === i);
+                if (throw_data) {
+                  const element = document.getElementById(`throw${i}_points`);
+                  if (element) {
+                    element.textContent = throw_data.points.toString();
+                  }
+                }
+              }
+              
+              // After 2 seconds, reset the color back to black
+              setTimeout(() => {
+                throwElement.style.color = '#000000';
+                
+                // After another brief delay, update the rest of the UI
+                setTimeout(() => {
+                  // Update player highlights
+                  updatePlayerHighlights(game_data);
+                  
+                  // Update the score table
+                  updateScoreTable(game_data);
+                  
+                  // Reset animation flag
+                  window.animatingThirdThrow = false;
+                }, 500); // 500ms after color change (total 2.5s)
+              }, 2000); // 2s for the green highlight
+            }
+          }
+        }
       }
     } else {
-      // Hide bust banner when not animating
+      // Standard non-animation updates
       document.getElementById('bust-banner').style.display = 'none';
+      
+      // If we're not in an animation, update everything normally
+      if (!window.animatingThirdThrow) {
+        updatePlayerHighlights(game_data);
+        updateScoreTable(game_data);
+        updateNormalThrows(game_data);
+      }
     }
-    
-    // Update player names and totals
+  }
+
+  // Function to update player highlights
+  function updatePlayerHighlights(game_data) {
+    // Update player names, totals, and highlights
     for (let i = 0; i < game_data.players.length; i++) {
       const player = game_data.players[i];
       const nameElement = document.getElementById(`player${player.id}_name`);
@@ -218,7 +281,10 @@
         }
       }
     }
-    
+  }
+
+  // Function to update score table
+  function updateScoreTable(game_data) {
     // Determine which turns to display (last 10 turns)
     const maxTurnsToShow = 10;
     let turnsToDisplay = game_data.turns;
@@ -277,56 +343,35 @@
     
     // Update the table
     tbody.innerHTML = tableHTML;
-    
-    // Update current throws - with animation logic
-    if (game_data.animating && game_data.animation_type === 'third_throw') {
-      // Find the third throw 
-      const thirdThrow = game_data.current_throws.find(t => t.throw_number === 3);
-      if (thirdThrow) {
-        const throwElement = document.getElementById(`throw3_points`);
-        if (throwElement) {
-          // Always update and blink for third throw animations
-          blinkUpdate(throwElement, thirdThrow.points.toString(), '#00ff00');
-          
-          // For debugging
-          console.log("Animating third throw:", thirdThrow);
-        }
-        
-        // Also update other throws without blinking
-        for (let i = 1; i <= 2; i++) {
-          const throw_data = game_data.current_throws.find(t => t.throw_number === i);
-          if (throw_data) {
-            const element = document.getElementById(`throw${i}_points`);
-            if (element) {
-              element.textContent = throw_data.points.toString();
-            }
-          }
-        }
-      }
-    } else {
-      // Normal update for all throws
-      for (let i = 0; i < game_data.current_throws.length; i++) {
-        const throwData = game_data.current_throws[i];
-        const throwElement = document.getElementById(`throw${throwData.throw_number}_points`);
-        
-        // Only blink update if value has changed
-        if (throwElement && throwElement.textContent !== throwData.points.toString()) {
-          // Use a different color for zero values vs non-zero
-          const blinkColor = throwData.points > 0 ? '#00ff00' : '#333333';
-          blinkUpdate(throwElement, throwData.points.toString(), blinkColor);
-        }
+  }
+
+  // Function to update throws normally
+  function updateNormalThrows(game_data) {
+    // Update all throws
+    for (let i = 0; i < game_data.current_throws.length; i++) {
+      const throwData = game_data.current_throws[i];
+      const throwElement = document.getElementById(`throw${throwData.throw_number}_points`);
+      
+      // Only blink update if value has changed
+      if (throwElement && throwElement.textContent !== throwData.points.toString()) {
+        // Use a different color for zero values vs non-zero
+        const blinkColor = throwData.points > 0 ? '#00ff00' : '#333333';
+        blinkUpdate(throwElement, throwData.points.toString(), blinkColor);
       }
     }
   }
 
   function blinkUpdate(element, newValue, newColor='#00ff00') {
+    // Always make sure to capture the previous color properly
     const previousColor = element.style.color || '#000000';
+    
+    // Update the text
     element.textContent = newValue;
     element.style.color = newColor;
     
     // Set back to original color after timeout ms
     setTimeout(() => {
-      element.style.color = previousColor;
+      element.style.color = '#000000'; // Explicitly set to black to ensure consistency
     }, 2000);
   }
   
@@ -412,6 +457,9 @@
       .then(data => updateGame(data))
       .catch(error => console.error('Error fetching data:', error));
   }, 1000);
+  
+  // Initialize animation state flag
+  window.animatingThirdThrow = false;
   
   // Manual Override functionality
   document.addEventListener('DOMContentLoaded', function() {
