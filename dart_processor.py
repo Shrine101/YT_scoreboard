@@ -112,6 +112,10 @@ class DartProcessor:
             new_score = score_before_turn - total_points
             is_bust = (new_score < 0)
             
+            # If it's a bust, set the points to 0 since none of the throws count
+            # This is the main change - we zero out the points when it's a bust
+            points_to_record = 0 if is_bust else total_points
+            
             # Map throws to their respective columns
             throw_columns = {}
             for throw in current_throws:
@@ -141,7 +145,7 @@ class DartProcessor:
                 cursor.execute(
                     update_query,
                     (
-                        total_points,
+                        points_to_record,  # 0 if bust, otherwise the actual points
                         throw_columns.get('throw1', 0), throw_columns.get('throw1_multiplier', 0), throw_columns.get('throw1_points', 0),
                         throw_columns.get('throw2', 0), throw_columns.get('throw2_multiplier', 0), throw_columns.get('throw2_points', 0),
                         throw_columns.get('throw3', 0), throw_columns.get('throw3_multiplier', 0), throw_columns.get('throw3_points', 0),
@@ -163,7 +167,7 @@ class DartProcessor:
                 cursor.execute(
                     insert_query,
                     (
-                        turn_number, player_id, total_points,
+                        turn_number, player_id, points_to_record,  # 0 if bust, otherwise the actual points
                         throw_columns.get('throw1', 0), throw_columns.get('throw1_multiplier', 0), throw_columns.get('throw1_points', 0),
                         throw_columns.get('throw2', 0), throw_columns.get('throw2_multiplier', 0), throw_columns.get('throw2_points', 0),
                         throw_columns.get('throw3', 0), throw_columns.get('throw3_multiplier', 0), throw_columns.get('throw3_points', 0),
@@ -196,6 +200,7 @@ class DartProcessor:
             # Log the result
             if is_bust:
                 print(f"BUST! Turn {turn_number}, Player {player_id} busted (score would be {score_before_turn - total_points})")
+                print(f"No points will be counted for this turn.")
             
             conn.commit()
             
@@ -270,26 +275,44 @@ class DartProcessor:
         # Update the current throw with score, multiplier, and points
         self.update_current_throw(throw_position, score, multiplier, points)
         
-        # Calculate total current points including this new throw
-        total_points = sum(t['points'] for t in current_throws)
+        # Calculate total points for current throws
+        total_current_points = 0
+        for t in current_throws:
+            if t['throw_number'] < throw_position:
+                total_current_points += t['points']
+        total_current_points += points  # Add points from this throw
         
         # Check if this would result in a bust
         player_score_before_turn = self.get_player_score_before_turn(current_player, current_turn)
-        new_score = player_score_before_turn - total_points
+        new_score = player_score_before_turn - total_current_points
         is_bust = (new_score < 0)
         
-        # Handle bust immediately
-        if is_bust:
-            print(f"BUST detected after throw {throw_position}! Immediately finishing turn and advancing to next player.")
+        # Handle bust or third throw immediately
+        if is_bust or throw_position == 3:
+            print(f"{'BUST' if is_bust else 'Third throw'} detected! Immediately finishing turn.")
+            
+            # Get current throw details (need to fetch again after updating)
+            updated_throws = []
+            with self.get_game_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT throw_number, points, score, multiplier FROM current_throws ORDER BY throw_number')
+                updated_throws = [dict(throw) for throw in cursor.fetchall()]
             
             # Process the bust immediately instead of waiting
-            self.add_score_to_turn(current_turn, current_player, total_points, current_throws)
+            self.add_score_to_turn(current_turn, current_player, total_current_points, updated_throws)
             
-            # Advance to next player
-            next_player, next_turn = self.advance_to_next_player()
+            # Only advance if game isn't over
+            with self.get_game_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT game_over FROM game_state WHERE id = 1')
+                game_over = cursor.fetchone()['game_over']
             
-            # Log the advancement
-            print(f"Advanced to Player {next_player}, Turn {next_turn} due to bust")
+            if not game_over:
+                # Advance to next player
+                next_player, next_turn = self.advance_to_next_player()
+                
+                # Log the advancement
+                print(f"Advanced to Player {next_player}, Turn {next_turn}{' due to bust' if is_bust else ''}")
             
             # Reset any waiting state
             if self.waiting_after_third_throw:
@@ -297,74 +320,17 @@ class DartProcessor:
                 self.third_throw_time = None
                 self.third_throw_data = None
                 
-            return
-        
-        # If not a bust, continue with normal processing
-        # Check if this completes a set of 3 throws
-        if throw_position == 3 or all(t['points'] > 0 for t in current_throws):
-            # For third throw, we need to set the delayed processing
-            if not self.waiting_after_third_throw:
-                self.waiting_after_third_throw = True
-                self.third_throw_time = datetime.now()
-                
-                # Save the data needed for later processing
-                # Refresh current_throws to include the latest throw
-                self.third_throw_data = {
-                    'current_turn': current_turn,
-                    'current_player': current_player,
-                    'total_points': total_points
-                }
-                
-                print(f"Third throw detected! Will process after delay: {score}x{multiplier}={points} points")
-            else:
-                # This shouldn't happen in normal operation
-                print("Warning: Got a new throw while waiting to process the previous third throw")
-        
-        print(f"Processed throw: {score}x{multiplier}={points} points "
-              f"(Player {current_player}, Turn {current_turn}, Throw {throw_position})")
+        else:
+            # If not a bust or third throw, continue with normal play
+            print(f"Processed throw: {score}x{multiplier}={points} points "
+                  f"(Player {current_player}, Turn {current_turn}, Throw {throw_position})")
+            
+            # Reset delayed processing flag since we're processing immediately now
+            self.waiting_after_third_throw = False
 
     def process_third_throw_completion(self):
-        """Complete the processing of a third throw after delay"""
-        if self.waiting_after_third_throw:
-            # Check if enough time has passed (3 seconds)
-            elapsed = (datetime.now() - self.third_throw_time).total_seconds()
-            if elapsed >= 3.0:
-                print(f"Completing third throw processing after {elapsed:.1f}s delay")
-                
-                # Get current game state to get the updated current_throws
-                game_state = self.get_current_game_state()
-                
-                # Add score to turn_scores with all throw details
-                is_bust = self.add_score_to_turn(
-                    self.third_throw_data['current_turn'],
-                    self.third_throw_data['current_player'],
-                    self.third_throw_data['total_points'],
-                    game_state['current_throws']
-                )
-                
-                # Check game state again to see if the game is over after scoring
-                with self.get_game_connection() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute('SELECT game_over FROM game_state WHERE id = 1')
-                    game_over = cursor.fetchone()['game_over']
-                
-                # Only advance to next player if game isn't over
-                if not game_over:
-                    # Move to next player
-                    self.advance_to_next_player()
-                    if is_bust:
-                        print(f"BUST! Advanced to next player due to bust")
-                    else:
-                        print("Advanced to next player")
-                else:
-                    print("Game is over, not advancing to next player")
-                
-                # Reset the waiting state
-                self.waiting_after_third_throw = False
-                self.third_throw_time = None
-                self.third_throw_data = None
-                
-                return True
+        """This method is no longer needed since we process throws immediately now"""
+        # Simply returning False as we don't use delayed processing anymore
         return False
 
     def run(self):
@@ -373,18 +339,13 @@ class DartProcessor:
         
         try:
             while True:
-                # First check if we need to complete a delayed third throw processing
-                if self.waiting_after_third_throw:
-                    self.process_third_throw_completion()
-                else:
-                    # Only process new throws if we're not waiting for third throw completion
-                    # Get new throws from CV database
-                    new_throws = self.get_new_throws()
-                    
-                    # Process each new throw
-                    for throw in new_throws:
-                        self.process_throw(throw)
+                # Get new throws from CV database
+                new_throws = self.get_new_throws()
                 
+                # Process each new throw
+                for throw in new_throws:
+                    self.process_throw(throw)
+                    
                 # Sleep for a bit before next poll
                 time.sleep(self.poll_interval)
                 

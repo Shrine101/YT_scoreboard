@@ -186,6 +186,9 @@
       gameOverBanner.style.display = 'none';
     }
     
+    // Hide bust banner by default (it's shown only when a bust occurs)
+    document.getElementById('bust-banner').style.display = 'none';
+    
     // Update player names and totals
     for (let i = 0; i < game_data.players.length; i++) {
       const player = game_data.players[i];
@@ -221,7 +224,7 @@
         if (score) {
           // Add bust styling if needed
           if (score.bust) {
-            tableHTML += `<span class="bust-score">${score.points}</span>`;
+            tableHTML += `<span class="bust-score">BUST</span>`;
           } else {
             tableHTML += score.points;
           }
@@ -695,21 +698,11 @@
   
   /* Style for bust scores */
   .bust-score {
-    color: #dc3545;
-    text-decoration: line-through;
-    position: relative;
-  }
-  
-  .bust-score::after {
-    content: 'BUST';
-    position: absolute;
-    top: -10px;
-    right: -8px;
-    font-size: 12px;
+    color: #ffffff;
     background-color: #dc3545;
-    color: white;
-    padding: 2px 4px;
-    border-radius: 3px;
+    padding: 2px 8px;
+    border-radius: 4px;
     font-weight: bold;
+    font-size: 18px;
   }
 </style>

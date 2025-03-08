@@ -66,7 +66,7 @@ def recalculate_player_scores(conn):
     for player in players:
         player_id = player['id']
         
-        # Calculate total points from non-busted turns
+        # Calculate total points from non-busted turns only
         cursor.execute(
             'SELECT SUM(points) as total_points FROM turn_scores WHERE player_id = ? AND bust = 0',
             (player_id,)
@@ -399,6 +399,9 @@ def update_throw():
                 new_score = score_before_turn - points
                 is_bust = (new_score < 0)
                 
+                # Set points to 0 if busted
+                points_to_record = 0 if is_bust else points
+                
                 cursor.execute(
                     '''INSERT INTO turn_scores (
                         turn_number, player_id, points,
@@ -408,7 +411,7 @@ def update_throw():
                         bust
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                     (
-                        turn_number, player_id, points,
+                        turn_number, player_id, points_to_record,
                         throw1, throw1_multiplier, throw1_points,
                         throw2, throw2_multiplier, throw2_points,
                         throw3, throw3_multiplier, throw3_points,
