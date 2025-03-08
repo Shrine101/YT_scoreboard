@@ -290,9 +290,9 @@ def update_throw():
                 should_advance = False
                 
                 if is_bust:
-                    # If it's a bust, always advance
+                    # If it's a bust, always advance IMMEDIATELY regardless of throw number
                     should_advance = True
-                    print(f"Bust detected via manual override! Advancing to next player.")
+                    print(f"Bust detected via manual override! Immediately advancing to next player.")
                 elif throw_number == 3:
                     # If it's the third throw and not a bust, advance
                     should_advance = True

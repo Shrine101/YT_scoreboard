@@ -574,8 +574,8 @@
         // Determine if we should close the modal based on turn advancement
         let closeModal = true;
         
-        // Check if the game advanced to next player
-        if (data.advanced_turn) {
+        // Check if the game advanced to next player (either due to bust or third throw)
+        if (data.advanced_turn || data.is_bust) {
           // If the game advanced turns, close the modal as we're done with this player
           manualOverrideModal.hide();
           if (data.is_bust) {
@@ -584,10 +584,10 @@
             alert(`Throw updated successfully! Points: ${data.points}. Advanced to next player.`);
           }
         } else {
-          // If we didn't advance turns, we might want to set up for the next throw
+          // If we didn't advance turns and it's not a bust, we might want to set up for the next throw
           const currentThrowNum = parseInt(throwNumber);
-          if (currentThrowNum < 3) {
-            // If this wasn't the third throw, ask if they want to enter the next throw
+          if (currentThrowNum < 3 && !data.is_bust) {
+            // If this wasn't the third throw and wasn't a bust, ask if they want to enter the next throw
             if (confirm(`Throw ${currentThrowNum} updated successfully! Points: ${data.points}. Would you like to enter Throw ${currentThrowNum + 1}?`)) {
               // Set the throw selector to the next throw
               throwSelect.value = (currentThrowNum + 1).toString();

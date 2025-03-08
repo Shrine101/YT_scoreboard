@@ -270,6 +270,36 @@ class DartProcessor:
         # Update the current throw with score, multiplier, and points
         self.update_current_throw(throw_position, score, multiplier, points)
         
+        # Calculate total current points including this new throw
+        total_points = sum(t['points'] for t in current_throws)
+        
+        # Check if this would result in a bust
+        player_score_before_turn = self.get_player_score_before_turn(current_player, current_turn)
+        new_score = player_score_before_turn - total_points
+        is_bust = (new_score < 0)
+        
+        # Handle bust immediately
+        if is_bust:
+            print(f"BUST detected after throw {throw_position}! Immediately finishing turn and advancing to next player.")
+            
+            # Process the bust immediately instead of waiting
+            self.add_score_to_turn(current_turn, current_player, total_points, current_throws)
+            
+            # Advance to next player
+            next_player, next_turn = self.advance_to_next_player()
+            
+            # Log the advancement
+            print(f"Advanced to Player {next_player}, Turn {next_turn} due to bust")
+            
+            # Reset any waiting state
+            if self.waiting_after_third_throw:
+                self.waiting_after_third_throw = False
+                self.third_throw_time = None
+                self.third_throw_data = None
+                
+            return
+        
+        # If not a bust, continue with normal processing
         # Check if this completes a set of 3 throws
         if throw_position == 3 or all(t['points'] > 0 for t in current_throws):
             # For third throw, we need to set the delayed processing
@@ -278,11 +308,6 @@ class DartProcessor:
                 self.third_throw_time = datetime.now()
                 
                 # Save the data needed for later processing
-                total_points = sum(t['points'] for t in current_throws) 
-                # Add the current throw's points (not yet in current_throws)
-                if throw_position == 3:
-                    total_points += points
-                
                 # Refresh current_throws to include the latest throw
                 self.third_throw_data = {
                     'current_turn': current_turn,
