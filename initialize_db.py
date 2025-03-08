@@ -26,6 +26,7 @@ def initialize_database():
                 cursor.execute("DELETE FROM game_state")
                 cursor.execute("DELETE FROM turns")
                 cursor.execute("DELETE FROM players")
+                cursor.execute("DELETE FROM animation_state")  # New table
             else:
                 print("Creating tables...")
                 # Create tables
@@ -84,6 +85,21 @@ def initialize_database():
                 )
                 ''')
                 
+                # New table for tracking animation state
+                cursor.execute('''
+                CREATE TABLE animation_state (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    animating BOOLEAN DEFAULT 0,
+                    animation_type TEXT,
+                    turn_number INTEGER,
+                    player_id INTEGER,
+                    throw_number INTEGER,
+                    timestamp DATETIME,
+                    next_turn INTEGER,
+                    next_player INTEGER
+                )
+                ''')
+                
                 print("Tables created successfully.")
             
             # Insert initial data
@@ -109,6 +125,13 @@ def initialize_database():
                 (2, 0, 0, 0),
                 (3, 0, 0, 0)
             ])
+            
+            # Insert animation state
+            cursor.execute('''
+                INSERT INTO animation_state 
+                (id, animating, animation_type, turn_number, player_id, throw_number, timestamp, next_turn, next_player) 
+                VALUES (1, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+            ''')
             
             # Commit changes and close connection
             conn.commit()

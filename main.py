@@ -6,9 +6,11 @@ import os
 import signal 
 import atexit
 from initialize_db import initialize_database
+from datetime import datetime
 
 app = Flask(__name__)
 dart_processor = None  # Define the global variable
+ANIMATION_DURATION = 3.0  # Animation duration in seconds
 
 def start_dart_processor():
     """Start the dart processor as a separate process"""
@@ -55,6 +57,43 @@ def get_player_score_before_turn(conn, player_id, turn_number):
     
     return score_before_turn
 
+def get_animation_state(conn):
+    """Get the current animation state"""
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM animation_state WHERE id = 1')
+    state = cursor.fetchone()
+    
+    # Check if animation is active and not expired
+    if state and state['animating'] == 1 and state['timestamp']:
+        # Check if animation has expired
+        animation_time = datetime.strptime(state['timestamp'], '%Y-%m-%d %H:%M:%S')
+        current_time = datetime.now()
+        elapsed_seconds = (current_time - animation_time).total_seconds()
+        
+        if elapsed_seconds < ANIMATION_DURATION:
+            # Animation is still active
+            return dict(state)  # Convert from sqlite Row to dict
+    
+    # No active animation or expired
+    return None
+
+def reset_animation_state(conn):
+    """Reset the animation state in the database"""
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE animation_state 
+        SET animating = 0, 
+            animation_type = NULL, 
+            turn_number = NULL, 
+            player_id = NULL, 
+            throw_number = NULL, 
+            timestamp = NULL,
+            next_turn = NULL,
+            next_player = NULL
+        WHERE id = 1
+    ''')
+    conn.commit()
+
 def recalculate_player_scores(conn):
     """Recalculate all player scores based on turn_scores data"""
     cursor = conn.cursor()
@@ -88,6 +127,9 @@ def recalculate_player_scores(conn):
 def data_json():
     # Create a connection to the database
     conn = get_db_connection()
+    
+    # Get current animation state (if any)
+    animation_state = get_animation_state(conn)
     
     # Build game_data dictionary from database queries
     game_data = {}
@@ -124,8 +166,37 @@ def data_json():
     
     # Get current game state
     state_row = conn.execute('SELECT current_turn, current_player, game_over FROM game_state WHERE id = 1').fetchone()
-    game_data["current_turn"] = state_row['current_turn']
-    game_data["current_player"] = state_row['current_player']
+    
+    # Handle animation state for UI - modify the returned game state if animating
+    if animation_state and animation_state['animating'] == 1:
+        animation_type = animation_state['animation_type']
+        
+        if animation_type in ['bust', 'third_throw']:
+            # For third throw animations, we want to show the throw but not advance player yet
+            anim_turn = animation_state['turn_number']
+            anim_player = animation_state['player_id']
+            
+            # Update game_data to reflect animation state
+            game_data["animating"] = True
+            game_data["animation_type"] = animation_type
+            
+            # During animation, we show the current player still (not advanced yet)
+            game_data["current_turn"] = anim_turn
+            game_data["current_player"] = anim_player
+            
+            # Also include the next player/turn info for UI transitions
+            game_data["next_turn"] = animation_state['next_turn']
+            game_data["next_player"] = animation_state['next_player']
+        else:
+            # No special animation handling needed
+            game_data["current_turn"] = state_row['current_turn']
+            game_data["current_player"] = state_row['current_player']
+    else:
+        # Normal state (no animation)
+        game_data["current_turn"] = state_row['current_turn']
+        game_data["current_player"] = state_row['current_player']
+    
+    # Always pass along game over state
     game_data["game_over"] = state_row['game_over']
     
     # Get current throws
@@ -172,6 +243,9 @@ def update_throw():
         current_turn = game_state['current_turn']
         current_player = game_state['current_player']
         game_over = game_state['game_over']
+        
+        # First, clear any active animations since we're manually overriding
+        reset_animation_state(conn)
         
         # Make sure the turn exists
         cursor.execute('SELECT 1 FROM turns WHERE turn_number = ?', (turn_number,))
@@ -422,11 +496,11 @@ def update_throw():
                         # Update current_throws to reflect the UPDATED throws
                         cursor.execute('DELETE FROM current_throws')
                         cursor.execute('INSERT INTO current_throws (throw_number, points, score, multiplier) VALUES (1, ?, ?, ?)', 
-                                       (updated_row['throw1_points'], updated_row['throw1'], updated_row['throw1_multiplier']))
+                                      (updated_row['throw1_points'], updated_row['throw1'], updated_row['throw1_multiplier']))
                         cursor.execute('INSERT INTO current_throws (throw_number, points, score, multiplier) VALUES (2, ?, ?, ?)', 
-                                       (updated_row['throw2_points'], updated_row['throw2'], updated_row['throw2_multiplier']))
+                                      (updated_row['throw2_points'], updated_row['throw2'], updated_row['throw2_multiplier']))
                         cursor.execute('INSERT INTO current_throws (throw_number, points, score, multiplier) VALUES (3, ?, ?, ?)', 
-                                       (updated_row['throw3_points'], updated_row['throw3'], updated_row['throw3_multiplier']))
+                                      (updated_row['throw3_points'], updated_row['throw3'], updated_row['throw3_multiplier']))
                         
                         # Set response flag to indicate turn was rewound
                         rewound_turn = True

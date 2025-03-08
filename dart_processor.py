@@ -4,15 +4,19 @@ from datetime import datetime
 from contextlib import contextmanager
 
 class DartProcessor:
-    def __init__(self, cv_db_path='simulation/cv_data.db', game_db_path='game.db', poll_interval=1.0):
+    def __init__(self, cv_db_path='simulation/cv_data.db', game_db_path='game.db', poll_interval=1.0, animation_duration=3.0):
         self.cv_db_path = cv_db_path
         self.game_db_path = game_db_path
         self.poll_interval = poll_interval
+        self.animation_duration = animation_duration  # Animation duration in seconds
         
         # Initialize timestamp to current local time
         self.last_throw_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
         print(f"Dart processor initialized. Only processing throws after: {self.last_throw_timestamp}")
+        
+        # Reset any lingering animation state
+        self.reset_animation_state()
 
     @contextmanager
     def get_cv_connection(self):
@@ -33,6 +37,63 @@ class DartProcessor:
             yield conn
         finally:
             conn.close()
+
+    def reset_animation_state(self):
+        """Reset the animation state in the database"""
+        with self.get_game_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE animation_state 
+                SET animating = 0, 
+                    animation_type = NULL, 
+                    turn_number = NULL, 
+                    player_id = NULL, 
+                    throw_number = NULL, 
+                    timestamp = NULL,
+                    next_turn = NULL,
+                    next_player = NULL
+                WHERE id = 1
+            ''')
+            conn.commit()
+
+    def set_animation_state(self, animation_type, turn_number, player_id, throw_number, next_turn=None, next_player=None):
+        """Set the animation state in the database"""
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with self.get_game_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE animation_state 
+                SET animating = 1, 
+                    animation_type = ?, 
+                    turn_number = ?, 
+                    player_id = ?, 
+                    throw_number = ?, 
+                    timestamp = ?,
+                    next_turn = ?,
+                    next_player = ?
+                WHERE id = 1
+            ''', (animation_type, turn_number, player_id, throw_number, current_time, next_turn, next_player))
+            conn.commit()
+
+    def check_and_clear_animations(self):
+        """Check if any animations have expired and clear them"""
+        with self.get_game_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT animating, timestamp FROM animation_state WHERE id = 1')
+            animation_state = cursor.fetchone()
+            
+            if animation_state and animation_state['animating']:
+                # Check if animation has expired
+                animation_time = datetime.strptime(animation_state['timestamp'], '%Y-%m-%d %H:%M:%S')
+                current_time = datetime.now()
+                elapsed_seconds = (current_time - animation_time).total_seconds()
+                
+                if elapsed_seconds >= self.animation_duration:
+                    print("Animation completed. Clearing animation state.")
+                    self.reset_animation_state()
+                    return True  # Animation was cleared
+            
+            return False  # No animation or not cleared
 
     def get_new_throws(self):
         """Get new throws from CV database that are newer than last_throw_timestamp"""
@@ -109,7 +170,6 @@ class DartProcessor:
             is_bust = (new_score < 0)
             
             # If it's a bust, set the points to 0 since none of the throws count
-            # This is the main change - we zero out the points when it's a bust
             points_to_record = 0 if is_bust else total_points
             
             # Map throws to their respective columns
@@ -141,7 +201,7 @@ class DartProcessor:
                 cursor.execute(
                     update_query,
                     (
-                        points_to_record,  # 0 if bust, otherwise the actual points
+                        points_to_record,
                         throw_columns.get('throw1', 0), throw_columns.get('throw1_multiplier', 0), throw_columns.get('throw1_points', 0),
                         throw_columns.get('throw2', 0), throw_columns.get('throw2_multiplier', 0), throw_columns.get('throw2_points', 0),
                         throw_columns.get('throw3', 0), throw_columns.get('throw3_multiplier', 0), throw_columns.get('throw3_points', 0),
@@ -163,7 +223,7 @@ class DartProcessor:
                 cursor.execute(
                     insert_query,
                     (
-                        turn_number, player_id, points_to_record,  # 0 if bust, otherwise the actual points
+                        turn_number, player_id, points_to_record,
                         throw_columns.get('throw1', 0), throw_columns.get('throw1_multiplier', 0), throw_columns.get('throw1_points', 0),
                         throw_columns.get('throw2', 0), throw_columns.get('throw2_multiplier', 0), throw_columns.get('throw2_points', 0),
                         throw_columns.get('throw3', 0), throw_columns.get('throw3_multiplier', 0), throw_columns.get('throw3_points', 0),
@@ -283,18 +343,19 @@ class DartProcessor:
         new_score = player_score_before_turn - total_current_points
         is_bust = (new_score < 0)
         
-        # Handle bust or third throw immediately
+        # Process game logic immediately
         if is_bust or throw_position == 3:
-            print(f"{'BUST' if is_bust else 'Third throw'} detected! Immediately finishing turn.")
+            animation_type = "bust" if is_bust else "third_throw"
+            print(f"{animation_type.upper()} detected! Processing game logic...")
             
-            # Get current throw details (need to fetch again after updating)
+            # Get current throw details
             updated_throws = []
             with self.get_game_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('SELECT throw_number, points, score, multiplier FROM current_throws ORDER BY throw_number')
                 updated_throws = [dict(throw) for throw in cursor.fetchall()]
             
-            # Process the bust immediately instead of waiting
+            # Record the score in the database
             self.add_score_to_turn(current_turn, current_player, total_current_points, updated_throws)
             
             # Only advance if game isn't over
@@ -304,20 +365,34 @@ class DartProcessor:
                 game_over = cursor.fetchone()['game_over']
             
             if not game_over:
-                # Advance to next player
-                next_player, next_turn = self.advance_to_next_player()
+                # Calculate next player and turn
+                with self.get_game_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute('SELECT COUNT(*) as count FROM players')
+                    player_count = cursor.fetchone()['count']
                 
-                # Log the advancement
-                print(f"Advanced to Player {next_player}, Turn {next_turn}{' due to bust' if is_bust else ''}")
+                next_player = current_player % player_count + 1  # Cycle to next player (1-based)
+                next_turn = current_turn + (1 if next_player == 1 else 0)  # Increment turn if we wrapped around
+                
+                # Set animation state BEFORE advancing game state
+                # This is important: we want to show the animation before advancing
+                self.set_animation_state(
+                    animation_type=animation_type,
+                    turn_number=current_turn,
+                    player_id=current_player,
+                    throw_number=throw_position,
+                    next_turn=next_turn,
+                    next_player=next_player
+                )
+                
+                # Advance to next player
+                self.advance_to_next_player()
+                
+                print(f"Game state advanced. Animation state set for: {animation_type}")
         else:
             # If not a bust or third throw, continue with normal play
             print(f"Processed throw: {score}x{multiplier}={points} points "
                   f"(Player {current_player}, Turn {current_turn}, Throw {throw_position})")
-
-    def process_third_throw_completion(self):
-        """This method is no longer needed since we process throws immediately now"""
-        # Simply returning False as we don't use delayed processing anymore
-        return False
 
     def run(self):
         """Main processing loop"""
@@ -325,6 +400,9 @@ class DartProcessor:
         
         try:
             while True:
+                # Check if we need to clear any expired animations
+                self.check_and_clear_animations()
+                
                 # Get new throws from CV database
                 new_throws = self.get_new_throws()
                 
