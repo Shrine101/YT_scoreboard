@@ -221,6 +221,9 @@ def update_throw():
                 new_score = score_before_turn - total_current_points
                 is_bust = (new_score < 0)
                 
+                # If it's a bust, the points for the turn should be 0
+                points_to_record = 0 if is_bust else total_current_points
+                
                 # Update existing score with all throw details
                 cursor.execute(
                     '''UPDATE turn_scores 
@@ -231,7 +234,7 @@ def update_throw():
                         bust = ?
                     WHERE turn_number = ? AND player_id = ?''',
                     (
-                        total_current_points,
+                        points_to_record,  # 0 if bust, otherwise the actual points
                         throw_details[0]['score'], throw_details[0]['multiplier'], throw_details[0]['points'],
                         throw_details[1]['score'], throw_details[1]['multiplier'], throw_details[1]['points'],
                         throw_details[2]['score'], throw_details[2]['multiplier'], throw_details[2]['points'],
@@ -253,6 +256,9 @@ def update_throw():
                 new_score = score_before_turn - total_current_points
                 is_bust = (new_score < 0)
                 
+                # If it's a bust, the points for the turn should be 0
+                points_to_record = 0 if is_bust else total_current_points
+                
                 # Insert new score entry with all throw details
                 cursor.execute(
                     '''INSERT INTO turn_scores (
@@ -263,7 +269,7 @@ def update_throw():
                         bust
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                     (
-                        turn_number, player_id, total_current_points,
+                        turn_number, player_id, points_to_record,  # 0 if bust, otherwise the actual points
                         throw_details[0]['score'], throw_details[0]['multiplier'], throw_details[0]['points'],
                         throw_details[1]['score'], throw_details[1]['multiplier'], throw_details[1]['points'],
                         throw_details[2]['score'], throw_details[2]['multiplier'], throw_details[2]['points'],
@@ -346,13 +352,26 @@ def update_throw():
                 multiplier_column = f'throw{throw_number}_multiplier'
                 points_column = f'throw{throw_number}_points'
                 
-                # Calculate new total points
-                old_throw_points = row[points_column]
-                new_total_points = row['points'] - old_throw_points + points
+                # Calculate the new total points directly from all throws
+                # First, get current throw details
+                throw1_points = row['throw1_points']
+                throw2_points = row['throw2_points']
+                throw3_points = row['throw3_points']
+                
+                # Replace the specified throw with new points
+                if throw_number == 1:
+                    new_total_points = points + throw2_points + throw3_points
+                elif throw_number == 2:
+                    new_total_points = throw1_points + points + throw3_points
+                else:  # throw_number == 3
+                    new_total_points = throw1_points + throw2_points + points
                 
                 # Check if this update would cause a bust
                 new_score = score_before_turn - new_total_points
                 is_bust = (new_score < 0)
+                
+                # If busted, set recorded points to 0, otherwise use the calculated sum
+                points_to_record = 0 if is_bust else new_total_points
                 
                 # Update query with specific throw fields
                 update_query = f'''
@@ -367,8 +386,38 @@ def update_throw():
                 
                 cursor.execute(
                     update_query,
-                    (score, multiplier, points, new_total_points, 1 if is_bust else 0, turn_number, player_id)
+                    (score, multiplier, points, points_to_record, 1 if is_bust else 0, turn_number, player_id)
                 )
+                
+                # Special handling for correcting a past bust
+                if was_previously_bust and not is_bust:
+                    print(f"Corrected bust for player {player_id}, turn {turn_number}")
+                    
+                    # If this wasn't the third throw, and it's the previous turn, we might need to "rewind"
+                    # Check if this is the turn right before the current turn
+                    if (throw_number < 3 and 
+                        ((turn_number == current_turn - 1) or 
+                         (turn_number == current_turn and player_id < current_player))):
+                        
+                        print(f"This was a recent bust correction. Allowing player {player_id} to continue their turn.")
+                        
+                        # We need to rewind the game state to allow this player to continue their turn
+                        cursor.execute(
+                            'UPDATE game_state SET current_turn = ?, current_player = ? WHERE id = 1',
+                            (turn_number, player_id)
+                        )
+                        
+                        # Update current_throws to reflect the corrected throws
+                        cursor.execute('DELETE FROM current_throws')
+                        cursor.execute('INSERT INTO current_throws (throw_number, points, score, multiplier) VALUES (1, ?, ?, ?)', 
+                                       (row['throw1_points'], row['throw1'], row['throw1_multiplier']))
+                        cursor.execute('INSERT INTO current_throws (throw_number, points, score, multiplier) VALUES (2, ?, ?, ?)', 
+                                       (row['throw2_points'], row['throw2'], row['throw2_multiplier']))
+                        cursor.execute('INSERT INTO current_throws (throw_number, points, score, multiplier) VALUES (3, ?, ?, ?)', 
+                                       (row['throw3_points'], row['throw3'], row['throw3_multiplier']))
+                        
+                        # Set response flag to indicate turn was rewound
+                        rewound_turn = True
             else:
                 # Create a new record with just this throw
                 throw1 = 0
