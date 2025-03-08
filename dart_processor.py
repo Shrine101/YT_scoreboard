@@ -332,11 +332,7 @@ class DartProcessor:
         self.update_current_throw(throw_position, score, multiplier, points)
         
         # Calculate total points for current throws
-        total_current_points = 0
-        for t in current_throws:
-            if t['throw_number'] < throw_position:
-                total_current_points += t['points']
-        total_current_points += points  # Add points from this throw
+        total_current_points = sum(t['points'] for t in current_throws if t['throw_number'] != throw_position) + points
         
         # Check if this would result in a bust
         player_score_before_turn = self.get_player_score_before_turn(current_player, current_turn)
@@ -348,15 +344,16 @@ class DartProcessor:
             animation_type = "bust" if is_bust else "third_throw"
             print(f"{animation_type.upper()} detected! Processing game logic...")
             
-            # Get current throw details
-            updated_throws = []
+            # **** CRITICAL FIX: Explicitly refresh current_throws to include the latest throw ****
+            current_throws = []
             with self.get_game_connection() as conn:
                 cursor = conn.cursor()
+                # Get the updated current_throws after our update above
                 cursor.execute('SELECT throw_number, points, score, multiplier FROM current_throws ORDER BY throw_number')
-                updated_throws = [dict(throw) for throw in cursor.fetchall()]
+                current_throws = [dict(t) for t in cursor.fetchall()]
             
             # Record the score in the database
-            self.add_score_to_turn(current_turn, current_player, total_current_points, updated_throws)
+            self.add_score_to_turn(current_turn, current_player, total_current_points, current_throws)
             
             # Only advance if game isn't over
             with self.get_game_connection() as conn:
@@ -374,8 +371,7 @@ class DartProcessor:
                 next_player = current_player % player_count + 1  # Cycle to next player (1-based)
                 next_turn = current_turn + (1 if next_player == 1 else 0)  # Increment turn if we wrapped around
                 
-                # Set animation state BEFORE advancing game state
-                # This is important: we want to show the animation before advancing
+                # **** IMPORTANT: Set animation state BEFORE advancing game state ****
                 self.set_animation_state(
                     animation_type=animation_type,
                     turn_number=current_turn,

@@ -144,26 +144,6 @@ def data_json():
         })
     game_data["players"] = players
     
-    # Get turns and scores
-    turns = []
-    for turn_row in conn.execute('SELECT turn_number FROM turns ORDER BY turn_number'):
-        turn_number = turn_row['turn_number']
-        
-        # Get scores for this turn
-        scores = []
-        for score_row in conn.execute('SELECT player_id, points, bust FROM turn_scores WHERE turn_number = ? ORDER BY player_id', (turn_number,)):
-            scores.append({
-                "player_id": score_row['player_id'],
-                "points": score_row['points'],
-                "bust": score_row['bust']
-            })
-        
-        turns.append({
-            "turn_number": turn_number,
-            "scores": scores
-        })
-    game_data["turns"] = turns
-    
     # Get current game state
     state_row = conn.execute('SELECT current_turn, current_player, game_over FROM game_state WHERE id = 1').fetchone()
     
@@ -199,16 +179,73 @@ def data_json():
     # Always pass along game over state
     game_data["game_over"] = state_row['game_over']
     
-    # Get current throws
+    # Get current throws - Special handling for animation state
     current_throws = []
-    for throw_row in conn.execute('SELECT throw_number, points, score, multiplier FROM current_throws ORDER BY throw_number'):
-        current_throws.append({
-            "throw_number": throw_row['throw_number'],
-            "points": throw_row['points'],
-            "score": throw_row['score'],
-            "multiplier": throw_row['multiplier']
-        })
+    
+    if animation_state and animation_state['animating'] == 1 and animation_state['animation_type'] == 'third_throw':
+        # IMPORTANT: For third throw animation, we need to get the throw data from turn_scores
+        # This ensures the third throw is visible during animation
+        anim_turn = animation_state['turn_number']
+        anim_player = animation_state['player_id']
+        
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT 
+                throw1, throw1_multiplier, throw1_points,
+                throw2, throw2_multiplier, throw2_points,
+                throw3, throw3_multiplier, throw3_points
+            FROM turn_scores
+            WHERE turn_number = ? AND player_id = ?
+        ''', (anim_turn, anim_player))
+        
+        row = cursor.fetchone()
+        if row:
+            # Create throw objects from turn_scores data
+            current_throws = [
+                {"throw_number": 1, "score": row['throw1'], "multiplier": row['throw1_multiplier'], "points": row['throw1_points']},
+                {"throw_number": 2, "score": row['throw2'], "multiplier": row['throw2_multiplier'], "points": row['throw2_points']},
+                {"throw_number": 3, "score": row['throw3'], "multiplier": row['throw3_multiplier'], "points": row['throw3_points']}
+            ]
+        else:
+            # Fall back to current_throws if no turn_scores data
+            for throw_row in conn.execute('SELECT throw_number, points, score, multiplier FROM current_throws ORDER BY throw_number'):
+                current_throws.append({
+                    "throw_number": throw_row['throw_number'],
+                    "points": throw_row['points'],
+                    "score": throw_row['score'],
+                    "multiplier": throw_row['multiplier']
+                })
+    else:
+        # Normal case - just get current_throws
+        for throw_row in conn.execute('SELECT throw_number, points, score, multiplier FROM current_throws ORDER BY throw_number'):
+            current_throws.append({
+                "throw_number": throw_row['throw_number'],
+                "points": throw_row['points'],
+                "score": throw_row['score'],
+                "multiplier": throw_row['multiplier']
+            })
+    
     game_data["current_throws"] = current_throws
+    
+    # Get turns and scores
+    turns = []
+    for turn_row in conn.execute('SELECT turn_number FROM turns ORDER BY turn_number'):
+        turn_number = turn_row['turn_number']
+        
+        # Get scores for this turn
+        scores = []
+        for score_row in conn.execute('SELECT player_id, points, bust FROM turn_scores WHERE turn_number = ? ORDER BY player_id', (turn_number,)):
+            scores.append({
+                "player_id": score_row['player_id'],
+                "points": score_row['points'],
+                "bust": score_row['bust']
+            })
+        
+        turns.append({
+            "turn_number": turn_number,
+            "scores": scores
+        })
+    game_data["turns"] = turns
     
     # Close the connection
     conn.close()

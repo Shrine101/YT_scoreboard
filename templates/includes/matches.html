@@ -280,12 +280,27 @@
     
     // Update current throws - with animation logic
     if (game_data.animating && game_data.animation_type === 'third_throw') {
-      // Find the third throw and blink it
+      // Find the third throw 
       const thirdThrow = game_data.current_throws.find(t => t.throw_number === 3);
       if (thirdThrow) {
         const throwElement = document.getElementById(`throw3_points`);
-        if (throwElement && throwElement.textContent !== thirdThrow.points.toString()) {
+        if (throwElement) {
+          // Always update and blink for third throw animations
           blinkUpdate(throwElement, thirdThrow.points.toString(), '#00ff00');
+          
+          // For debugging
+          console.log("Animating third throw:", thirdThrow);
+        }
+        
+        // Also update other throws without blinking
+        for (let i = 1; i <= 2; i++) {
+          const throw_data = game_data.current_throws.find(t => t.throw_number === i);
+          if (throw_data) {
+            const element = document.getElementById(`throw${i}_points`);
+            if (element) {
+              element.textContent = throw_data.points.toString();
+            }
+          }
         }
       }
     } else {
