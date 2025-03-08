@@ -77,6 +77,24 @@ class DartProcessor:
             )
             conn.commit()
 
+    def get_player_score_before_turn(self, player_id, turn_number):
+        """Get a player's score before a specific turn"""
+        with self.get_game_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Get the total points scored by this player before this turn
+            cursor.execute(
+                'SELECT SUM(points) as total_points FROM turn_scores WHERE player_id = ? AND turn_number < ? AND bust = 0',
+                (player_id, turn_number)
+            )
+            
+            total_previous_points = cursor.fetchone()['total_points'] or 0
+            
+            # Calculate the score before this turn (301 - previous points)
+            score_before_turn = 301 - total_previous_points
+            
+            return score_before_turn
+
     def add_score_to_turn(self, turn_number, player_id, total_points, current_throws):
         """Add or update a player's score for a specific turn with individual throw details"""
         with self.get_game_connection() as conn:
@@ -86,6 +104,13 @@ class DartProcessor:
             cursor.execute('SELECT 1 FROM turns WHERE turn_number = ?', (turn_number,))
             if not cursor.fetchone():
                 cursor.execute('INSERT INTO turns (turn_number) VALUES (?)', (turn_number,))
+            
+            # Get player's score before this turn
+            score_before_turn = self.get_player_score_before_turn(player_id, turn_number)
+            
+            # Check if this turn would result in a bust (score < 0)
+            new_score = score_before_turn - total_points
+            is_bust = (new_score < 0)
             
             # Map throws to their respective columns
             throw_columns = {}
@@ -97,19 +122,20 @@ class DartProcessor:
             
             # Check if player already has a score for this turn
             cursor.execute(
-                'SELECT points FROM turn_scores WHERE turn_number = ? AND player_id = ?',
+                'SELECT points, bust FROM turn_scores WHERE turn_number = ? AND player_id = ?',
                 (turn_number, player_id)
             )
             existing = cursor.fetchone()
             
             if existing:
-                # Update existing score with individual throw details
+                # Update existing score with individual throw details and bust flag
                 update_query = '''
                 UPDATE turn_scores 
                 SET points = ?, 
                     throw1 = ?, throw1_multiplier = ?, throw1_points = ?,
                     throw2 = ?, throw2_multiplier = ?, throw2_points = ?,
-                    throw3 = ?, throw3_multiplier = ?, throw3_points = ?
+                    throw3 = ?, throw3_multiplier = ?, throw3_points = ?,
+                    bust = ?
                 WHERE turn_number = ? AND player_id = ?
                 '''
                 cursor.execute(
@@ -119,18 +145,20 @@ class DartProcessor:
                         throw_columns.get('throw1', 0), throw_columns.get('throw1_multiplier', 0), throw_columns.get('throw1_points', 0),
                         throw_columns.get('throw2', 0), throw_columns.get('throw2_multiplier', 0), throw_columns.get('throw2_points', 0),
                         throw_columns.get('throw3', 0), throw_columns.get('throw3_multiplier', 0), throw_columns.get('throw3_points', 0),
+                        1 if is_bust else 0,
                         turn_number, player_id
                     )
                 )
             else:
-                # Insert new score with individual throw details
+                # Insert new score with individual throw details and bust flag
                 insert_query = '''
                 INSERT INTO turn_scores (
                     turn_number, player_id, points,
                     throw1, throw1_multiplier, throw1_points,
                     throw2, throw2_multiplier, throw2_points,
-                    throw3, throw3_multiplier, throw3_points
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    throw3, throw3_multiplier, throw3_points,
+                    bust
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 '''
                 cursor.execute(
                     insert_query,
@@ -138,14 +166,15 @@ class DartProcessor:
                         turn_number, player_id, total_points,
                         throw_columns.get('throw1', 0), throw_columns.get('throw1_multiplier', 0), throw_columns.get('throw1_points', 0),
                         throw_columns.get('throw2', 0), throw_columns.get('throw2_multiplier', 0), throw_columns.get('throw2_points', 0),
-                        throw_columns.get('throw3', 0), throw_columns.get('throw3_multiplier', 0), throw_columns.get('throw3_points', 0)
+                        throw_columns.get('throw3', 0), throw_columns.get('throw3_multiplier', 0), throw_columns.get('throw3_points', 0),
+                        1 if is_bust else 0
                     )
                 )
             
-            # Update player's total score - MODIFIED for 301 game
-            # Get sum of all points scored by this player
+            # Update player's total score - MODIFIED for 301 game with bust handling
+            # Get sum of all points scored by this player from non-busted turns
             cursor.execute(
-                'SELECT SUM(points) as total_points FROM turn_scores WHERE player_id = ?',
+                'SELECT SUM(points) as total_points FROM turn_scores WHERE player_id = ? AND bust = 0',
                 (player_id,)
             )
             total_player_points = cursor.fetchone()['total_points'] or 0
@@ -164,7 +193,13 @@ class DartProcessor:
                 print(f"Player {player_id} has won the game with score of 0!")
                 cursor.execute('UPDATE game_state SET game_over = 1 WHERE id = 1')
             
+            # Log the result
+            if is_bust:
+                print(f"BUST! Turn {turn_number}, Player {player_id} busted (score would be {score_before_turn - total_points})")
+            
             conn.commit()
+            
+            return is_bust
 
     def advance_to_next_player(self):
         """Move to the next player, and possibly next turn"""
@@ -275,7 +310,7 @@ class DartProcessor:
                 game_state = self.get_current_game_state()
                 
                 # Add score to turn_scores with all throw details
-                self.add_score_to_turn(
+                is_bust = self.add_score_to_turn(
                     self.third_throw_data['current_turn'],
                     self.third_throw_data['current_player'],
                     self.third_throw_data['total_points'],
@@ -292,7 +327,10 @@ class DartProcessor:
                 if not game_over:
                     # Move to next player
                     self.advance_to_next_player()
-                    print("Advanced to next player")
+                    if is_bust:
+                        print(f"BUST! Advanced to next player due to bust")
+                    else:
+                        print("Advanced to next player")
                 else:
                     print("Game is over, not advancing to next player")
                 

@@ -38,6 +38,52 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row  # This enables column access by name
     return conn
 
+def get_player_score_before_turn(conn, player_id, turn_number):
+    """Get a player's score before a specific turn"""
+    cursor = conn.cursor()
+    
+    # Get the total points scored by this player before this turn (excluding busted turns)
+    cursor.execute(
+        'SELECT SUM(points) as total_points FROM turn_scores WHERE player_id = ? AND turn_number < ? AND bust = 0',
+        (player_id, turn_number)
+    )
+    
+    total_previous_points = cursor.fetchone()['total_points'] or 0
+    
+    # Calculate the score before this turn (301 - previous points)
+    score_before_turn = 301 - total_previous_points
+    
+    return score_before_turn
+
+def recalculate_player_scores(conn):
+    """Recalculate all player scores based on turn_scores data"""
+    cursor = conn.cursor()
+    
+    # Get all players
+    cursor.execute('SELECT id FROM players')
+    players = cursor.fetchall()
+    
+    for player in players:
+        player_id = player['id']
+        
+        # Calculate total points from non-busted turns
+        cursor.execute(
+            'SELECT SUM(points) as total_points FROM turn_scores WHERE player_id = ? AND bust = 0',
+            (player_id,)
+        )
+        total_points = cursor.fetchone()['total_points'] or 0
+        
+        # Update player's score (301 - total points)
+        new_score = 301 - total_points
+        cursor.execute(
+            'UPDATE players SET total_score = ? WHERE id = ?',
+            (new_score, player_id)
+        )
+        
+        # Check if player has won (score exactly 0)
+        if new_score == 0:
+            cursor.execute('UPDATE game_state SET game_over = 1 WHERE id = 1')
+
 @app.route('/data_json')
 def data_json():
     # Create a connection to the database
@@ -63,10 +109,11 @@ def data_json():
         
         # Get scores for this turn
         scores = []
-        for score_row in conn.execute('SELECT player_id, points FROM turn_scores WHERE turn_number = ? ORDER BY player_id', (turn_number,)):
+        for score_row in conn.execute('SELECT player_id, points, bust FROM turn_scores WHERE turn_number = ? ORDER BY player_id', (turn_number,)):
             scores.append({
                 "player_id": score_row['player_id'],
-                "points": score_row['points']
+                "points": score_row['points'],
+                "bust": score_row['bust']
             })
         
         turns.append({
@@ -83,10 +130,12 @@ def data_json():
     
     # Get current throws
     current_throws = []
-    for throw_row in conn.execute('SELECT throw_number, points FROM current_throws ORDER BY throw_number'):
+    for throw_row in conn.execute('SELECT throw_number, points, score, multiplier FROM current_throws ORDER BY throw_number'):
         current_throws.append({
             "throw_number": throw_row['throw_number'],
-            "points": throw_row['points']
+            "points": throw_row['points'],
+            "score": throw_row['score'],
+            "multiplier": throw_row['multiplier']
         })
     game_data["current_throws"] = current_throws
     
@@ -132,6 +181,10 @@ def update_throw():
         # Check if this is a current turn override or past turn modification
         is_current_turn_override = (turn_number == current_turn and player_id == current_player and not game_over)
         
+        # Store original bust status if modifying existing turn
+        was_previously_bust = False
+        score_before_turn = get_player_score_before_turn(conn, player_id, turn_number)
+        
         # Different handling based on whether this is for the current turn or a past turn
         if is_current_turn_override:
             # This is the current player's current turn
@@ -147,11 +200,14 @@ def update_throw():
             
             # Check if there's an existing score for this turn/player
             cursor.execute(
-                'SELECT 1 FROM turn_scores WHERE turn_number = ? AND player_id = ?',
+                'SELECT bust FROM turn_scores WHERE turn_number = ? AND player_id = ?',
                 (turn_number, player_id)
             )
+            existing_score = cursor.fetchone()
             
-            if cursor.fetchone():
+            if existing_score:
+                was_previously_bust = existing_score['bust']
+                
                 # Get current throw details
                 cursor.execute(
                     '''SELECT 
@@ -161,19 +217,25 @@ def update_throw():
                 )
                 throw_details = cursor.fetchall()
                 
+                # Check if this would result in a bust
+                new_score = score_before_turn - total_current_points
+                is_bust = (new_score < 0)
+                
                 # Update existing score with all throw details
                 cursor.execute(
                     '''UPDATE turn_scores 
                     SET points = ?,
                         throw1 = ?, throw1_multiplier = ?, throw1_points = ?,
                         throw2 = ?, throw2_multiplier = ?, throw2_points = ?,
-                        throw3 = ?, throw3_multiplier = ?, throw3_points = ?
+                        throw3 = ?, throw3_multiplier = ?, throw3_points = ?,
+                        bust = ?
                     WHERE turn_number = ? AND player_id = ?''',
                     (
                         total_current_points,
                         throw_details[0]['score'], throw_details[0]['multiplier'], throw_details[0]['points'],
                         throw_details[1]['score'], throw_details[1]['multiplier'], throw_details[1]['points'],
                         throw_details[2]['score'], throw_details[2]['multiplier'], throw_details[2]['points'],
+                        1 if is_bust else 0,
                         turn_number, player_id
                     )
                 )
@@ -187,45 +249,83 @@ def update_throw():
                 )
                 throw_details = cursor.fetchall()
                 
+                # Check if this would result in a bust
+                new_score = score_before_turn - total_current_points
+                is_bust = (new_score < 0)
+                
                 # Insert new score entry with all throw details
                 cursor.execute(
                     '''INSERT INTO turn_scores (
                         turn_number, player_id, points,
                         throw1, throw1_multiplier, throw1_points,
                         throw2, throw2_multiplier, throw2_points,
-                        throw3, throw3_multiplier, throw3_points
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                        throw3, throw3_multiplier, throw3_points,
+                        bust
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                     (
                         turn_number, player_id, total_current_points,
                         throw_details[0]['score'], throw_details[0]['multiplier'], throw_details[0]['points'],
                         throw_details[1]['score'], throw_details[1]['multiplier'], throw_details[1]['points'],
                         throw_details[2]['score'], throw_details[2]['multiplier'], throw_details[2]['points'],
-                        
+                        1 if is_bust else 0
                     )
                 )
                 
-            # Check if we need to advance to the next turn/player
-            if throw_number == 3:
-                # If we're manually entering the 3rd throw, advance to the next player
-                player_count = cursor.execute('SELECT COUNT(*) as count FROM players').fetchone()['count']
+            # Handle bust status change
+            bust_status_changed = (was_previously_bust != is_bust)
+            
+            # Handle "rewind" if a bust is corrected and it wasn't the third throw
+            if bust_status_changed and was_previously_bust and not is_bust and throw_number < 3:
+                # We corrected a bust, and it's not the third throw, so player can continue their turn
                 
-                # Calculate next player and turn
-                next_player = current_player % player_count + 1  # Cycle to next player (1-based)
-                next_turn = current_turn + (1 if next_player == 1 else 0)  # Increment turn if we wrapped around
+                # We don't need to change anything - player is already the current player
+                # Just indicate in the response that the turn should continue
+                continue_turn = True
                 
-                # Update game state
-                cursor.execute(
-                    'UPDATE game_state SET current_player = ?, current_turn = ? WHERE id = 1',
-                    (next_player, next_turn)
-                )
+                print(f"Bust corrected via manual override! Player {player_id} can continue their turn.")
+            else:
+                continue_turn = False
                 
-                # Reset current throws
-                cursor.execute('UPDATE current_throws SET points = 0, score = 0, multiplier = 0')
+                # Check if we need to advance to the next turn/player
+                should_advance = False
                 
-                print(f"Manual override: Advanced to Player {next_player}, Turn {next_turn}")
+                if is_bust:
+                    # If it's a bust, always advance
+                    should_advance = True
+                    print(f"Bust detected via manual override! Advancing to next player.")
+                elif throw_number == 3:
+                    # If it's the third throw and not a bust, advance
+                    should_advance = True
+                    print(f"Third throw via manual override. Advancing to next player.")
+                
+                if should_advance:
+                    # Calculate next player and turn
+                    player_count = cursor.execute('SELECT COUNT(*) as count FROM players').fetchone()['count']
+                    next_player = current_player % player_count + 1  # Cycle to next player (1-based)
+                    next_turn = current_turn + (1 if next_player == 1 else 0)  # Increment turn if we wrapped around
+                    
+                    # Update game state
+                    cursor.execute(
+                        'UPDATE game_state SET current_player = ?, current_turn = ? WHERE id = 1',
+                        (next_player, next_turn)
+                    )
+                    
+                    # Reset current throws
+                    cursor.execute('UPDATE current_throws SET points = 0, score = 0, multiplier = 0')
+                    
+                    print(f"Manual override: Advanced to Player {next_player}, Turn {next_turn}")
                 
         else:
             # This is a past turn or different player
+            # Get existing turn data and check if it was previously a bust
+            cursor.execute(
+                'SELECT bust FROM turn_scores WHERE turn_number = ? AND player_id = ?',
+                (turn_number, player_id)
+            )
+            existing_turn = cursor.fetchone()
+            if existing_turn:
+                was_previously_bust = existing_turn['bust']
+            
             # Get existing turn data
             cursor.execute(
                 '''SELECT 
@@ -250,19 +350,24 @@ def update_throw():
                 old_throw_points = row[points_column]
                 new_total_points = row['points'] - old_throw_points + points
                 
+                # Check if this update would cause a bust
+                new_score = score_before_turn - new_total_points
+                is_bust = (new_score < 0)
+                
                 # Update query with specific throw fields
                 update_query = f'''
                 UPDATE turn_scores 
                 SET {throw_column} = ?, 
                     {multiplier_column} = ?, 
                     {points_column} = ?,
-                    points = ?
+                    points = ?,
+                    bust = ?
                 WHERE turn_number = ? AND player_id = ?
                 '''
                 
                 cursor.execute(
                     update_query,
-                    (score, multiplier, points, new_total_points, turn_number, player_id)
+                    (score, multiplier, points, new_total_points, 1 if is_bust else 0, turn_number, player_id)
                 )
             else:
                 # Create a new record with just this throw
@@ -290,41 +395,41 @@ def update_throw():
                     throw3_multiplier = multiplier
                     throw3_points = points
                 
+                # Check if this would result in a bust
+                new_score = score_before_turn - points
+                is_bust = (new_score < 0)
+                
                 cursor.execute(
                     '''INSERT INTO turn_scores (
                         turn_number, player_id, points,
                         throw1, throw1_multiplier, throw1_points,
                         throw2, throw2_multiplier, throw2_points,
-                        throw3, throw3_multiplier, throw3_points
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                        throw3, throw3_multiplier, throw3_points,
+                        bust
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                     (
                         turn_number, player_id, points,
                         throw1, throw1_multiplier, throw1_points,
                         throw2, throw2_multiplier, throw2_points,
-                        throw3, throw3_multiplier, throw3_points
+                        throw3, throw3_multiplier, throw3_points,
+                        1 if is_bust else 0
                     )
                 )
-        
-        # Recalculate player's total score (301 - sum of all points)
-        cursor.execute(
-            'SELECT SUM(points) as total_points FROM turn_scores WHERE player_id = ?',
-            (player_id,)
-        )
-        total_points = cursor.fetchone()['total_points'] or 0
-        
-        # Update the player's total score
-        new_score = 301 - total_points
-        cursor.execute(
-            'UPDATE players SET total_score = ? WHERE id = ?',
-            (new_score, player_id)
-        )
-        
-        # Check if player has won (score exactly 0)
-        if new_score == 0:
-            cursor.execute('UPDATE game_state SET game_over = 1 WHERE id = 1')
+            
+            # Recalculate all player scores after modifying past turn
+            recalculate_player_scores(conn)
         
         # Commit changes
         conn.commit()
+        
+        # Check for game over after all updates
+        cursor.execute('SELECT total_score FROM players WHERE id = ?', (player_id,))
+        player_score = cursor.fetchone()['total_score']
+        
+        # Check if player has won (score exactly 0)
+        if player_score == 0:
+            cursor.execute('UPDATE game_state SET game_over = 1 WHERE id = 1')
+            conn.commit()
         
         # Close connection
         conn.close()
@@ -333,13 +438,19 @@ def update_throw():
         response_data = {
             'message': f'Throw updated successfully! Points: {points}',
             'points': points,
-            'new_total': new_score
+            'new_total': player_score,
+            'is_bust': is_bust,
+            'was_previously_bust': was_previously_bust,
+            'bust_status_changed': (was_previously_bust != is_bust)
         }
         
         # Add info about turn advancement if applicable
-        if is_current_turn_override and throw_number == 3:
-            response_data['advanced_turn'] = True
-            response_data['next_player'] = current_player % cursor.execute('SELECT COUNT(*) FROM players').fetchone()[0] + 1
+        if is_current_turn_override:
+            if is_bust or throw_number == 3:
+                response_data['advanced_turn'] = True
+                response_data['next_player'] = (current_player % cursor.execute('SELECT COUNT(*) FROM players').fetchone()[0]) + 1
+            elif 'continue_turn' in locals() and continue_turn:
+                response_data['continue_turn'] = True
         
         return jsonify(response_data)
         
@@ -374,18 +485,29 @@ def get_throw_details():
         is_current = (turn_number == game_state['current_turn'] and player_id == game_state['current_player'])
         
         throws = []
+        bust = 0
         
         if is_current:
             # For current turn, get data from current_throws
             cursor.execute('SELECT throw_number, score, multiplier, points FROM current_throws ORDER BY throw_number')
             throws = [dict(row) for row in cursor.fetchall()]
+            
+            # Check if there's a bust for the current turn/player
+            cursor.execute(
+                'SELECT bust FROM turn_scores WHERE turn_number = ? AND player_id = ?',
+                (turn_number, player_id)
+            )
+            row = cursor.fetchone()
+            if row:
+                bust = row['bust']
         else:
             # For past turns, get from turn_scores
             cursor.execute('''
                 SELECT 
                     throw1 as score1, throw1_multiplier as multiplier1, throw1_points as points1,
                     throw2 as score2, throw2_multiplier as multiplier2, throw2_points as points2,
-                    throw3 as score3, throw3_multiplier as multiplier3, throw3_points as points3
+                    throw3 as score3, throw3_multiplier as multiplier3, throw3_points as points3,
+                    bust
                 FROM turn_scores 
                 WHERE turn_number = ? AND player_id = ?
             ''', (turn_number, player_id))
@@ -399,6 +521,7 @@ def get_throw_details():
                     {"throw_number": 2, "score": row['score2'], "multiplier": row['multiplier2'], "points": row['points2']},
                     {"throw_number": 3, "score": row['score3'], "multiplier": row['multiplier3'], "points": row['points3']}
                 ]
+                bust = row['bust']
             else:
                 # No data found, return empty throws
                 throws = [
@@ -408,7 +531,13 @@ def get_throw_details():
                 ]
         
         conn.close()
-        return jsonify(throws)
+        
+        response = {
+            'throws': throws,
+            'bust': bust
+        }
+        
+        return jsonify(response)
         
     except Exception as e:
         print(f"Error getting throw details: {e}")

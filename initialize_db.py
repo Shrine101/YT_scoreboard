@@ -57,6 +57,7 @@ def initialize_database():
                     throw1_points INTEGER DEFAULT 0,
                     throw2_points INTEGER DEFAULT 0,
                     throw3_points INTEGER DEFAULT 0,
+                    bust BOOLEAN DEFAULT 0,
                     PRIMARY KEY (turn_number, player_id),
                     FOREIGN KEY (turn_number) REFERENCES turns(turn_number),
                     FOREIGN KEY (player_id) REFERENCES players(id)

@@ -5,6 +5,14 @@
       <h2 class="mb-0" style="font-size: 36px; font-weight: bold;">GAME OVER!</h2>
     </div>
   </div>
+  
+  <!-- Bust notification banner -->
+  <div id="bust-banner" class="col-12 mb-4" style="display: none;">
+    <div class="alert alert-danger text-center py-3">
+      <h3 class="mb-0" style="font-size: 28px; font-weight: bold;">BUST!</h3>
+    </div>
+  </div>
+  
   <!-- Left side: Turns and scores table -->
   <div class="col-md-8">
     <div class="table-responsive">
@@ -93,6 +101,10 @@
                 <div class="badge bg-primary mb-1">Throw 3</div>
                 <div class="throw-points" id="displayThrow3">0</div>
               </div>
+            </div>
+            <!-- Bust indicator -->
+            <div id="bustIndicator" class="text-center mt-2" style="display: none;">
+              <span class="badge bg-danger px-3 py-2">BUST</span>
             </div>
           </div>
         </div>
@@ -207,7 +219,12 @@
         // Find score for this player
         const score = turn.scores.find(s => s.player_id === player.id);
         if (score) {
-          tableHTML += score.points;
+          // Add bust styling if needed
+          if (score.bust) {
+            tableHTML += `<span class="bust-score">${score.points}</span>`;
+          } else {
+            tableHTML += score.points;
+          }
         }
         
         tableHTML += `</td>`;
@@ -260,8 +277,22 @@
     }, 2000);
   }
   
+  // Function to show a bust notification
+  function showBustNotification(duration = 3000) {
+    const bustBanner = document.getElementById('bust-banner');
+    bustBanner.style.display = 'block';
+    
+    // Hide the banner after the duration
+    setTimeout(() => {
+      bustBanner.style.display = 'none';
+    }, duration);
+  }
+  
   // Function to update the throw display with current throw values
-  function updateThrowDisplay(throwData) {
+  function updateThrowDisplay(data) {
+    const throwData = data.throws;
+    const isBust = data.bust;
+    
     // Update the display for each throw
     for (let i = 1; i <= 3; i++) {
       const displayElement = document.getElementById(`displayThrow${i}`);
@@ -280,6 +311,12 @@
           displayElement.classList.remove('has-points');
         }
       }
+    }
+    
+    // Update the bust indicator
+    const bustIndicator = document.getElementById('bustIndicator');
+    if (bustIndicator) {
+      bustIndicator.style.display = isBust ? 'block' : 'none';
     }
     
     // Update the pre-filled values for the currently selected throw
@@ -393,7 +430,7 @@
       fetch(`/get_throw_details?turn_number=${turnNumber}&player_id=${playerId}`)
         .then(response => response.json())
         .then(data => {
-          const selectedThrow = data.find(t => t.throw_number === parseInt(this.value));
+          const selectedThrow = data.throws.find(t => t.throw_number === parseInt(this.value));
           if (selectedThrow) {
             // Use score and multiplier values from the selected throw
             document.getElementById('scoreInput').value = selectedThrow.score || '';
@@ -522,6 +559,18 @@
         return response.json();
       })
       .then(data => {
+        // Handle bust notification if needed
+        if (data.is_bust) {
+          showBustNotification();
+        }
+        
+        // Special case: Bust was corrected and player can continue their turn
+        if (data.bust_status_changed && data.was_previously_bust && !data.is_bust && data.continue_turn) {
+          manualOverrideModal.hide();
+          alert(`Bust corrected! Player can continue their turn. Points: ${data.points}`);
+          return;
+        }
+        
         // Determine if we should close the modal based on turn advancement
         let closeModal = true;
         
@@ -529,7 +578,11 @@
         if (data.advanced_turn) {
           // If the game advanced turns, close the modal as we're done with this player
           manualOverrideModal.hide();
-          alert(`Throw updated successfully! Points: ${data.points}. Advanced to next player.`);
+          if (data.is_bust) {
+            alert(`BUST! No points scored. Advanced to next player.`);
+          } else {
+            alert(`Throw updated successfully! Points: ${data.points}. Advanced to next player.`);
+          }
         } else {
           // If we didn't advance turns, we might want to set up for the next throw
           const currentThrowNum = parseInt(throwNumber);
@@ -638,5 +691,25 @@
 
   #currentThrowsDisplay {
     margin-bottom: 10px;
+  }
+  
+  /* Style for bust scores */
+  .bust-score {
+    color: #dc3545;
+    text-decoration: line-through;
+    position: relative;
+  }
+  
+  .bust-score::after {
+    content: 'BUST';
+    position: absolute;
+    top: -10px;
+    right: -8px;
+    font-size: 12px;
+    background-color: #dc3545;
+    color: white;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-weight: bold;
   }
 </style>
