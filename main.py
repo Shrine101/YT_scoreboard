@@ -407,14 +407,26 @@ def update_throw():
                             (turn_number, player_id)
                         )
                         
-                        # Update current_throws to reflect the corrected throws
+                        # Re-query the database to get the UPDATED throw data
+                        cursor.execute(
+                            '''SELECT 
+                                throw1, throw1_multiplier, throw1_points,
+                                throw2, throw2_multiplier, throw2_points,
+                                throw3, throw3_multiplier, throw3_points
+                            FROM turn_scores 
+                            WHERE turn_number = ? AND player_id = ?''',
+                            (turn_number, player_id)
+                        )
+                        updated_row = cursor.fetchone()
+                        
+                        # Update current_throws to reflect the UPDATED throws
                         cursor.execute('DELETE FROM current_throws')
                         cursor.execute('INSERT INTO current_throws (throw_number, points, score, multiplier) VALUES (1, ?, ?, ?)', 
-                                       (row['throw1_points'], row['throw1'], row['throw1_multiplier']))
+                                       (updated_row['throw1_points'], updated_row['throw1'], updated_row['throw1_multiplier']))
                         cursor.execute('INSERT INTO current_throws (throw_number, points, score, multiplier) VALUES (2, ?, ?, ?)', 
-                                       (row['throw2_points'], row['throw2'], row['throw2_multiplier']))
+                                       (updated_row['throw2_points'], updated_row['throw2'], updated_row['throw2_multiplier']))
                         cursor.execute('INSERT INTO current_throws (throw_number, points, score, multiplier) VALUES (3, ?, ?, ?)', 
-                                       (row['throw3_points'], row['throw3'], row['throw3_multiplier']))
+                                       (updated_row['throw3_points'], updated_row['throw3'], updated_row['throw3_multiplier']))
                         
                         # Set response flag to indicate turn was rewound
                         rewound_turn = True

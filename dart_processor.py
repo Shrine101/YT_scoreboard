@@ -11,10 +11,6 @@ class DartProcessor:
         
         # Initialize timestamp to current local time
         self.last_throw_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        # Track if we're waiting after a third throw
-        self.waiting_after_third_throw = False
-        self.third_throw_time = None
-        self.third_throw_data = None
         
         print(f"Dart processor initialized. Only processing throws after: {self.last_throw_timestamp}")
 
@@ -313,20 +309,10 @@ class DartProcessor:
                 
                 # Log the advancement
                 print(f"Advanced to Player {next_player}, Turn {next_turn}{' due to bust' if is_bust else ''}")
-            
-            # Reset any waiting state
-            if self.waiting_after_third_throw:
-                self.waiting_after_third_throw = False
-                self.third_throw_time = None
-                self.third_throw_data = None
-                
         else:
             # If not a bust or third throw, continue with normal play
             print(f"Processed throw: {score}x{multiplier}={points} points "
                   f"(Player {current_player}, Turn {current_turn}, Throw {throw_position})")
-            
-            # Reset delayed processing flag since we're processing immediately now
-            self.waiting_after_third_throw = False
 
     def process_third_throw_completion(self):
         """This method is no longer needed since we process throws immediately now"""
