@@ -319,7 +319,7 @@ def update_throw():
             # This is a past turn or different player
             # Get existing turn data and check if it was previously a bust
             cursor.execute(
-                'SELECT bust FROM turn_scores WHERE turn_number = ? AND player_id = ?',
+                'SELECT bust, throw1_points, throw2_points, throw3_points FROM turn_scores WHERE turn_number = ? AND player_id = ?',
                 (turn_number, player_id)
             )
             existing_turn = cursor.fetchone()
@@ -332,7 +332,7 @@ def update_throw():
                     throw1, throw1_multiplier, throw1_points,
                     throw2, throw2_multiplier, throw2_points,
                     throw3, throw3_multiplier, throw3_points,
-                    points
+                    points, bust
                 FROM turn_scores 
                 WHERE turn_number = ? AND player_id = ?''',
                 (turn_number, player_id)
@@ -454,6 +454,11 @@ def update_throw():
                 response_data['next_player'] = (current_player % cursor.execute('SELECT COUNT(*) FROM players').fetchone()[0]) + 1
             elif 'continue_turn' in locals() and continue_turn:
                 response_data['continue_turn'] = True
+        elif 'rewound_turn' in locals() and rewound_turn:
+            # This is for correcting a previous player's bust
+            response_data['rewound_turn'] = True
+            response_data['current_turn'] = turn_number
+            response_data['current_player'] = player_id
         
         return jsonify(response_data)
         

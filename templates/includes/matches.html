@@ -574,6 +574,20 @@
           return;
         }
         
+        // Special case: Previous player's bust was corrected - game state has been rewound
+        if (data.rewound_turn) {
+          manualOverrideModal.hide();
+          alert(`Bust corrected for player ${data.current_player}, turn ${data.current_turn}. The player can now continue their turn.`);
+          
+          // Refresh the game data to show updated state
+          fetch('/data_json')
+            .then(response => response.json())
+            .then(gameData => updateGame(gameData))
+            .catch(error => console.error('Error fetching data:', error));
+          
+          return;
+        }
+        
         // Determine if we should close the modal based on turn advancement
         let closeModal = true;
         
