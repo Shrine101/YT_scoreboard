@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request, redirect, url_for, session
+from flask import Flask, render_template, jsonify, request, redirect, url_for, flash, session
 import sqlite3
 import subprocess
 import threading
@@ -7,6 +7,8 @@ import signal
 import atexit
 from initialize_db import initialize_database
 from datetime import datetime
+
+
 
 app = Flask(__name__)
 dart_processor = None  # Define the global variable
@@ -40,8 +42,13 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row  # This enables column access by name
     return conn
     
-def initialize_game_with_custom_names(player_names):
-    """Initialize the game database but preserve custom player names"""
+def initialize_game_with_custom_names(player_names, starting_score=301):
+    """Initialize the game database but preserve custom player names.
+    
+    Args:
+        player_names (dict): Dictionary mapping player IDs to names.
+        starting_score (int): Starting score for the game (e.g., 301, 501)
+    """
     conn = sqlite3.connect('game.db')
     cursor = conn.cursor()
     
@@ -55,7 +62,8 @@ def initialize_game_with_custom_names(player_names):
         
         # Reset player scores but keep names
         for player_id, name in player_names.items():
-            cursor.execute('UPDATE players SET total_score = 301 WHERE id = ?', (player_id,))
+            cursor.execute('UPDATE players SET total_score = ? WHERE id = ?', 
+                          (starting_score, player_id))
         
         # Insert first turn
         cursor.execute('INSERT INTO turns (turn_number) VALUES (?)', (1,))
@@ -79,7 +87,7 @@ def initialize_game_with_custom_names(player_names):
         
         # Commit changes
         conn.commit()
-        print("Game reinitialized with custom player names")
+        print(f"Game reinitialized with custom player names and starting score: {starting_score}")
         
     except sqlite3.Error as e:
         print(f"Error initializing game with custom names: {e}")
@@ -216,11 +224,13 @@ def start_game():
     
     # Redirect to the game page
     return redirect(url_for('game'))
-
+    
+# Game display route (your existing route)
 @app.route('/game')
 def game():
+    """Display the game page"""
     response = data_json()
-    # Fix: get the actual JSON data from the response
+    # Get the actual JSON data from the response
     game_data = response.get_json()
 
     return render_template(
