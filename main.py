@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, redirect, url_for, session
 import sqlite3
 import subprocess
 import threading
@@ -39,6 +39,52 @@ def get_db_connection():
     conn = sqlite3.connect('game.db')
     conn.row_factory = sqlite3.Row  # This enables column access by name
     return conn
+    
+def initialize_game_with_custom_names(player_names):
+    """Initialize the game database but preserve custom player names"""
+    conn = sqlite3.connect('game.db')
+    cursor = conn.cursor()
+    
+    try:
+        # Clear existing data first
+        cursor.execute("DELETE FROM turn_scores")
+        cursor.execute("DELETE FROM current_throws")
+        cursor.execute("DELETE FROM game_state")
+        cursor.execute("DELETE FROM turns")
+        cursor.execute("DELETE FROM animation_state")
+        
+        # Reset player scores but keep names
+        for player_id, name in player_names.items():
+            cursor.execute('UPDATE players SET total_score = 301 WHERE id = ?', (player_id,))
+        
+        # Insert first turn
+        cursor.execute('INSERT INTO turns (turn_number) VALUES (?)', (1,))
+        
+        # Insert game state
+        cursor.execute('INSERT OR REPLACE INTO game_state (id, current_turn, current_player, game_over) VALUES (1, 1, 1, 0)')
+        
+        # Insert current throws
+        cursor.executemany('INSERT OR REPLACE INTO current_throws (throw_number, points, score, multiplier) VALUES (?, ?, ?, ?)', [
+            (1, 0, 0, 0),
+            (2, 0, 0, 0),
+            (3, 0, 0, 0)
+        ])
+        
+        # Insert animation state
+        cursor.execute('''
+            INSERT OR REPLACE INTO animation_state 
+            (id, animating, animation_type, turn_number, player_id, throw_number, timestamp, next_turn, next_player) 
+            VALUES (1, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+        ''')
+        
+        # Commit changes
+        conn.commit()
+        print("Game reinitialized with custom player names")
+        
+    except sqlite3.Error as e:
+        print(f"Error initializing game with custom names: {e}")
+    finally:
+        conn.close()
 
 def get_player_score_before_turn(conn, player_id, turn_number):
     """Get a player's score before a specific turn"""
@@ -122,6 +168,65 @@ def recalculate_player_scores(conn):
         # Check if player has won (score exactly 0)
         if new_score == 0:
             cursor.execute('UPDATE game_state SET game_over = 1 WHERE id = 1')
+
+@app.route('/')
+def home():
+    """Display the home page with player name input form"""
+    return render_template('home.html')
+
+@app.route('/start_game', methods=['POST'])
+def start_game():
+    """Process the player names and start the game"""
+    # Get player names from the form
+    player_names = {
+        1: request.form.get('player1', '').strip() or 'Player 1',
+        2: request.form.get('player2', '').strip() or 'Player 2',
+        3: request.form.get('player3', '').strip() or 'Player 3',
+        4: request.form.get('player4', '').strip() or 'Player 4'
+    }
+    
+    # Check if we should reset scores
+    reset_scores = request.form.get('reset_scores') == 'on'
+    
+    # Update player names in the database
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Update each player's name
+        for player_id, name in player_names.items():
+            cursor.execute('UPDATE players SET name = ? WHERE id = ?', (name, player_id))
+        
+        # If reset_scores is checked, reinitialize the database
+        if reset_scores:
+            # Commit the player name updates first
+            conn.commit()
+            conn.close()
+            
+            # Reinitialize the database but preserve player names
+            initialize_game_with_custom_names(player_names)
+        else:
+            # Just commit the name changes
+            conn.commit()
+            conn.close()
+            
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        conn.close()
+    
+    # Redirect to the game page
+    return redirect(url_for('game'))
+
+@app.route('/game')
+def game():
+    response = data_json()
+    # Fix: get the actual JSON data from the response
+    game_data = response.get_json()
+
+    return render_template(
+        'index.html',
+        game_data = game_data
+    )
 
 @app.route('/data_json')
 def data_json():
