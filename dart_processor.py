@@ -2,6 +2,7 @@ import sqlite3
 import time
 from datetime import datetime
 from contextlib import contextmanager
+from LEDs import LEDs  
 
 class DartProcessor:
     def __init__(self, cv_db_path='simulation/cv_data.db', game_db_path='game.db', poll_interval=1.0, animation_duration=3.0):
@@ -9,6 +10,8 @@ class DartProcessor:
         self.game_db_path = game_db_path
         self.poll_interval = poll_interval
         self.animation_duration = animation_duration  # Animation duration in seconds
+        self.led_control = LEDs()  # Initialize LED control
+
         
         # Initialize timestamp to current local time
         self.last_throw_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -327,6 +330,30 @@ class DartProcessor:
             if t['points'] == 0:
                 throw_position = t['throw_number']
                 break
+
+        print(f"Throw Position Detected: {throw_position}")
+
+        # **Clear LEDs at the start of each turn (first throw)**
+        if throw_position == 1:
+            print("Clearing LEDs for new turn...")
+            self.led_control.clearAll()
+        
+        # **Light up the correct LED segment**
+        if score == 25:  # Bullseye
+            self.led_control.bullseye((255, 215, 0))  # Gold color for bullseye
+            print(f"LED Updated: Bullseye hit!")
+        elif score in self.led_control.DARTBOARD_MAPPING:
+            dartboard_num = score  # Use dartboard number to find strip
+            if multiplier == 3:
+                self.led_control.tripleSeg(dartboard_num, (255, 0, 0))  # Red for triple ring
+            elif multiplier == 2:
+                self.led_control.doubleSeg(dartboard_num, (0, 0, 255))  # Blue for double ring
+            else: # TODO: IMPLEMENT INNER OR OUTER LOGIC HERE LATER
+                self.led_control.innerSingleSeg(dartboard_num, (0, 255, 0))  # Green for single segment
+            print(f"LED Updated: Dartboard Number {dartboard_num}, Multiplier {multiplier}")
+        else:
+            print(f"ERROR: Invalid dartboard number: {score}")
+            return
         
         # Update the current throw with score, multiplier, and points
         self.update_current_throw(throw_position, score, multiplier, points)

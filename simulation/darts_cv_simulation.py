@@ -12,7 +12,9 @@ class DartDetection:
         multiplier = 1
         position = (0, 0)  # Fixed position for cv sim testing purposes
 
-        dartboard_numbers = list(range(1, 21)) + [25]  # 25 is bullseye
+        # dartboard_numbers = list(range(1, 21)) + [25]  # 25 is bullseye
+        dartboard_numbers = [20, 1, 18, 4] # FOR TESTING, REMOVE AFTER
+        
         single_score = random.choice(dartboard_numbers)
 
         if single_score == 25:  # no triple for bullseye

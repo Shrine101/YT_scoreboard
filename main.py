@@ -16,7 +16,7 @@ def start_dart_processor():
     """Start the dart processor as a separate process"""
     global dart_processor
     print("Starting dart processor...")
-    dart_processor = subprocess.Popen(['python', 'dart_processor.py'])
+    dart_processor = subprocess.Popen(['./YT_boardvenv/bin/python3', 'dart_processor.py'])
     print(f"Dart processor started with PID {dart_processor.pid}")
 
 def stop_dart_processor():
