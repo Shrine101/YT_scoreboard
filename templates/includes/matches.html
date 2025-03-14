@@ -2,7 +2,7 @@
 <div class="row">
   <div id="game-over-banner" class="col-12 mb-4" style="display: none;">
     <div class="alert alert-success text-center py-3">
-      <h2 class="mb-0" style="font-size: 36px; font-weight: bold;">GAME OVER!</h2>
+      <h2 id="winner-message" class="mb-0" style="font-size: 36px; font-weight: bold;">GAME OVER!</h2>
     </div>
   </div>
   
@@ -169,6 +169,10 @@
       // Find player with score 0 (the winner)
       const winner = game_data.players.find(player => player.total_score === 0);
       if (winner) {
+        // Update the winner message with the player's name
+        const winnerMessage = document.getElementById('winner-message');
+        winnerMessage.textContent = `${winner.name} wins!`;
+        
         // Highlight the winner's name and score in the table
         const nameElement = document.getElementById(`player${winner.id}_name`);
         const totalElement = document.getElementById(`player${winner.id}_total`);
