@@ -151,22 +151,25 @@ def data_json():
     if animation_state and animation_state['animating'] == 1:
         animation_type = animation_state['animation_type']
         
-        if animation_type in ['bust', 'third_throw']:
-            # For third throw animations, we want to show the throw but not advance player yet
+        # Update game_data to reflect animation state
+        game_data["animating"] = True
+        game_data["animation_type"] = animation_type
+        
+        if animation_type in ['bust', 'third_throw', 'win']:
+            # For these animations, we want to show the throw but not advance player yet
             anim_turn = animation_state['turn_number']
             anim_player = animation_state['player_id']
-            
-            # Update game_data to reflect animation state
-            game_data["animating"] = True
-            game_data["animation_type"] = animation_type
+            anim_throw = animation_state['throw_number']
             
             # During animation, we show the current player still (not advanced yet)
             game_data["current_turn"] = anim_turn
             game_data["current_player"] = anim_player
+            game_data["throw_number"] = anim_throw
             
-            # Also include the next player/turn info for UI transitions
-            game_data["next_turn"] = animation_state['next_turn']
-            game_data["next_player"] = animation_state['next_player']
+            # For bust and third_throw, include next player/turn info for UI transitions
+            if animation_type in ['bust', 'third_throw']:
+                game_data["next_turn"] = animation_state['next_turn']
+                game_data["next_player"] = animation_state['next_player']
         else:
             # No special animation handling needed
             game_data["current_turn"] = state_row['current_turn']
@@ -604,7 +607,27 @@ def update_throw():
         # Check if player has won (score exactly 0)
         if player_score == 0:
             cursor.execute('UPDATE game_state SET game_over = 1 WHERE id = 1')
+            
+            # Set win animation state
+            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            cursor.execute('''
+                UPDATE animation_state 
+                SET animating = 1, 
+                    animation_type = ?, 
+                    turn_number = ?, 
+                    player_id = ?, 
+                    throw_number = ?, 
+                    timestamp = ?,
+                    next_turn = NULL,
+                    next_player = NULL
+                WHERE id = 1
+            ''', ('win', turn_number, player_id, throw_number, current_time))
+            
             conn.commit()
+            
+            # Add info about win to response_data
+            response_data['game_over'] = True
+            response_data['winner'] = player_id
         
         # Close connection
         conn.close()

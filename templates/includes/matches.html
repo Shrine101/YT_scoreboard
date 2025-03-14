@@ -157,6 +157,7 @@
 
 <script>
   // Function to update the display with new data
+// Function to update the display with new data
   function updateGame(game_data) {
     // Store current game data globally for delayed updates
     window.currentGameData = game_data;
@@ -169,10 +170,6 @@
       // Find player with score 0 (the winner)
       const winner = game_data.players.find(player => player.total_score === 0);
       if (winner) {
-        // Update the winner message with the player's name
-        const winnerMessage = document.getElementById('winner-message');
-        winnerMessage.textContent = `${winner.name} wins!`;
-        
         // Highlight the winner's name and score in the table
         const nameElement = document.getElementById(`player${winner.id}_name`);
         const totalElement = document.getElementById(`player${winner.id}_total`);
@@ -251,13 +248,62 @@
             }
           }
         }
+      } else if (game_data.animation_type === 'win') {
+        // Show game over banner for win animations
+        document.getElementById('game-over-banner').style.display = 'block';
+        
+        // Find the winning throw
+        const throwNumber = game_data.throw_number;
+        const throwElement = document.getElementById(`throw${throwNumber}_points`);
+        
+        if (throwElement) {
+          // Check if we already started this animation
+          if (!window.animatingWin) {
+            window.animatingWin = true;
+            
+            // Set the throw to a gold color to indicate it's the winning throw
+            const winThrow = game_data.current_throws.find(t => t.throw_number === parseInt(throwNumber));
+            if (winThrow) {
+              throwElement.textContent = winThrow.points.toString();
+              throwElement.style.color = '#ffd700'; // Gold color
+            }
+            
+            // Find the winning player and highlight their name and score
+            const winner = game_data.players.find(player => player.id === game_data.current_player);
+            if (winner) {
+              const nameElement = document.getElementById(`player${winner.id}_name`);
+              const totalElement = document.getElementById(`player${winner.id}_total`);
+              
+              if (nameElement) {
+                nameElement.style.backgroundColor = 'rgba(40, 167, 69, 0.7)';
+                nameElement.style.color = 'white';
+                nameElement.style.fontWeight = 'bold';
+              }
+              
+              if (totalElement) {
+                totalElement.style.backgroundColor = 'rgba(40, 167, 69, 0.7)';
+                totalElement.style.color = 'white';
+                totalElement.style.fontWeight = 'bold';
+              }
+            }
+            
+            // Update the rest of the UI
+            updatePlayerHighlights(game_data);
+            updateScoreTable(game_data);
+            
+            // Reset animation flag after a delay
+            setTimeout(() => {
+              window.animatingWin = false;
+            }, 3000);
+          }
+        }
       }
     } else {
       // Standard non-animation updates
       document.getElementById('bust-banner').style.display = 'none';
       
       // If we're not in an animation, update everything normally
-      if (!window.animatingThirdThrow) {
+      if (!window.animatingThirdThrow && !window.animatingWin) {
         updatePlayerHighlights(game_data);
         updateScoreTable(game_data);
         updateNormalThrows(game_data);
