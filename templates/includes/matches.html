@@ -28,7 +28,7 @@
         <div class="col-md-8">
           <div class="d-flex mb-3">
             <!-- Last Throw Box - Positioned to the left of the scoretable -->
-            <div id="last-throw-box" class="last-throw-card me-3">
+            <div class="card last-throw-card me-3" id="last-throw-box">
               <div class="card-header p-3">
                 <strong style="font-size: 20px;">LAST<br>THROW</strong>
               </div>
@@ -205,6 +205,9 @@
     outcome: 'normal' // 'normal', 'bust', or 'win'
   };
   
+  // Track the current and previous player to detect player changes
+  window.previousPlayer = null;
+  
   // Function to update the last throw box based on the global lastThrowInfo
   function updateLastThrowBox() {
     const lastThrowBox = document.getElementById('last-throw-box');
@@ -218,11 +221,47 @@
     lastThrowPlayer.textContent = player ? player.name : 'Player';
     lastThrowPoints.textContent = throwData ? throwData.points : '0';
     
-    // Remove all outcome classes first
-    lastThrowBox.classList.remove('last-throw-bust', 'last-throw-win', 'last-throw-normal');
-    
     // Apply the appropriate class based on outcome
-    lastThrowBox.classList.add(`last-throw-${outcome}`);
+    if (outcome === 'bust') {
+      lastThrowBox.querySelector('.card-body').style.backgroundColor = '#f8d7da'; // Light red
+    } else if (outcome === 'win') {
+      lastThrowBox.querySelector('.card-body').style.backgroundColor = '#fff3cd'; // Light yellow
+    } else {
+      lastThrowBox.querySelector('.card-body').style.backgroundColor = 'white';
+    }
+  }
+  
+  // Function to check for player changes and update last throw box accordingly
+  function updateLastThrowOnPlayerChange(game_data) {
+    // Check if the current player has changed
+    if (window.previousPlayer !== null && window.previousPlayer !== game_data.current_player) {
+      // Player has changed - we should update the last throw box with the current player
+      const currentPlayer = game_data.players.find(p => p.id === game_data.current_player);
+      
+      // Only update if we're not showing a win animation
+      if (window.lastThrowInfo.outcome !== 'win' && currentPlayer) {
+        // Create a new throwData object for the first throw of the new player
+        // Even if the points are zero, this ensures the last throw box shows the current player
+        const firstThrow = game_data.current_throws.find(t => t.throw_number === 1) || {
+          throw_number: 1,
+          points: 0,
+          score: 0,
+          multiplier: 0
+        };
+        
+        window.lastThrowInfo = {
+          player: currentPlayer,
+          throwData: firstThrow,
+          outcome: 'normal'
+        };
+        
+        // Update last throw box
+        updateLastThrowBox();
+      }
+    }
+    
+    // Update the previous player for next comparison
+    window.previousPlayer = game_data.current_player;
   }
 
   // Function to update the display with new data
@@ -264,6 +303,9 @@
       document.getElementById('win-message-overlay').style.visibility = 'hidden';
     }
     
+    // Check for player changes and update last throw box if needed
+    updateLastThrowOnPlayerChange(game_data);
+    
     // Handle animation based on type
     if (game_data.animating) {
       if (game_data.animation_type === 'bust') {
@@ -284,8 +326,7 @@
           // We need to calculate what the points were before they got reset to 0
           // For simplicity, let's use the current player's score
           points: actualPoints > 0 ? actualPoints : (
-            // If we can't determine the actual points, get the first player's score before turn
-            // This won't be 100% accurate for all cases but better than showing 0
+            // If we can't determine the actual points, get the sum of the current throws
             game_data.current_throws.reduce((sum, t) => sum + t.points, 0)
           ),
           score: 0,  // We don't know the original score value
@@ -572,6 +613,23 @@
         // Use a different color for zero values vs non-zero
         const blinkColor = throwData.points > 0 ? '#00ff00' : '#333333';
         blinkUpdate(throwElement, throwData.points.toString(), blinkColor);
+        
+        // If this is the first throw and it's non-zero, update the last throw box
+        if (throwData.throw_number === 1 && throwData.points > 0) {
+          const currentPlayer = game_data.players.find(p => p.id === game_data.current_player);
+          
+          // Only update if we're not showing a bust or win
+          if (window.lastThrowInfo.outcome === 'normal' && currentPlayer) {
+            window.lastThrowInfo = {
+              player: currentPlayer,
+              throwData: throwData,
+              outcome: 'normal'
+            };
+            
+            // Update last throw box
+            updateLastThrowBox();
+          }
+        }
       }
     }
   }
@@ -1130,15 +1188,12 @@
     font-weight: bold;
   }
   
-  /* Last throw box styles */
+  /* Last throw box styles - match exactly the throw boxes */
   .last-throw-card {
-    width: 110px;
-    border: 2px solid #6c757d;
-    border-radius: 4px;
-    overflow: hidden;
+    width: 110px; 
     margin-right: 15px;
-    margin-bottom: 10px;
-    transition: background-color 0.5s ease;
+    align-self: flex-start; /* This prevents stretching vertically */
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
   }
   
   .last-throw-card .card-header {
@@ -1149,21 +1204,7 @@
   }
   
   .last-throw-card .card-body {
-    padding: 10px 5px;
     text-align: center;
     background-color: white;
-  }
-  
-  /* Color states for last throw box */
-  .last-throw-bust .card-body {
-    background-color: #f8d7da !important; /* Light red */
-  }
-  
-  .last-throw-win .card-body {
-    background-color: #fff3cd !important; /* Light yellow */
-  }
-  
-  .last-throw-normal .card-body {
-    background-color: white !important;
   }
 </style>
