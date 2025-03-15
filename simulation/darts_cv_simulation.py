@@ -42,5 +42,5 @@ class DartDetection:
         if not self.cv_running:
             return None
             
-        time.sleep(10)  # Simulate detection time
+        time.sleep(5)  # Simulate detection time
         return self.generate_random_score()
