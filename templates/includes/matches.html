@@ -30,7 +30,7 @@
             <div class="card-header text-center p-3" style="background-color: #6c757d; color: white;">
               <strong style="font-size: 20px;">LAST THROW</strong>
             </div>
-            <div class="card-body text-center py-4" style="background-color: #f8f9fa;">
+            <div class="card-body text-center py-4 last-throw-card" style="background-color: #f8f9fa;">
               <div class="mb-2" id="last-throw-player" style="font-size: 18px; font-weight: bold;">Player: -</div>
               <div class="row justify-content-center">
                 <div class="col-5 text-end">
@@ -206,18 +206,28 @@
 </div>
 
 <script>
+  // Global variables for tracking last throw state
+  let currentLastThrowState = "normal"; // can be "normal", "bust", or "win"
+  let previousLastThrow = null;
+
   // Function to update the last throw display
   function updateLastThrow(lastThrow, players, game_data) {
     if (!lastThrow) return;
+    
+    // Get the card body element for the last throw
+    const lastThrowCard = document.querySelector('.last-throw-card');
+    const pointsElement = document.getElementById('last-throw-points');
+    
+    // Check if this is a new throw by comparing with previous data
+    const isNewThrow = !previousLastThrow || 
+                      previousLastThrow.score !== lastThrow.score || 
+                      previousLastThrow.multiplier !== lastThrow.multiplier ||
+                      previousLastThrow.player_id !== lastThrow.player_id;
     
     // Update the score, multiplier and points
     document.getElementById('last-throw-score').textContent = lastThrow.score;
     document.getElementById('last-throw-multiplier').textContent = lastThrow.multiplier;
     document.getElementById('last-throw-points').textContent = lastThrow.points;
-    
-    // Get the card body element for the last throw
-    const lastThrowCard = document.querySelector('.col-md-2 .card-body');
-    const pointsElement = document.getElementById('last-throw-points');
     
     // Find the player name
     if (lastThrow.player_id) {
@@ -225,43 +235,35 @@
       if (player) {
         document.getElementById('last-throw-player').textContent = 'Player: ' + player.name;
         
-        // Check if this is a bust (animation_type is 'bust')
+        // Check if this is a bust
         if (game_data.animating && game_data.animation_type === 'bust' && 
             game_data.current_player === lastThrow.player_id) {
           // Set background to red for bust
           lastThrowCard.style.backgroundColor = '#ffcccc'; // Light red
           pointsElement.style.color = '#dc3545'; // Red text
-          
-          // Reset after 3 seconds (same as animation duration)
-          setTimeout(() => {
-            lastThrowCard.style.backgroundColor = '#f8f9fa'; // Reset background
-            pointsElement.style.color = '#212529'; // Reset text color
-          }, 3000);
+          currentLastThrowState = "bust";
         }
-        // Check if this is a win (player's score is exactly 0)
+        // Check if this is a win
         else if (player.total_score === 0 && game_data.animating && 
                 game_data.animation_type === 'win' && 
                 game_data.current_player === lastThrow.player_id) {
           // Set background to yellow for win
           lastThrowCard.style.backgroundColor = '#fff3cd'; // Light yellow
           pointsElement.style.color = '#ffc107'; // Yellow/gold text
-          
-          // Reset after 3 seconds (same as animation duration)
-          setTimeout(() => {
-            lastThrowCard.style.backgroundColor = '#f8f9fa'; // Reset background
-            pointsElement.style.color = '#212529'; // Reset text color
-          }, 3000);
+          currentLastThrowState = "win";
         }
-        // Normal throw (not a bust or win)
-        else if (lastThrow.points > 0) {
-          // Reset background just in case
-          lastThrowCard.style.backgroundColor = '#f8f9fa';
+        // If this is a new throw (not a bust or win), reset colors
+        else if (isNewThrow) {
+          // Reset to normal styles for a new non-bust, non-win throw
+          lastThrowCard.style.backgroundColor = '#f8f9fa'; // Default light gray
           
-          // Animate the points display for normal throws
-          pointsElement.style.color = '#28a745'; // Green
-          setTimeout(() => {
-            pointsElement.style.color = '#212529'; // Back to default
-          }, 2000);
+          if (lastThrow.points > 0) {
+            pointsElement.style.color = '#28a745'; // Green for positive points
+          } else {
+            pointsElement.style.color = '#212529'; // Default color for zero
+          }
+          
+          currentLastThrowState = "normal";
         }
       } else {
         document.getElementById('last-throw-player').textContent = 'Player: ' + lastThrow.player_id;
@@ -269,14 +271,17 @@
     } else {
       document.getElementById('last-throw-player').textContent = 'Player: -';
     }
+    
+    // Save this throw data for future comparison
+    previousLastThrow = { ...lastThrow };
   }
   
   // Function to update the display with new data
   function updateGame(game_data) {
     // Store current game data globally for delayed updates
     window.currentGameData = game_data;
-  
-    // Update the last throw display - now passing full game_data
+    
+    // Update the last throw display
     updateLastThrow(game_data.last_throw, game_data.players, game_data);
     
     // Check if game is over and update banner
@@ -985,15 +990,21 @@
     color: #000000;
   }
   
+  /* Styles for the last throw card */
+  .last-throw-card {
+    transition: background-color 0.5s ease;
+  }
+  
   #scoreTable tbody td {
-  font-size: 28px;
-  font-weight: bold;
-  text-align: center;
-  vertical-align: middle;
-  color: #ffffff;
-  padding: 8px 5px; /* Reduced padding from 15px to 8px */
-  height: 45px; /* Set a fixed height to make rows more compact */
-}
+    font-size: 28px;
+    font-weight: bold;
+    text-align: center;
+    vertical-align: middle;
+    color: #ffffff;
+    padding: 8px 5px; /* Reduced padding from 15px to 8px */
+    height: 45px; /* Set a fixed height to make rows more compact */
+  }
+  
   /* Make individual turn rows more compact */
   #scoreTable tbody tr {
     height: 45px; /* Fixed height for each row */
@@ -1018,7 +1029,6 @@
     color: #ffffff;
   }
   
-
   /* Style for the manual override button */
   #manual-override-btn {
     font-size: 22px;
@@ -1029,10 +1039,6 @@
   /* Style for the last throw display */
   #last-throw-points {
     transition: color 0.5s ease;
-  }
-
-  .last-throw-card {
-    transition: background-color 0.5s ease;
   }
   
   /* Styles for the throw display */
@@ -1071,5 +1077,4 @@
     color: white !important;
     font-weight: bold;
   }
-
 </style>
