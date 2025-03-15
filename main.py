@@ -123,6 +123,7 @@ def recalculate_player_scores(conn):
         if new_score == 0:
             cursor.execute('UPDATE game_state SET game_over = 1 WHERE id = 1')
 
+
 @app.route('/data_json')
 def data_json():
     # Create a connection to the database
@@ -230,6 +231,23 @@ def data_json():
     
     game_data["current_throws"] = current_throws
     
+    # Get last throw data
+    last_throw_row = conn.execute('SELECT score, multiplier, points, player_id FROM last_throw WHERE id = 1').fetchone()
+    if last_throw_row:
+        game_data["last_throw"] = {
+            "score": last_throw_row['score'],
+            "multiplier": last_throw_row['multiplier'],
+            "points": last_throw_row['points'],
+            "player_id": last_throw_row['player_id']
+        }
+    else:
+        game_data["last_throw"] = {
+            "score": 0,
+            "multiplier": 0,
+            "points": 0,
+            "player_id": None
+        }
+    
     # Get turns and scores
     turns = []
     for turn_row in conn.execute('SELECT turn_number FROM turns ORDER BY turn_number'):
@@ -277,6 +295,13 @@ def update_throw():
         # Get connection to database
         conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # Update the last throw table to reflect this manual override
+        cursor.execute('''
+            UPDATE last_throw
+            SET score = ?, multiplier = ?, points = ?, player_id = ?
+            WHERE id = 1
+        ''', (score, multiplier, points, player_id))
         
         # Get current game state
         game_state = cursor.execute('SELECT current_turn, current_player, game_over FROM game_state WHERE id = 1').fetchone()
