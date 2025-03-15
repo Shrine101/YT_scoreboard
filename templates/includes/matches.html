@@ -1,13 +1,15 @@
 <!-- Darts scoreboard layout -->
 <div class="row">
-  <div id="game-over-banner" class="col-12 mb-4" style="display: none;">
+  <div id="game-over-banner" class="col-12 mb-4" style="visibility: hidden;">
     <div class="alert alert-success text-center py-3">
-      <h2 id="winner-message" class="mb-0" style="font-size: 36px; font-weight: bold;">GAME OVER!</h2>
+      <h2 class="mb-0" style="font-size: 36px; font-weight: bold;">
+        <span id="winner-name">Player</span> WINS!
+      </h2>
     </div>
   </div>
   
   <!-- Bust notification banner -->
-  <div id="bust-banner" class="col-12 mb-4" style="display: none;">
+  <div id="bust-banner" class="col-12 mb-4" style="visibility: hidden;">
     <div class="alert alert-danger text-center py-3">
       <h3 class="mb-0" style="font-size: 28px; font-weight: bold;">BUST!</h3>
     </div>
@@ -157,7 +159,6 @@
 
 <script>
   // Function to update the display with new data
-// Function to update the display with new data
   function updateGame(game_data) {
     // Store current game data globally for delayed updates
     window.currentGameData = game_data;
@@ -165,11 +166,15 @@
     // Check if game is over and update banner
     const gameOverBanner = document.getElementById('game-over-banner');
     if (game_data.game_over) {
-      gameOverBanner.style.display = 'block';
-      
       // Find player with score 0 (the winner)
       const winner = game_data.players.find(player => player.total_score === 0);
       if (winner) {
+        // Set the winner's name in the banner
+        document.getElementById('winner-name').textContent = winner.name;
+        
+        // Show the banner
+        gameOverBanner.style.visibility = 'visible';
+        
         // Highlight the winner's name and score in the table
         const nameElement = document.getElementById(`player${winner.id}_name`);
         const totalElement = document.getElementById(`player${winner.id}_total`);
@@ -187,14 +192,14 @@
         }
       }
     } else {
-      gameOverBanner.style.display = 'none';
+      gameOverBanner.style.visibility = 'hidden';
     }
     
     // Handle animation based on type
     if (game_data.animating) {
       if (game_data.animation_type === 'bust') {
         // Show bust banner for bust animations
-        document.getElementById('bust-banner').style.display = 'block';
+        document.getElementById('bust-banner').style.visibility = 'visible';
         
         // Continue with normal updates for bust animations
         updatePlayerHighlights(game_data);
@@ -202,7 +207,7 @@
         updateNormalThrows(game_data);
       } else if (game_data.animation_type === 'third_throw') {
         // Hide bust banner for third throw animations
-        document.getElementById('bust-banner').style.display = 'none';
+        document.getElementById('bust-banner').style.visibility = 'hidden';
         
         // For third throw animations, only update the throw display initially
         // and delay the scoreboard update
@@ -250,7 +255,11 @@
         }
       } else if (game_data.animation_type === 'win') {
         // Show game over banner for win animations
-        document.getElementById('game-over-banner').style.display = 'block';
+        const winner = game_data.players.find(player => player.id === game_data.current_player);
+        if (winner) {
+          document.getElementById('winner-name').textContent = winner.name;
+          document.getElementById('game-over-banner').style.visibility = 'visible';
+        }
         
         // Find the winning throw
         const throwNumber = game_data.throw_number;
@@ -300,7 +309,7 @@
       }
     } else {
       // Standard non-animation updates
-      document.getElementById('bust-banner').style.display = 'none';
+      document.getElementById('bust-banner').style.visibility = 'hidden';
       
       // If we're not in an animation, update everything normally
       if (!window.animatingThirdThrow && !window.animatingWin) {
@@ -428,11 +437,11 @@
   // Function to show a bust notification
   function showBustNotification(duration = 3000) {
     const bustBanner = document.getElementById('bust-banner');
-    bustBanner.style.display = 'block';
+    bustBanner.style.visibility = 'visible';
     
     // Hide the banner after the duration
     setTimeout(() => {
-      bustBanner.style.display = 'none';
+      bustBanner.style.visibility = 'hidden';
     }, duration);
   }
   
@@ -508,8 +517,9 @@
       .catch(error => console.error('Error fetching data:', error));
   }, 1000);
   
-  // Initialize animation state flag
+  // Initialize animation state flags
   window.animatingThirdThrow = false;
+  window.animatingWin = false;
   
   // Manual Override functionality
   document.addEventListener('DOMContentLoaded', function() {
@@ -721,6 +731,20 @@
         if (data.rewound_turn) {
           manualOverrideModal.hide();
           alert(`Bust corrected for player ${data.current_player}, turn ${data.current_turn}. The player can now continue their turn.`);
+          
+          // Refresh the game data to show updated state
+          fetch('/data_json')
+            .then(response => response.json())
+            .then(gameData => updateGame(gameData))
+            .catch(error => console.error('Error fetching data:', error));
+          
+          return;
+        }
+        
+        // Handle win notification
+        if (data.game_over) {
+          manualOverrideModal.hide();
+          alert(`GAME OVER! Player ${data.winner} wins with a score of 0!`);
           
           // Refresh the game data to show updated state
           fetch('/data_json')
