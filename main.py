@@ -102,6 +102,9 @@ def recalculate_player_scores(conn):
     cursor.execute('SELECT id FROM players')
     players = cursor.fetchall()
     
+    # Track if any player has a winning score
+    any_player_won = False
+    
     for player in players:
         player_id = player['id']
         
@@ -121,7 +124,29 @@ def recalculate_player_scores(conn):
         
         # Check if player has won (score exactly 0)
         if new_score == 0:
-            cursor.execute('UPDATE game_state SET game_over = 1 WHERE id = 1')
+            any_player_won = True
+    
+    # Update game_over flag based on whether any player has won
+    if any_player_won:
+        cursor.execute('UPDATE game_state SET game_over = 1 WHERE id = 1')
+    else:
+        cursor.execute('UPDATE game_state SET game_over = 0 WHERE id = 1')
+        
+        # Also reset any win animation state if we're un-winning
+        cursor.execute('''
+            UPDATE animation_state 
+            SET animating = 0, 
+                animation_type = NULL, 
+                turn_number = NULL, 
+                player_id = NULL, 
+                throw_number = NULL, 
+                timestamp = NULL,
+                next_turn = NULL,
+                next_player = NULL
+            WHERE id = 1 AND animation_type = 'win'
+        ''')
+    
+    conn.commit()
 
 
 @app.route('/data_json')
