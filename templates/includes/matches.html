@@ -22,29 +22,6 @@
         </div>
       </div>
       
-      <!-- Last Throw Box - NEW ADDITION -->
-      <div class="row mb-3">
-        <div class="col-md-8">
-          <div id="last-throw-box" class="p-3 text-center last-throw-normal">
-            <div class="row">
-              <div class="col-12">
-                <h4 class="mb-2">LAST THROW</h4>
-              </div>
-            </div>
-            <div class="row">
-              <div class="col-12">
-                <div id="last-throw-player" class="mb-2 fw-bold fs-5">Player 1</div>
-              </div>
-            </div>
-            <div class="row">
-              <div class="col-12">
-                <div id="last-throw-points" class="display-4 fw-bold">0</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
       <!-- Main content row -->
       <div class="row">
         <!-- Left side: Turns and scores table -->
@@ -205,33 +182,6 @@
 </div>
 
 <script>
-  // Initialize the last throw info object
-  window.lastThrowInfo = {
-    player: null,
-    throwData: null,
-    outcome: 'normal' // 'normal', 'bust', or 'win'
-  };
-  
-  // Function to update the last throw box based on the global lastThrowInfo
-  function updateLastThrowBox() {
-    const lastThrowBox = document.getElementById('last-throw-box');
-    const lastThrowPoints = document.getElementById('last-throw-points');
-    const lastThrowPlayer = document.getElementById('last-throw-player');
-    
-    // Get the info from our global state
-    const { player, throwData, outcome } = window.lastThrowInfo;
-    
-    // Update player name and points
-    lastThrowPlayer.textContent = player ? player.name : '';
-    lastThrowPoints.textContent = throwData ? throwData.points : '0';
-    
-    // Remove all outcome classes first
-    lastThrowBox.classList.remove('last-throw-bust', 'last-throw-win', 'last-throw-normal');
-    
-    // Apply the appropriate class based on outcome
-    lastThrowBox.classList.add(`last-throw-${outcome}`);
-  }
-
   // Function to update the display with new data
   function updateGame(game_data) {
     // Store current game data globally for delayed updates
@@ -277,23 +227,6 @@
         // Show bust banner for bust animations
         document.getElementById('bust-banner').style.visibility = 'visible';
         
-        // Find the last throw data - it's the throw that caused the bust
-        const throwNumber = game_data.throw_number;
-        const throw_data = game_data.current_throws.find(t => t.throw_number === throwNumber);
-        
-        // Find the player who busted
-        const player = game_data.players.find(p => p.id === game_data.current_player);
-        
-        // Update the last throw info
-        window.lastThrowInfo = {
-          player: player,
-          throwData: throw_data,
-          outcome: 'bust'
-        };
-        
-        // Update last throw box
-        updateLastThrowBox();
-        
         // Continue with normal updates for bust animations
         updatePlayerHighlights(game_data);
         updateScoreTable(game_data);
@@ -302,23 +235,10 @@
         // Hide bust banner for third throw animations
         document.getElementById('bust-banner').style.visibility = 'hidden';
         
-        // Find the third throw data
+        // For third throw animations, only update the throw display initially
+        // and delay the scoreboard update
         const thirdThrow = game_data.current_throws.find(t => t.throw_number === 3);
-        
         if (thirdThrow) {
-          // Find the player
-          const player = game_data.players.find(p => p.id === game_data.current_player);
-          
-          // Update the last throw info
-          window.lastThrowInfo = {
-            player: player,
-            throwData: thirdThrow,
-            outcome: 'normal'
-          };
-          
-          // Update last throw box
-          updateLastThrowBox();
-          
           const throwElement = document.getElementById(`throw3_points`);
           if (throwElement) {
             // Check if we already started this animation
@@ -383,19 +303,10 @@
             if (winThrow) {
               throwElement.textContent = winThrow.points.toString();
               throwElement.style.color = '#ffd700'; // Gold color
-              
-              // Update the last throw info
-              window.lastThrowInfo = {
-                player: winner,
-                throwData: winThrow,
-                outcome: 'win'
-              };
-              
-              // Update last throw box
-              updateLastThrowBox();
             }
             
             // Find the winning player and highlight their name and score
+            const winner = game_data.players.find(player => player.id === game_data.current_player);
             if (winner) {
               const nameElement = document.getElementById(`player${winner.id}_name`);
               const totalElement = document.getElementById(`player${winner.id}_total`);
@@ -433,33 +344,6 @@
         updatePlayerHighlights(game_data);
         updateScoreTable(game_data);
         updateNormalThrows(game_data);
-        
-        // For normal throws, try to determine the last throw
-        let lastThrow = null;
-        let lastThrowNumber = 0;
-        
-        for (const throwData of game_data.current_throws) {
-          if (throwData.points > 0 && throwData.throw_number > lastThrowNumber) {
-            lastThrow = throwData;
-            lastThrowNumber = throwData.throw_number;
-          }
-        }
-        
-        if (lastThrow) {
-          const currentPlayer = game_data.players.find(p => p.id === game_data.current_player);
-          
-          // Don't update last throw info if we're already showing a bust or win
-          if (window.lastThrowInfo.outcome === 'normal' || !window.lastThrowInfo.throwData) {
-            window.lastThrowInfo = {
-              player: currentPlayer,
-              throwData: lastThrow,
-              outcome: 'normal'
-            };
-            
-            // Update last throw box
-            updateLastThrowBox();
-          }
-        }
       }
     }
   }
@@ -816,7 +700,7 @@
         });
     });
     
-    // When the save button is clicked - UPDATED for last throw box
+    // When the save button is clicked - UPDATED CODE
     saveOverrideBtn.addEventListener('click', function() {
       // Validate the form
       const turnNumber = turnSelect.value;
@@ -864,37 +748,6 @@
         return response.json();
       })
       .then(data => {
-        // Update the last throw box with this manual change
-        const playerElement = document.querySelector(`#player${playerId}_name`);
-        const playerName = playerElement ? playerElement.textContent : `Player ${playerId}`;
-        const throwPoints = scoreVal * parseInt(multiplier);
-        
-        // Create throwData object for last throw info
-        const throwData = {
-          throw_number: parseInt(throwNumber),
-          points: throwPoints,
-          score: scoreVal,
-          multiplier: parseInt(multiplier)
-        };
-        
-        // Determine outcome
-        let outcome = 'normal';
-        if (data.is_bust) {
-          outcome = 'bust';
-        } else if (data.game_over) {
-          outcome = 'win';
-        }
-        
-        // Update last throw info
-        window.lastThrowInfo = {
-          player: { id: parseInt(playerId), name: playerName },
-          throwData: throwData,
-          outcome: outcome
-        };
-        
-        // Update the last throw box display
-        updateLastThrowBox();
-        
         // Special case: Bust was corrected and player can continue their turn
         if (data.bust_status_changed && data.was_previously_bust && !data.is_bust && data.continue_turn) {
           manualOverrideModal.hide();
@@ -1116,39 +969,5 @@
     background-color: rgba(0, 123, 255, 0.7);
     color: white !important;
     font-weight: bold;
-  }
-  
-  /* Last throw box styles */
-  #last-throw-box {
-    background-color: white;
-    border: 2px solid #6c757d;
-    border-radius: 8px;
-    margin-bottom: 15px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    transition: background-color 0.5s ease;
-    min-height: 160px;
-  }
-  
-  #last-throw-box h4 {
-    font-size: 24px;
-    font-weight: bold;
-    color: #212529;
-  }
-  
-  #last-throw-points {
-    font-size: 48px;
-    color: #212529;
-  }
-  
-  .last-throw-bust {
-    background-color: #f8d7da !important; /* Light red */
-  }
-  
-  .last-throw-win {
-    background-color: #fff3cd !important; /* Light yellow */
-  }
-  
-  .last-throw-normal {
-    background-color: white !important;
   }
 </style>
