@@ -15,7 +15,7 @@ class LEDs:
 
     def __init__(self):
         # LED strip configuration:
-        self.NUM_STRIPS = 5
+        self.NUM_STRIPS = 20
         self.NUM_LED_PER_STRIP = 19
         self.LED_COUNT      = self.NUM_STRIPS*self.NUM_LED_PER_STRIP + 1      # Number of LED pixels per strip
 
