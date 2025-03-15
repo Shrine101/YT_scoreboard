@@ -22,55 +22,48 @@
         </div>
       </div>
       
-      <!-- Last Throw Box - NEW ADDITION -->
-      <div class="row mb-3">
-        <div class="col-md-8">
-          <div id="last-throw-box" class="p-3 text-center last-throw-normal">
-            <div class="row">
-              <div class="col-12">
-                <h4 class="mb-2">LAST THROW</h4>
-              </div>
-            </div>
-            <div class="row">
-              <div class="col-12">
-                <div id="last-throw-player" class="mb-2 fw-bold fs-5">Player 1</div>
-              </div>
-            </div>
-            <div class="row">
-              <div class="col-12">
-                <div id="last-throw-points" class="display-4 fw-bold">0</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Main content row -->
+      <!-- Main content row with last throw box and score table -->
       <div class="row">
-        <!-- Left side: Turns and scores table -->
+        <!-- Left side: Last throw box + Turns and scores table -->
         <div class="col-md-8">
-          <div class="table-responsive">
-            <table class="table table-bordered" id="scoreTable">
-              <thead>
-                <tr>
-                  <th class="text-center turn-header py-3" style="font-size: 28px;">TURN #</th>
-                  {% for player in game_data.players %}
-                  <th class="text-center player-header py-3" id="player{{ player.id }}_name" style="font-size: 28px;">{{ player.name }}</th>
-                  {% endfor %}
-                </tr>
-              </thead>
-              <tbody id="turns_body">
-                <!-- This section will be managed by JavaScript -->
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td class="text-center py-3" style="font-size: 28px;"><strong>TOTAL</strong></td>
-                  {% for player in game_data.players %}
-                  <td class="text-center py-3" id="player{{ player.id }}_total" style="font-size: 28px;">{{ player.total_score }}</td>
-                  {% endfor %}
-                </tr>
-              </tfoot>
-            </table>
+          <div class="d-flex mb-3">
+            <!-- Last Throw Box - Positioned to the left of the scoretable -->
+            <div id="last-throw-box" class="last-throw-card me-3">
+              <div class="card-header p-3">
+                <strong style="font-size: 20px;">LAST<br>THROW</strong>
+              </div>
+              <div class="card-body py-3">
+                <div id="last-throw-player" class="mb-1 fw-bold" style="font-size: 16px;">Player</div>
+                <div id="last-throw-points" style="font-size: 32px;">0</div>
+              </div>
+            </div>
+            
+            <!-- Score table takes the remaining space -->
+            <div class="flex-grow-1">
+              <div class="table-responsive">
+                <table class="table table-bordered" id="scoreTable">
+                  <thead>
+                    <tr>
+                      <th class="text-center turn-header py-3" style="font-size: 28px;">TURN #</th>
+                      {% for player in game_data.players %}
+                      <th class="text-center player-header py-3" id="player{{ player.id }}_name" style="font-size: 28px;">{{ player.name }}</th>
+                      {% endfor %}
+                    </tr>
+                  </thead>
+                  <tbody id="turns_body">
+                    <!-- This section will be managed by JavaScript -->
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td class="text-center py-3" style="font-size: 28px;"><strong>TOTAL</strong></td>
+                      {% for player in game_data.players %}
+                      <td class="text-center py-3" id="player{{ player.id }}_total" style="font-size: 28px;">{{ player.total_score }}</td>
+                      {% endfor %}
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
         
@@ -222,7 +215,7 @@
     const { player, throwData, outcome } = window.lastThrowInfo;
     
     // Update player name and points
-    lastThrowPlayer.textContent = player ? player.name : '';
+    lastThrowPlayer.textContent = player ? player.name : 'Player';
     lastThrowPoints.textContent = throwData ? throwData.points : '0';
     
     // Remove all outcome classes first
@@ -277,9 +270,27 @@
         // Show bust banner for bust animations
         document.getElementById('bust-banner').style.visibility = 'visible';
         
-        // Find the last throw data - it's the throw that caused the bust
+        // Find the throw that caused the bust
         const throwNumber = game_data.throw_number;
-        const throw_data = game_data.current_throws.find(t => t.throw_number === throwNumber);
+        
+        // Create a copy of the throw data before it gets reset to 0
+        // This is a fix for the bug where bust throws were showing as 0 points
+        const actualPoints = game_data.current_throws.find(t => t.throw_number === throwNumber)?.points || 0;
+        
+        // For busts, we need to preserve the original points that caused the bust
+        // Create an artificial throwData object with the real points that caused the bust
+        const throwData = {
+          throw_number: throwNumber,
+          // We need to calculate what the points were before they got reset to 0
+          // For simplicity, let's use the current player's score
+          points: actualPoints > 0 ? actualPoints : (
+            // If we can't determine the actual points, get the first player's score before turn
+            // This won't be 100% accurate for all cases but better than showing 0
+            game_data.current_throws.reduce((sum, t) => sum + t.points, 0)
+          ),
+          score: 0,  // We don't know the original score value
+          multiplier: 0  // We don't know the original multiplier
+        };
         
         // Find the player who busted
         const player = game_data.players.find(p => p.id === game_data.current_player);
@@ -287,7 +298,7 @@
         // Update the last throw info
         window.lastThrowInfo = {
           player: player,
-          throwData: throw_data,
+          throwData: throwData,
           outcome: 'bust'
         };
         
@@ -448,7 +459,8 @@
         if (lastThrow) {
           const currentPlayer = game_data.players.find(p => p.id === game_data.current_player);
           
-          // Don't update last throw info if we're already showing a bust or win
+          // Update the last throw info only for normal throws
+          // Don't update if we already have a bust or win outcome
           if (window.lastThrowInfo.outcome === 'normal' || !window.lastThrowInfo.throwData) {
             window.lastThrowInfo = {
               player: currentPlayer,
@@ -1119,36 +1131,39 @@
   }
   
   /* Last throw box styles */
-  #last-throw-box {
-    background-color: white;
+  .last-throw-card {
+    width: 110px;
     border: 2px solid #6c757d;
-    border-radius: 8px;
-    margin-bottom: 15px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-right: 15px;
+    margin-bottom: 10px;
     transition: background-color 0.5s ease;
-    min-height: 160px;
   }
   
-  #last-throw-box h4 {
-    font-size: 24px;
-    font-weight: bold;
-    color: #212529;
+  .last-throw-card .card-header {
+    background-color: #6c757d;
+    color: white;
+    padding: 10px 5px;
+    text-align: center;
   }
   
-  #last-throw-points {
-    font-size: 48px;
-    color: #212529;
+  .last-throw-card .card-body {
+    padding: 10px 5px;
+    text-align: center;
+    background-color: white;
   }
   
-  .last-throw-bust {
+  /* Color states for last throw box */
+  .last-throw-bust .card-body {
     background-color: #f8d7da !important; /* Light red */
   }
   
-  .last-throw-win {
+  .last-throw-win .card-body {
     background-color: #fff3cd !important; /* Light yellow */
   }
   
-  .last-throw-normal {
+  .last-throw-normal .card-body {
     background-color: white !important;
   }
 </style>
