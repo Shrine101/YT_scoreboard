@@ -207,7 +207,7 @@
 
 <script>
   // Function to update the last throw display
-  function updateLastThrow(lastThrow, players) {
+  function updateLastThrow(lastThrow, players, game_data) {
     if (!lastThrow) return;
     
     // Update the score, multiplier and points
@@ -215,25 +215,59 @@
     document.getElementById('last-throw-multiplier').textContent = lastThrow.multiplier;
     document.getElementById('last-throw-points').textContent = lastThrow.points;
     
+    // Get the card body element for the last throw
+    const lastThrowCard = document.querySelector('.col-md-2 .card-body');
+    const pointsElement = document.getElementById('last-throw-points');
+    
     // Find the player name
     if (lastThrow.player_id) {
       const player = players.find(p => p.id === lastThrow.player_id);
       if (player) {
         document.getElementById('last-throw-player').textContent = 'Player: ' + player.name;
+        
+        // Check if this is a bust (animation_type is 'bust')
+        if (game_data.animating && game_data.animation_type === 'bust' && 
+            game_data.current_player === lastThrow.player_id) {
+          // Set background to red for bust
+          lastThrowCard.style.backgroundColor = '#ffcccc'; // Light red
+          pointsElement.style.color = '#dc3545'; // Red text
+          
+          // Reset after 3 seconds (same as animation duration)
+          setTimeout(() => {
+            lastThrowCard.style.backgroundColor = '#f8f9fa'; // Reset background
+            pointsElement.style.color = '#212529'; // Reset text color
+          }, 3000);
+        }
+        // Check if this is a win (player's score is exactly 0)
+        else if (player.total_score === 0 && game_data.animating && 
+                game_data.animation_type === 'win' && 
+                game_data.current_player === lastThrow.player_id) {
+          // Set background to yellow for win
+          lastThrowCard.style.backgroundColor = '#fff3cd'; // Light yellow
+          pointsElement.style.color = '#ffc107'; // Yellow/gold text
+          
+          // Reset after 3 seconds (same as animation duration)
+          setTimeout(() => {
+            lastThrowCard.style.backgroundColor = '#f8f9fa'; // Reset background
+            pointsElement.style.color = '#212529'; // Reset text color
+          }, 3000);
+        }
+        // Normal throw (not a bust or win)
+        else if (lastThrow.points > 0) {
+          // Reset background just in case
+          lastThrowCard.style.backgroundColor = '#f8f9fa';
+          
+          // Animate the points display for normal throws
+          pointsElement.style.color = '#28a745'; // Green
+          setTimeout(() => {
+            pointsElement.style.color = '#212529'; // Back to default
+          }, 2000);
+        }
       } else {
         document.getElementById('last-throw-player').textContent = 'Player: ' + lastThrow.player_id;
       }
     } else {
       document.getElementById('last-throw-player').textContent = 'Player: -';
-    }
-    
-    // Animate the points display if it's a non-zero value
-    if (lastThrow.points > 0) {
-      const pointsElement = document.getElementById('last-throw-points');
-      pointsElement.style.color = '#28a745'; // Green
-      setTimeout(() => {
-        pointsElement.style.color = '#212529'; // Back to default
-      }, 2000);
     }
   }
   
@@ -241,9 +275,9 @@
   function updateGame(game_data) {
     // Store current game data globally for delayed updates
     window.currentGameData = game_data;
-    
-    // Update the last throw display
-    updateLastThrow(game_data.last_throw, game_data.players);
+  
+    // Update the last throw display - now passing full game_data
+    updateLastThrow(game_data.last_throw, game_data.players, game_data);
     
     // Check if game is over and update banner
     const gameOverBanner = document.getElementById('game-over-banner');
@@ -996,6 +1030,10 @@
   #last-throw-points {
     transition: color 0.5s ease;
   }
+
+  .last-throw-card {
+    transition: background-color 0.5s ease;
+  }
   
   /* Styles for the throw display */
   .throw-points {
@@ -1033,4 +1071,5 @@
     color: white !important;
     font-weight: bold;
   }
+
 </style>
