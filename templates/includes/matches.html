@@ -1,20 +1,21 @@
+<!-- Darts scoreboard layout with larger centered content -->
 <div class="container-fluid">
   <div class="row justify-content-center">
-    <div class="col-lg-10 col-xl-8">
+    <div class="col-xl-11 col-xxl-10">
       <!-- Notification banners -->
       <div class="row">
         <div class="col-12">
           <div id="game-over-banner" class="mb-4" style="visibility: hidden;">
-            <div class="alert alert-success text-center py-3">
-              <h2 class="mb-0" style="font-size: 36px; font-weight: bold;">
+            <div class="alert alert-success text-center py-4">
+              <h2 class="mb-0" style="font-size: 48px; font-weight: bold;">
                 <span id="winner-name">Player</span> WINS!
               </h2>
             </div>
           </div>
           
           <div id="bust-banner" class="mb-4" style="visibility: hidden;">
-            <div class="alert alert-danger text-center py-3">
-              <h3 class="mb-0" style="font-size: 28px; font-weight: bold;">BUST!</h3>
+            <div class="alert alert-danger text-center py-4">
+              <h3 class="mb-0" style="font-size: 36px; font-weight: bold;">BUST!</h3>
             </div>
           </div>
         </div>
@@ -28,9 +29,9 @@
             <table class="table table-bordered" id="scoreTable">
               <thead>
                 <tr>
-                  <th class="text-center turn-header">TURN #</th>
+                  <th class="text-center turn-header py-3" style="font-size: 28px;">TURN #</th>
                   {% for player in game_data.players %}
-                  <th class="text-center player-header" id="player{{ player.id }}_name">{{ player.name }}</th>
+                  <th class="text-center player-header py-3" id="player{{ player.id }}_name" style="font-size: 28px;">{{ player.name }}</th>
                   {% endfor %}
                 </tr>
               </thead>
@@ -39,9 +40,9 @@
               </tbody>
               <tfoot>
                 <tr>
-                  <td class="text-center"><strong>TOTAL</strong></td>
+                  <td class="text-center py-3" style="font-size: 28px;"><strong>TOTAL</strong></td>
                   {% for player in game_data.players %}
-                  <td class="text-center" id="player{{ player.id }}_total">{{ player.total_score }}</td>
+                  <td class="text-center py-3" id="player{{ player.id }}_total" style="font-size: 28px;">{{ player.total_score }}</td>
                   {% endfor %}
                 </tr>
               </tfoot>
@@ -53,17 +54,17 @@
         <div class="col-md-4 text-center">
           <div class="dartboard-container mb-4">
             <img src="{{ url_for('static', filename='images/dartboard.jpg') }}" 
-              alt="Dartboard" class="img-fluid" style="max-height: 400px;">
+              alt="Dartboard" class="img-fluid" style="max-height: 500px; width: auto;">
           </div>
           
           <div class="row mt-4">
             {% for throw in game_data.current_throws %}
             <div class="col-4">
               <div class="card">
-                <div class="card-header p-2">
-                  <strong>THROW {{ throw.throw_number }}<br>POINTS</strong>
+                <div class="card-header p-3">
+                  <strong style="font-size: 20px;">THROW {{ throw.throw_number }}<br>POINTS</strong>
                 </div>
-                <div class="card-body" id="throw{{ throw.throw_number }}_points">
+                <div class="card-body py-3" id="throw{{ throw.throw_number }}_points" style="font-size: 32px;">
                   {{ throw.points }}
                 </div>
               </div>
@@ -72,9 +73,9 @@
           </div>
           
           <!-- Manual Override Button -->
-          <div class="row mt-3">
+          <div class="row mt-4">
             <div class="col-12 text-center">
-              <button id="manual-override-btn" class="btn btn-warning">
+              <button id="manual-override-btn" class="btn btn-warning py-3 px-4" style="font-size: 22px;">
                 <strong>Manual Override</strong>
               </button>
             </div>
@@ -833,8 +834,35 @@
 </script>
 
 <style>
+  /* Make modal text larger */
+  .modal-title {
+    font-size: 24px;
+  }
+  
+  .modal-body label {
+    font-size: 18px;
+  }
+  
+  .modal-body .form-control, 
+  .modal-body .form-select {
+    font-size: 18px;
+    padding: 10px;
+  }
+  
+  .modal-footer .btn {
+    font-size: 18px;
+    padding: 8px 16px;
+  }
+  
+  #totalPoints {
+    font-size: 24px;
+    font-weight: bold;
+  }
+</style>
+
+<style>
   .turn-header, .player-header {
-    background-color: #e9ecef;
+    background-color: rgba(233, 236, 239, 0.8);
     color: #212529;
   }
   
@@ -844,22 +872,23 @@
   }
   
   .card-body {
-    font-size: 24px;
+    font-size: 32px;
     font-weight: bold;
     color: #000000;
   }
   
   #scoreTable tbody td {
-    font-size: 24px;
+    font-size: 28px;
     font-weight: bold;
     text-align: center;
     vertical-align: middle;
     color: #ffffff;
+    padding: 15px 5px;
   }
   
   /* Make the totals row stand out */
   #scoreTable tfoot tr {
-    font-size: 24px;
+    font-size: 28px;
     font-weight: bold;
     text-align: center;
     vertical-align: middle;
@@ -868,18 +897,18 @@
   
   /* Style for the manual override button */
   #manual-override-btn {
-    font-size: 18px;
-    padding: 8px 16px;
-    margin-top: 15px;
+    font-size: 22px;
+    padding: 12px 24px;
+    margin-top: 20px;
   }
   
   /* Styles for the throw display */
   .throw-points {
-    font-size: 24px;
+    font-size: 28px;
     font-weight: bold;
     background-color: #343a40;
     color: white;
-    padding: 8px;
+    padding: 12px;
     border-radius: 5px;
     margin-top: 5px;
   }
@@ -890,17 +919,17 @@
   }
 
   #currentThrowsDisplay {
-    margin-bottom: 10px;
+    margin-bottom: 15px;
   }
   
   /* Style for bust scores */
   .bust-score {
     color: #ffffff;
     background-color: #dc3545;
-    padding: 2px 8px;
+    padding: 4px 10px;
     border-radius: 4px;
     font-weight: bold;
-    font-size: 18px;
+    font-size: 22px;
   }
   
   /* Highlight the current player */
