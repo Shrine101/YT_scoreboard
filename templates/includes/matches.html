@@ -5,7 +5,8 @@
       <!-- Notification banners -->
       <div class="row">
         <div class="col-12" style="position: relative;">
-          <div id="game-over-banner" class="mb-4" style="visibility: hidden; position: absolute; left: 0; right: 0; z-index: 1000; top: 20px;">
+          <!-- Original banner hidden but kept for JS compatibility -->
+          <div id="game-over-banner" style="display: none;">
             <div class="alert alert-success text-center py-4">
               <h2 class="mb-0" style="font-size: 48px; font-weight: bold;">
                 <span id="winner-name">Player</span> WINS!
@@ -82,6 +83,17 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- New Win Message Overlay (added as a completely separate element) -->
+<div id="win-message-overlay" style="position: fixed; top: 0; left: 0; right: 0; visibility: hidden; z-index: 2000; pointer-events: none;">
+  <div style="width: 100%; padding-top: 80px; text-align: center;">
+    <div class="alert alert-success d-inline-block py-4 px-5">
+      <h2 class="mb-0" style="font-size: 48px; font-weight: bold;">
+        <span id="winner-name-overlay">Player</span> WINS!
+      </h2>
     </div>
   </div>
 </div>
@@ -181,11 +193,12 @@
       // Find player with score 0 (the winner)
       const winner = game_data.players.find(player => player.total_score === 0);
       if (winner) {
-        // Set the winner's name in the banner
+        // Set the winner's name in both banners
         document.getElementById('winner-name').textContent = winner.name;
+        document.getElementById('winner-name-overlay').textContent = winner.name;
         
-        // Show the banner
-        gameOverBanner.style.visibility = 'visible';
+        // Show the overlay
+        document.getElementById('win-message-overlay').style.visibility = 'visible';
         
         // Highlight the winner's name and score in the table
         const nameElement = document.getElementById(`player${winner.id}_name`);
@@ -205,6 +218,7 @@
       }
     } else {
       gameOverBanner.style.visibility = 'hidden';
+      document.getElementById('win-message-overlay').style.visibility = 'hidden';
     }
     
     // Handle animation based on type
@@ -269,8 +283,10 @@
         // Show game over banner for win animations
         const winner = game_data.players.find(player => player.id === game_data.current_player);
         if (winner) {
+          // Update both winner displays
           document.getElementById('winner-name').textContent = winner.name;
-          document.getElementById('game-over-banner').style.visibility = 'visible';
+          document.getElementById('winner-name-overlay').textContent = winner.name;
+          document.getElementById('win-message-overlay').style.visibility = 'visible';
         }
         
         // Find the winning throw
