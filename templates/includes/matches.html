@@ -878,12 +878,27 @@
   }
   
   #scoreTable tbody td {
-    font-size: 28px;
-    font-weight: bold;
-    text-align: center;
-    vertical-align: middle;
-    color: #ffffff;
-    padding: 15px 5px;
+  font-size: 28px;
+  font-weight: bold;
+  text-align: center;
+  vertical-align: middle;
+  color: #ffffff;
+  padding: 8px 5px; /* Reduced padding from 15px to 8px */
+  height: 45px; /* Set a fixed height to make rows more compact */
+}
+  /* Make individual turn rows more compact */
+  #scoreTable tbody tr {
+    height: 45px; /* Fixed height for each row */
+  }
+
+  #scoreTable {
+    margin-bottom: 20px; /* Add space below the table */
+  }
+
+  /* Keep the header and footer rows at their original size */
+  #scoreTable thead th,
+  #scoreTable tfoot td {
+    padding: 12px 5px; /* Still generous padding for header/footer */
   }
   
   /* Make the totals row stand out */
@@ -895,6 +910,7 @@
     color: #ffffff;
   }
   
+
   /* Style for the manual override button */
   #manual-override-btn {
     font-size: 22px;

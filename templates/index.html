@@ -21,7 +21,8 @@
         background-image: url("{{ url_for('static', filename='images/chalkboard.PNG') }}");
         background-position: center;
         background-repeat: no-repeat;
-        background-size: contain;
+        /* Changed from 'contain' to '100% 100%' to stretch the image fully */
+        background-size: 100% 100%;
         background-color: #000000;
         color: white;
         display: flex;
@@ -32,7 +33,7 @@
       .game-container {
         width: 100%;
         max-width: 1600px;
-        padding: 20px;
+        padding: 0; /* Removed padding to allow content to fill the space */
       }
     </style>
   </head>
