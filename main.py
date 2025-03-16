@@ -334,6 +334,9 @@ def update_throw():
         current_player = game_state['current_player']
         game_over = game_state['game_over']
         
+        # Store the initial game_over state to detect transitions
+        was_previously_game_over = game_over
+        
         # First, clear any active animations since we're manually overriding
         reset_animation_state(conn)
         
@@ -646,6 +649,34 @@ def update_throw():
             
             # Recalculate all player scores after modifying past turn
             recalculate_player_scores(conn)
+            
+            # Check if we transitioned from game-over to active game
+            cursor.execute('SELECT game_over FROM game_state WHERE id = 1')
+            new_game_over = cursor.fetchone()['game_over']
+            
+            if was_previously_game_over and not new_game_over and turn_number == current_turn and player_id == current_player:
+                # We've un-won the game on the current turn/player
+                # We need to sync current_throws with the updated turn_scores
+                cursor.execute('''
+                    SELECT 
+                        throw1, throw1_multiplier, throw1_points,
+                        throw2, throw2_multiplier, throw2_points,
+                        throw3, throw3_multiplier, throw3_points
+                    FROM turn_scores
+                    WHERE turn_number = ? AND player_id = ?
+                ''', (turn_number, player_id))
+                
+                updated_throws = cursor.fetchone()
+                if updated_throws:
+                    # Update current_throws with the actual values from turn_scores
+                    cursor.execute('UPDATE current_throws SET score = ?, multiplier = ?, points = ? WHERE throw_number = ?',
+                                  (updated_throws['throw1'], updated_throws['throw1_multiplier'], updated_throws['throw1_points'], 1))
+                    cursor.execute('UPDATE current_throws SET score = ?, multiplier = ?, points = ? WHERE throw_number = ?',
+                                  (updated_throws['throw2'], updated_throws['throw2_multiplier'], updated_throws['throw2_points'], 2))
+                    cursor.execute('UPDATE current_throws SET score = ?, multiplier = ?, points = ? WHERE throw_number = ?',
+                                  (updated_throws['throw3'], updated_throws['throw3_multiplier'], updated_throws['throw3_points'], 3))
+                
+                print(f"Game un-won! Current throws updated to match modified throw data.")
         
         # Commit changes
         conn.commit()
@@ -653,6 +684,17 @@ def update_throw():
         # Check for game over after all updates
         cursor.execute('SELECT total_score FROM players WHERE id = ?', (player_id,))
         player_score = cursor.fetchone()['total_score']
+        
+        # Initialize response data
+        response_data = {
+            'message': f'Throw updated successfully! Points: {points}',
+            'points': points,
+            'new_total': player_score,
+            'is_bust': is_bust,
+            'was_previously_bust': was_previously_bust,
+            'bust_status_changed': (was_previously_bust != is_bust),
+            'was_previously_game_over': was_previously_game_over
+        }
         
         # Check if player has won (score exactly 0)
         if player_score == 0:
@@ -675,22 +717,9 @@ def update_throw():
             
             conn.commit()
             
-            # Add info about win to response_data
+            # Add info about win to response data
             response_data['game_over'] = True
             response_data['winner'] = player_id
-        
-        # Close connection
-        conn.close()
-        
-        # Return success response with additional info for UI update
-        response_data = {
-            'message': f'Throw updated successfully! Points: {points}',
-            'points': points,
-            'new_total': player_score,
-            'is_bust': is_bust,
-            'was_previously_bust': was_previously_bust,
-            'bust_status_changed': (was_previously_bust != is_bust)
-        }
         
         # Add info about turn advancement if applicable
         if is_current_turn_override:
@@ -704,6 +733,9 @@ def update_throw():
             response_data['rewound_turn'] = True
             response_data['current_turn'] = turn_number
             response_data['current_player'] = player_id
+        
+        # Close connection
+        conn.close()
         
         return jsonify(response_data)
         
