@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+
+    <title>Select a Game - Glow-E McThrowy</title>
+  </head>
+  <body>
+    <div class="container-lg py-5">
+      <div class="row justify-content-center mb-4">
+        <div class="col-md-8 text-center">
+          <h1 class="text-white mb-4">Select a Game</h1>
+          <div class="card shadow mb-4">
+            <div class="card-body">
+              <h3 class="mb-3">Players</h3>
+              <div class="row">
+                {% for player_id, name in player_names.items() %}
+                <div class="col-md-3 mb-2">
+                  <div class="card bg-light">
+                    <div class="card-body py-2 text-center">
+                      <strong>{{ name }}</strong>
+                    </div>
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="row justify-content-center">
+        <div class="col-md-8">
+          <div class="row row-cols-1 row-cols-md-2 g-4">
+            <!-- 301 Game -->
+            <div class="col">
+              <div class="card h-100 game-card shadow">
+                <div class="card-body text-center">
+                  <h3 class="card-title">301</h3>
+                  <p class="card-text">Classic 301 darts game. Start with 301 points and try to reach exactly zero.</p>
+                  <form action="/start_game_301" method="post">
+                    {% for player_id, name in player_names.items() %}
+                    <input type="hidden" name="player{{ player_id }}" value="{{ name }}">
+                    {% endfor %}
+                    <input type="hidden" name="reset_scores" value="{{ reset_scores }}">
+                    <button type="submit" class="btn btn-primary btn-lg w-100">Play 301</button>
+                  </form>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Cricket Game -->
+            <div class="col">
+              <div class="card h-100 game-card shadow">
+                <div class="card-body text-center">
+                  <h3 class="card-title">Cricket</h3>
+                  <p class="card-text">Hit numbers 15-20 and the bullseye. Close all numbers and have the highest score to win.</p>
+                  <form action="/start_game_cricket" method="post">
+                    {% for player_id, name in player_names.items() %}
+                    <input type="hidden" name="player{{ player_id }}" value="{{ name }}">
+                    {% endfor %}
+                    <input type="hidden" name="reset_scores" value="{{ reset_scores }}">
+                    <button type="submit" class="btn btn-success btn-lg w-100">Play Cricket</button>
+                  </form>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Around the Clock Game -->
+            <div class="col">
+              <div class="card h-100 game-card shadow">
+                <div class="card-body text-center">
+                  <h3 class="card-title">Around the Clock</h3>
+                  <p class="card-text">Hit every number from 1 to 20 in sequence. First to complete the sequence wins.</p>
+                  <form action="/start_game_around_clock" method="post">
+                    {% for player_id, name in player_names.items() %}
+                    <input type="hidden" name="player{{ player_id }}" value="{{ name }}">
+                    {% endfor %}
+                    <input type="hidden" name="reset_scores" value="{{ reset_scores }}">
+                    <button type="submit" class="btn btn-warning btn-lg w-100">Play Around the Clock</button>
+                  </form>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 501 Game -->
+            <div class="col">
+              <div class="card h-100 game-card shadow">
+                <div class="card-body text-center">
+                  <h3 class="card-title">501</h3>
+                  <p class="card-text">Classic 501 darts game. Start with 501 points and try to reach exactly zero.</p>
+                  <form action="/start_game_501" method="post">
+                    {% for player_id, name in player_names.items() %}
+                    <input type="hidden" name="player{{ player_id }}" value="{{ name }}">
+                    {% endfor %}
+                    <input type="hidden" name="reset_scores" value="{{ reset_scores }}">
+                    <button type="submit" class="btn btn-info btn-lg w-100">Play 501</button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Back Button -->
+          <div class="text-center mt-4">
+            <a href="/" class="btn btn-secondary">Back to Player Selection</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+  </body>
+  <style>
+    body {
+      background-image: url("{{ url_for('static', filename='images/chalkboard.PNG') }}");
+      background-size: 95%;
+      background-position: center;
+      background-repeat: no-repeat;
+      background-color: #000022;
+      color: white;
+    }
+    
+    .card {
+      background-color: rgba(255, 255, 255, 0.9);
+      color: #000;
+    }
+    
+    .game-card {
+      transition: transform 0.3s;
+    }
+    
+    .game-card:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.2) !important;
+    }
+    
+    .btn-lg {
+      padding: 0.75rem 1.5rem;
+      font-size: 1.2rem;
+    }
+  </style>
+</html>
