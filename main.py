@@ -661,7 +661,8 @@ def update_throw():
                     SELECT 
                         throw1, throw1_multiplier, throw1_points,
                         throw2, throw2_multiplier, throw2_points,
-                        throw3, throw3_multiplier, throw3_points
+                        throw3, throw3_multiplier, throw3_points,
+                        bust
                     FROM turn_scores
                     WHERE turn_number = ? AND player_id = ?
                 ''', (turn_number, player_id))
@@ -675,6 +676,33 @@ def update_throw():
                                   (updated_throws['throw2'], updated_throws['throw2_multiplier'], updated_throws['throw2_points'], 2))
                     cursor.execute('UPDATE current_throws SET score = ?, multiplier = ?, points = ? WHERE throw_number = ?',
                                   (updated_throws['throw3'], updated_throws['throw3_multiplier'], updated_throws['throw3_points'], 3))
+                
+                    # Check if we need to advance to the next player
+                    should_advance_after_unwin = False
+                    
+                    # If it was the third throw or it's a bust, we should advance to the next player
+                    if throw_number == 3 or updated_throws['bust'] == 1:
+                        should_advance_after_unwin = True
+                        
+                    if should_advance_after_unwin:
+                        # Calculate next player and turn
+                        player_count = cursor.execute('SELECT COUNT(*) as count FROM players').fetchone()['count']
+                        next_player = player_id % player_count + 1  # Cycle to next player (1-based)
+                        next_turn = turn_number + (1 if next_player == 1 else 0)  # Increment turn if we wrapped around
+                        
+                        # Update game state
+                        cursor.execute(
+                            'UPDATE game_state SET current_player = ?, current_turn = ? WHERE id = 1',
+                            (next_player, next_turn)
+                        )
+                        
+                        # Reset current throws
+                        cursor.execute('UPDATE current_throws SET points = 0, score = 0, multiplier = 0')
+                        
+                        print(f"Un-won game: Advanced to Player {next_player}, Turn {next_turn}")
+                        
+                        # Set flag for the response
+                        advanced_after_unwin = True
                 
                 print(f"Game un-won! Current throws updated to match modified throw data.")
         
@@ -695,6 +723,12 @@ def update_throw():
             'bust_status_changed': (was_previously_bust != is_bust),
             'was_previously_game_over': was_previously_game_over
         }
+        
+        # Add info about advancing after un-winning if applicable
+        if 'advanced_after_unwin' in locals() and advanced_after_unwin:
+            response_data['advanced_after_unwin'] = True
+            response_data['next_player'] = next_player
+            response_data['next_turn'] = next_turn
         
         # Check if player has won (score exactly 0)
         if player_score == 0:
