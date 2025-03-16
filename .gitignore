@@ -1,1 +1,4 @@
 YT_boardvenv/
+game.db
+/simulation/cv_data.db
+__pycache__/
