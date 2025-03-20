@@ -134,6 +134,17 @@ class DartProcessor:
             )
             conn.commit()
 
+    def update_last_throw(self, score, multiplier, points, player_id):
+        """Update the last throw table with the most recent throw"""
+        with self.get_game_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE last_throw
+                SET score = ?, multiplier = ?, points = ?, player_id = ?
+                WHERE id = 1
+            ''', (score, multiplier, points, player_id))
+            conn.commit()
+    
     def get_player_score_before_turn(self, player_id, turn_number):
         """Get a player's score before a specific turn"""
         with self.get_game_connection() as conn:
@@ -331,6 +342,9 @@ class DartProcessor:
         # Update the current throw with score, multiplier, and points
         self.update_current_throw(throw_position, score, multiplier, points)
         
+        # Update the last throw record
+        self.update_last_throw(score, multiplier, points, current_player)
+        
         # Calculate total points for current throws
         total_current_points = sum(t['points'] for t in current_throws if t['throw_number'] != throw_position) + points
         
@@ -338,6 +352,40 @@ class DartProcessor:
         player_score_before_turn = self.get_player_score_before_turn(current_player, current_turn)
         new_score = player_score_before_turn - total_current_points
         is_bust = (new_score < 0)
+
+        # Check if this would result in a win (score exactly 0)
+        if new_score == 0:
+            print(f"WIN detected! Player {current_player} has won with a perfect score of 0!")
+            
+            # Explicitly refresh current_throws to include the latest throw
+            current_throws = []
+            with self.get_game_connection() as conn:
+                cursor = conn.cursor()
+                # Get the updated current_throws after our update above
+                cursor.execute('SELECT throw_number, points, score, multiplier FROM current_throws ORDER BY throw_number')
+                current_throws = [dict(t) for t in cursor.fetchall()]
+            
+            # Record the score in the database
+            self.add_score_to_turn(current_turn, current_player, total_current_points, current_throws)
+            
+            # Set game_over to 1
+            with self.get_game_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('UPDATE game_state SET game_over = 1 WHERE id = 1')
+                conn.commit()
+            
+            # Set the animation state for a win
+            self.set_animation_state(
+                animation_type="win",
+                turn_number=current_turn,
+                player_id=current_player,
+                throw_number=throw_position,
+                next_turn=None,
+                next_player=None
+            )
+            
+            print(f"Game over! Animation state set for: win")
+            return  # Stop processing further
         
         # Process game logic immediately
         if is_bust or throw_position == 3:

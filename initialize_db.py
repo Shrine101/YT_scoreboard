@@ -27,6 +27,7 @@ def initialize_database():
                 cursor.execute("DELETE FROM turns")
                 cursor.execute("DELETE FROM players")
                 cursor.execute("DELETE FROM animation_state")  # New table
+                cursor.execute("DELETE FROM last_throw")  # Clear the last throw table
             else:
                 print("Creating tables...")
                 # Create tables
@@ -100,6 +101,17 @@ def initialize_database():
                 )
                 ''')
                 
+                # New table for tracking the last throw
+                cursor.execute('''
+                CREATE TABLE last_throw (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    score INTEGER DEFAULT 0,
+                    multiplier INTEGER DEFAULT 0,
+                    points INTEGER DEFAULT 0,
+                    player_id INTEGER
+                )
+                ''')
+                
                 print("Tables created successfully.")
             
             # Insert initial data
@@ -131,6 +143,13 @@ def initialize_database():
                 INSERT INTO animation_state 
                 (id, animating, animation_type, turn_number, player_id, throw_number, timestamp, next_turn, next_player) 
                 VALUES (1, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+            ''')
+            
+            # Insert initial last throw data (empty)
+            cursor.execute('''
+                INSERT INTO last_throw
+                (id, score, multiplier, points, player_id)
+                VALUES (1, 0, 0, 0, NULL)
             ''')
             
             # Commit changes and close connection

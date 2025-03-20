@@ -156,6 +156,9 @@ def recalculate_player_scores(conn):
     cursor.execute('SELECT id FROM players')
     players = cursor.fetchall()
     
+    # Track if any player has a winning score
+    any_player_won = False
+    
     for player in players:
         player_id = player['id']
         
@@ -175,7 +178,30 @@ def recalculate_player_scores(conn):
         
         # Check if player has won (score exactly 0)
         if new_score == 0:
-            cursor.execute('UPDATE game_state SET game_over = 1 WHERE id = 1')
+            any_player_won = True
+    
+    # Update game_over flag based on whether any player has won
+    if any_player_won:
+        cursor.execute('UPDATE game_state SET game_over = 1 WHERE id = 1')
+    else:
+        cursor.execute('UPDATE game_state SET game_over = 0 WHERE id = 1')
+        
+        # Also reset any win animation state if we're un-winning
+        cursor.execute('''
+            UPDATE animation_state 
+            SET animating = 0, 
+                animation_type = NULL, 
+                turn_number = NULL, 
+                player_id = NULL, 
+                throw_number = NULL, 
+                timestamp = NULL,
+                next_turn = NULL,
+                next_player = NULL
+            WHERE id = 1 AND animation_type = 'win'
+        ''')
+    
+    conn.commit()
+
 
 @app.route('/')
 def home():
@@ -266,22 +292,25 @@ def data_json():
     if animation_state and animation_state['animating'] == 1:
         animation_type = animation_state['animation_type']
         
-        if animation_type in ['bust', 'third_throw']:
-            # For third throw animations, we want to show the throw but not advance player yet
+        # Update game_data to reflect animation state
+        game_data["animating"] = True
+        game_data["animation_type"] = animation_type
+        
+        if animation_type in ['bust', 'third_throw', 'win']:
+            # For these animations, we want to show the throw but not advance player yet
             anim_turn = animation_state['turn_number']
             anim_player = animation_state['player_id']
-            
-            # Update game_data to reflect animation state
-            game_data["animating"] = True
-            game_data["animation_type"] = animation_type
+            anim_throw = animation_state['throw_number']
             
             # During animation, we show the current player still (not advanced yet)
             game_data["current_turn"] = anim_turn
             game_data["current_player"] = anim_player
+            game_data["throw_number"] = anim_throw
             
-            # Also include the next player/turn info for UI transitions
-            game_data["next_turn"] = animation_state['next_turn']
-            game_data["next_player"] = animation_state['next_player']
+            # For bust and third_throw, include next player/turn info for UI transitions
+            if animation_type in ['bust', 'third_throw']:
+                game_data["next_turn"] = animation_state['next_turn']
+                game_data["next_player"] = animation_state['next_player']
         else:
             # No special animation handling needed
             game_data["current_turn"] = state_row['current_turn']
@@ -342,6 +371,23 @@ def data_json():
     
     game_data["current_throws"] = current_throws
     
+    # Get last throw data
+    last_throw_row = conn.execute('SELECT score, multiplier, points, player_id FROM last_throw WHERE id = 1').fetchone()
+    if last_throw_row:
+        game_data["last_throw"] = {
+            "score": last_throw_row['score'],
+            "multiplier": last_throw_row['multiplier'],
+            "points": last_throw_row['points'],
+            "player_id": last_throw_row['player_id']
+        }
+    else:
+        game_data["last_throw"] = {
+            "score": 0,
+            "multiplier": 0,
+            "points": 0,
+            "player_id": None
+        }
+    
     # Get turns and scores
     turns = []
     for turn_row in conn.execute('SELECT turn_number FROM turns ORDER BY turn_number'):
@@ -390,11 +436,21 @@ def update_throw():
         conn = get_db_connection()
         cursor = conn.cursor()
         
+        # Update the last throw table to reflect this manual override
+        cursor.execute('''
+            UPDATE last_throw
+            SET score = ?, multiplier = ?, points = ?, player_id = ?
+            WHERE id = 1
+        ''', (score, multiplier, points, player_id))
+        
         # Get current game state
         game_state = cursor.execute('SELECT current_turn, current_player, game_over FROM game_state WHERE id = 1').fetchone()
         current_turn = game_state['current_turn']
         current_player = game_state['current_player']
         game_over = game_state['game_over']
+        
+        # Store the initial game_over state to detect transitions
+        was_previously_game_over = game_over
         
         # First, clear any active animations since we're manually overriding
         reset_animation_state(conn)
@@ -708,6 +764,62 @@ def update_throw():
             
             # Recalculate all player scores after modifying past turn
             recalculate_player_scores(conn)
+            
+            # Check if we transitioned from game-over to active game
+            cursor.execute('SELECT game_over FROM game_state WHERE id = 1')
+            new_game_over = cursor.fetchone()['game_over']
+            
+            if was_previously_game_over and not new_game_over and turn_number == current_turn and player_id == current_player:
+                # We've un-won the game on the current turn/player
+                # We need to sync current_throws with the updated turn_scores
+                cursor.execute('''
+                    SELECT 
+                        throw1, throw1_multiplier, throw1_points,
+                        throw2, throw2_multiplier, throw2_points,
+                        throw3, throw3_multiplier, throw3_points,
+                        bust
+                    FROM turn_scores
+                    WHERE turn_number = ? AND player_id = ?
+                ''', (turn_number, player_id))
+                
+                updated_throws = cursor.fetchone()
+                if updated_throws:
+                    # Update current_throws with the actual values from turn_scores
+                    cursor.execute('UPDATE current_throws SET score = ?, multiplier = ?, points = ? WHERE throw_number = ?',
+                                  (updated_throws['throw1'], updated_throws['throw1_multiplier'], updated_throws['throw1_points'], 1))
+                    cursor.execute('UPDATE current_throws SET score = ?, multiplier = ?, points = ? WHERE throw_number = ?',
+                                  (updated_throws['throw2'], updated_throws['throw2_multiplier'], updated_throws['throw2_points'], 2))
+                    cursor.execute('UPDATE current_throws SET score = ?, multiplier = ?, points = ? WHERE throw_number = ?',
+                                  (updated_throws['throw3'], updated_throws['throw3_multiplier'], updated_throws['throw3_points'], 3))
+                
+                    # Check if we need to advance to the next player
+                    should_advance_after_unwin = False
+                    
+                    # If it was the third throw or it's a bust, we should advance to the next player
+                    if throw_number == 3 or updated_throws['bust'] == 1:
+                        should_advance_after_unwin = True
+                        
+                    if should_advance_after_unwin:
+                        # Calculate next player and turn
+                        player_count = cursor.execute('SELECT COUNT(*) as count FROM players').fetchone()['count']
+                        next_player = player_id % player_count + 1  # Cycle to next player (1-based)
+                        next_turn = turn_number + (1 if next_player == 1 else 0)  # Increment turn if we wrapped around
+                        
+                        # Update game state
+                        cursor.execute(
+                            'UPDATE game_state SET current_player = ?, current_turn = ? WHERE id = 1',
+                            (next_player, next_turn)
+                        )
+                        
+                        # Reset current throws
+                        cursor.execute('UPDATE current_throws SET points = 0, score = 0, multiplier = 0')
+                        
+                        print(f"Un-won game: Advanced to Player {next_player}, Turn {next_turn}")
+                        
+                        # Set flag for the response
+                        advanced_after_unwin = True
+                
+                print(f"Game un-won! Current throws updated to match modified throw data.")
         
         # Commit changes
         conn.commit()
@@ -716,23 +828,47 @@ def update_throw():
         cursor.execute('SELECT total_score FROM players WHERE id = ?', (player_id,))
         player_score = cursor.fetchone()['total_score']
         
-        # Check if player has won (score exactly 0)
-        if player_score == 0:
-            cursor.execute('UPDATE game_state SET game_over = 1 WHERE id = 1')
-            conn.commit()
-        
-        # Close connection
-        conn.close()
-        
-        # Return success response with additional info for UI update
+        # Initialize response data
         response_data = {
             'message': f'Throw updated successfully! Points: {points}',
             'points': points,
             'new_total': player_score,
             'is_bust': is_bust,
             'was_previously_bust': was_previously_bust,
-            'bust_status_changed': (was_previously_bust != is_bust)
+            'bust_status_changed': (was_previously_bust != is_bust),
+            'was_previously_game_over': was_previously_game_over
         }
+        
+        # Add info about advancing after un-winning if applicable
+        if 'advanced_after_unwin' in locals() and advanced_after_unwin:
+            response_data['advanced_after_unwin'] = True
+            response_data['next_player'] = next_player
+            response_data['next_turn'] = next_turn
+        
+        # Check if player has won (score exactly 0)
+        if player_score == 0:
+            cursor.execute('UPDATE game_state SET game_over = 1 WHERE id = 1')
+            
+            # Set win animation state
+            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            cursor.execute('''
+                UPDATE animation_state 
+                SET animating = 1, 
+                    animation_type = ?, 
+                    turn_number = ?, 
+                    player_id = ?, 
+                    throw_number = ?, 
+                    timestamp = ?,
+                    next_turn = NULL,
+                    next_player = NULL
+                WHERE id = 1
+            ''', ('win', turn_number, player_id, throw_number, current_time))
+            
+            conn.commit()
+            
+            # Add info about win to response data
+            response_data['game_over'] = True
+            response_data['winner'] = player_id
         
         # Add info about turn advancement if applicable
         if is_current_turn_override:
@@ -746,6 +882,9 @@ def update_throw():
             response_data['rewound_turn'] = True
             response_data['current_turn'] = turn_number
             response_data['current_player'] = player_id
+        
+        # Close connection
+        conn.close()
         
         return jsonify(response_data)
         
