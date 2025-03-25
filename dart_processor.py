@@ -287,8 +287,13 @@ class DartProcessor:
                 print("Game is over, not advancing to next player")
                 return None, None
             
+            # Get player count from the players table
             cursor.execute('SELECT COUNT(*) as count FROM players')
             player_count = cursor.fetchone()['count']
+            
+            if player_count == 0:
+                print("No players found in database, cannot advance")
+                return None, None
             
             # Calculate next player and turn
             current_player = state['current_player']
@@ -308,6 +313,7 @@ class DartProcessor:
             
             conn.commit()
             
+            print(f"Advanced to Player {next_player}, Turn {next_turn}")
             return next_player, next_turn
 
     def process_throw(self, throw):
