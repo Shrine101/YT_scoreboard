@@ -118,12 +118,10 @@ def initialize_database():
             print("Inserting initial data...")
             
             # Insert players
-            cursor.executemany('INSERT INTO players (id, name, total_score) VALUES (?, ?, ?)', [
-                (1, 'Player 1', 301),
-                (2, 'Player 2', 301),
-                (3, 'Player 3', 301),
-                (4, 'Player 4', 301)
-            ])
+            players_to_insert = []
+            for i in range(1, 5):  # Default to 4 players initially
+                players_to_insert.append((i, f'Player {i}', 301))
+            cursor.executemany('INSERT INTO players (id, name, total_score) VALUES (?, ?, ?)', players_to_insert)
             
             # Insert first turn
             cursor.execute('INSERT INTO turns (turn_number) VALUES (?)', (1,))

@@ -210,6 +210,19 @@
   let currentLastThrowState = "normal"; // can be "normal", "bust", or "win"
   let previousLastThrow = null;
 
+  // Function to update the player count styling
+  function updatePlayerCountStyle(game_data) {
+    const playerCount = game_data.players.length;
+    const container = document.querySelector('.container-fluid');
+    
+    // Remove any existing player count classes
+    container.classList.remove('players-1', 'players-2', 'players-3', 'players-4', 
+                              'players-5', 'players-6', 'players-7', 'players-8');
+    
+    // Add the appropriate class
+    container.classList.add(`players-${playerCount}`);
+  }
+
   // Function to update the last throw display
   function updateLastThrow(lastThrow, players, game_data) {
     if (!lastThrow) return;
@@ -278,6 +291,9 @@
   
   // Function to update the display with new data
   function updateGame(game_data) {
+    // Apply styling based on player count
+    updatePlayerCountStyle(game_data);
+    
     // Store current game data globally for delayed updates
     window.currentGameData = game_data;
     
@@ -1076,5 +1092,55 @@
     background-color: rgba(0, 123, 255, 0.7);
     color: white !important;
     font-weight: bold;
+  }
+
+    /* Responsive styles for different player counts */
+  .players-1 #scoreTable th, .players-1 #scoreTable td,
+  .players-2 #scoreTable th, .players-2 #scoreTable td {
+    font-size: 32px;  /* Larger text for fewer players */
+  }
+
+  /* Default is 4 players (no change needed) */
+
+  /* 5-6 players - reduce font size */
+  .players-5 #scoreTable th,
+  .players-6 #scoreTable th,
+  .players-5 #scoreTable td,
+  .players-6 #scoreTable td {
+    font-size: 24px;
+  }
+
+  /* 7-8 players - reduce even more */
+  .players-7 #scoreTable th,
+  .players-8 #scoreTable th,
+  .players-7 #scoreTable td,
+  .players-8 #scoreTable td {
+    font-size: 20px;
+    padding: 5px 3px;  /* Smaller padding for more columns */
+  }
+
+  /* Adjust column widths based on player count */
+  .players-5 #scoreTable th,
+  .players-6 #scoreTable th,
+  .players-7 #scoreTable th,
+  .players-8 #scoreTable th {
+    width: auto;  /* Let the browser determine width */
+  }
+
+  .players-6 .player-header,
+  .players-7 .player-header,
+  .players-8 .player-header {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100px; /* Limit width for more players */
+  }
+
+  /* Adjust last throw display for many players */
+  .players-5 .last-throw-card,
+  .players-6 .last-throw-card,
+  .players-7 .last-throw-card,
+  .players-8 .last-throw-card {
+    font-size: 80%;
   }
 </style>

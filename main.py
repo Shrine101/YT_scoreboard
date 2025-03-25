@@ -43,7 +43,7 @@ def get_db_connection():
     return conn
     
 def initialize_game_with_custom_names(player_names, starting_score=301):
-    """Initialize the game database but preserve custom player names.
+    """Initialize the game database with custom player names.
     
     Args:
         player_names (dict): Dictionary mapping player IDs to names.
@@ -51,6 +51,9 @@ def initialize_game_with_custom_names(player_names, starting_score=301):
     """
     conn = sqlite3.connect('game.db')
     cursor = conn.cursor()
+    
+    # Get player count
+    player_count = len(player_names)
     
     try:
         # Clear existing data first
@@ -62,8 +65,23 @@ def initialize_game_with_custom_names(player_names, starting_score=301):
         
         # Reset player scores but keep names
         for player_id, name in player_names.items():
-            cursor.execute('UPDATE players SET total_score = ? WHERE id = ?', 
-                          (starting_score, player_id))
+            # Check if player exists
+            cursor.execute('SELECT 1 FROM players WHERE id = ?', (player_id,))
+            if cursor.fetchone():
+                # Update existing player
+                cursor.execute('UPDATE players SET name = ?, total_score = ? WHERE id = ?', 
+                              (name, starting_score, player_id))
+            else:
+                # Insert new player
+                cursor.execute('INSERT INTO players (id, name, total_score) VALUES (?, ?, ?)', 
+                              (player_id, name, starting_score))
+                              
+        # Remove any players that are no longer needed
+        cursor.execute('DELETE FROM players WHERE id > ?', (player_count,))
+        
+        # Store player count in config
+        cursor.execute('CREATE TABLE IF NOT EXISTS game_config (id INTEGER PRIMARY KEY CHECK (id = 1), player_count INTEGER)')
+        cursor.execute('INSERT OR REPLACE INTO game_config (id, player_count) VALUES (1, ?)', (player_count,))
         
         # Insert first turn
         cursor.execute('INSERT INTO turns (turn_number) VALUES (?)', (1,))
@@ -85,9 +103,16 @@ def initialize_game_with_custom_names(player_names, starting_score=301):
             VALUES (1, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
         ''')
         
+        # Insert last throw data (empty)
+        cursor.execute('''
+            INSERT OR REPLACE INTO last_throw
+            (id, score, multiplier, points, player_id)
+            VALUES (1, 0, 0, 0, NULL)
+        ''')
+        
         # Commit changes
         conn.commit()
-        print(f"Game reinitialized with custom player names and starting score: {starting_score}")
+        print(f"Game reinitialized with {player_count} players and starting score: {starting_score}")
         
     except sqlite3.Error as e:
         print(f"Error initializing game with custom names: {e}")
@@ -210,14 +235,19 @@ def home():
 
 @app.route('/start_game', methods=['POST'])
 def start_game():
-    """Process the player names and start the game"""
+    """Process the player names and start the game with configurable number of players"""
+    # Get player count from form
+    player_count = int(request.form.get('player_count', 4))
+    
+    # Validate player count
+    if player_count < 1 or player_count > 8:
+        player_count = 4  # Default to 4 if invalid
+    
     # Get player names from the form
-    player_names = {
-        1: request.form.get('player1', '').strip() or 'Player 1',
-        2: request.form.get('player2', '').strip() or 'Player 2',
-        3: request.form.get('player3', '').strip() or 'Player 3',
-        4: request.form.get('player4', '').strip() or 'Player 4'
-    }
+    player_names = {}
+    for i in range(1, player_count + 1):
+        name = request.form.get(f'player{i}', '').strip() or f'Player {i}'
+        player_names[i] = name
     
     # Check if we should reset scores
     reset_scores = request.form.get('reset_scores') == 'on'
@@ -227,17 +257,35 @@ def start_game():
     cursor = conn.cursor()
     
     try:
-        # Update each player's name
-        for player_id, name in player_names.items():
-            cursor.execute('UPDATE players SET name = ? WHERE id = ?', (name, player_id))
+        # Clear existing players if we're changing player count
+        current_player_count_result = cursor.execute('SELECT COUNT(*) as count FROM players').fetchone()
+        current_player_count = current_player_count_result['count'] if current_player_count_result else 0
+        
+        if current_player_count != player_count:
+            # Player count has changed, we need to reset the players table
+            cursor.execute("DELETE FROM players")
+            reset_scores = True  # Force a reset when player count changes
+            
+            # Insert new players
+            for player_id, name in player_names.items():
+                cursor.execute('INSERT INTO players (id, name, total_score) VALUES (?, ?, ?)', 
+                              (player_id, name, 301))
+        else:
+            # Just update names for existing players
+            for player_id, name in player_names.items():
+                cursor.execute('UPDATE players SET name = ? WHERE id = ?', (name, player_id))
+        
+        # Store player count in game_config table
+        cursor.execute('CREATE TABLE IF NOT EXISTS game_config (id INTEGER PRIMARY KEY CHECK (id = 1), player_count INTEGER)')
+        cursor.execute('INSERT OR REPLACE INTO game_config (id, player_count) VALUES (1, ?)', (player_count,))
         
         # If reset_scores is checked, reinitialize the database
         if reset_scores:
-            # Commit the player name updates first
+            # Commit the player updates first
             conn.commit()
             conn.close()
             
-            # Reinitialize the database but preserve player names
+            # Reinitialize the database with custom player names
             initialize_game_with_custom_names(player_names)
         else:
             # Just commit the name changes
