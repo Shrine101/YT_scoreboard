@@ -28,7 +28,7 @@ def run_with_mock():
     
     # Start the controller
     print("Starting LED controller with MockLEDs...\n")
-    controller = LED_controller.LEDController()
+    controller = LED_controller.LEDController( blink_duration=3.0, blink_count=6)
     
     # Add a method to print board state periodically
     original_run = controller.run
