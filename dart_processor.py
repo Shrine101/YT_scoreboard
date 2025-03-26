@@ -129,11 +129,23 @@ class DartProcessor:
             cursor.execute('SELECT throw_number, points, score, multiplier FROM current_throws ORDER BY throw_number')
             throws = [dict(throw) for throw in cursor.fetchall()]
             
+            # Get game mode (301 or 501)
+            cursor.execute('SELECT game_mode FROM game_config WHERE id = 1')
+            config = cursor.fetchone()
+            game_mode = config['game_mode'] if config and config['game_mode'] else "301"
+            
+            # Try to convert game_mode to integer if possible
+            try:
+                starting_score = int(game_mode)
+            except (ValueError, TypeError):
+                starting_score = 301  # Default to 301 if not a valid integer
+            
             return {
                 'current_turn': state['current_turn'],
                 'current_player': state['current_player'],
                 'game_over': state['game_over'],
-                'current_throws': throws
+                'current_throws': throws,
+                'starting_score': starting_score
             }
 
     def update_current_throw(self, throw_number, score, multiplier, points):
@@ -162,6 +174,21 @@ class DartProcessor:
         with self.get_game_connection() as conn:
             cursor = conn.cursor()
             
+            # Get starting score from game_config
+            cursor.execute('SELECT game_mode FROM game_config WHERE id = 1')
+            config = cursor.fetchone()
+            starting_score = 301  # Default to 301
+            
+            if config and config['game_mode']:
+                try:
+                    starting_score = int(config['game_mode'])
+                except (ValueError, TypeError):
+                    # If not a valid number, check for mode strings
+                    if config['game_mode'] == '501':
+                        starting_score = 501
+                    else:
+                        starting_score = 301  # Default
+            
             # Get the total points scored by this player before this turn
             cursor.execute(
                 'SELECT SUM(points) as total_points FROM turn_scores WHERE player_id = ? AND turn_number < ? AND bust = 0',
@@ -170,8 +197,8 @@ class DartProcessor:
             
             total_previous_points = cursor.fetchone()['total_points'] or 0
             
-            # Calculate the score before this turn (301 - previous points)
-            score_before_turn = 301 - total_previous_points
+            # Calculate the score before this turn (starting_score - previous points)
+            score_before_turn = starting_score - total_previous_points
             
             return score_before_turn
 
@@ -254,7 +281,22 @@ class DartProcessor:
                     )
                 )
             
-            # Update player's total score - MODIFIED for 301 game with bust handling
+            # Get starting score from game_config
+            cursor.execute('SELECT game_mode FROM game_config WHERE id = 1')
+            config = cursor.fetchone()
+            starting_score = 301  # Default to 301
+            
+            if config and config['game_mode']:
+                try:
+                    starting_score = int(config['game_mode'])
+                except (ValueError, TypeError):
+                    # If not a valid number, check for mode strings
+                    if config['game_mode'] == '501':
+                        starting_score = 501
+                    else:
+                        starting_score = 301  # Default
+            
+            # Update player's total score based on game mode
             # Get sum of all points scored by this player from non-busted turns
             cursor.execute(
                 'SELECT SUM(points) as total_points FROM turn_scores WHERE player_id = ? AND bust = 0',
@@ -262,8 +304,8 @@ class DartProcessor:
             )
             total_player_points = cursor.fetchone()['total_points'] or 0
             
-            # Subtract from 301 to get current score
-            new_score = 301 - total_player_points
+            # Subtract from starting score to get current score
+            new_score = starting_score - total_player_points
             
             # Update player's total score
             cursor.execute(

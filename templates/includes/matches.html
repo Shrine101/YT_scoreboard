@@ -2,6 +2,15 @@
 <div class="container-fluid" style="margin-top: -50px;">
   <div class="row justify-content-center">
     <div class="col-xl-11 col-xxl-10">
+      <!-- Game mode indicator -->
+      <div class="row mb-2">
+        <div class="col-12 text-center">
+          <h3 class="game-mode-indicator">
+            <span class="badge bg-primary">{{ game_data.game_mode|default('301') }} MODE</span>
+          </h3>
+        </div>
+      </div>
+
       <!-- Notification banners -->
       <div class="row">
         <div class="col-12" style="position: relative;">
@@ -103,6 +112,15 @@
               <button id="manual-override-btn" class="btn btn-warning py-3 px-4" style="font-size: 22px;">
                 <strong>Manual Override</strong>
               </button>
+            </div>
+          </div>
+          
+          <!-- Home Button to return to game selection -->
+          <div class="row mt-3">
+            <div class="col-12 text-center">
+              <a href="/" class="btn btn-secondary py-2 px-4" style="font-size: 18px;">
+                <strong>Home</strong>
+              </a>
             </div>
           </div>
         </div>
@@ -986,6 +1004,17 @@
   #totalPoints {
     font-size: 24px;
     font-weight: bold;
+  }
+  
+  /* Added style for game mode indicator */
+  .game-mode-indicator {
+    margin-bottom: 15px;
+  }
+  
+  .game-mode-indicator .badge {
+    font-size: 1.2rem;
+    padding: 10px 20px;
+    border-radius: 5px;
   }
 </style>
 

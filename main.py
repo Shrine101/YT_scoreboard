@@ -11,6 +11,7 @@ from datetime import datetime
 
 
 app = Flask(__name__)
+app.secret_key = os.urandom(24)  # Add secret key for flash messages
 dart_processor = None  # Define the global variable
 ANIMATION_DURATION = 3.0  # Animation duration in seconds
 
@@ -79,9 +80,10 @@ def initialize_game_with_custom_names(player_names, starting_score=301):
         # Remove any players that are no longer needed
         cursor.execute('DELETE FROM players WHERE id > ?', (player_count,))
         
-        # Store player count in config
-        cursor.execute('CREATE TABLE IF NOT EXISTS game_config (id INTEGER PRIMARY KEY CHECK (id = 1), player_count INTEGER)')
-        cursor.execute('INSERT OR REPLACE INTO game_config (id, player_count) VALUES (1, ?)', (player_count,))
+        # Store player count and game mode in config
+        cursor.execute('CREATE TABLE IF NOT EXISTS game_config (id INTEGER PRIMARY KEY CHECK (id = 1), player_count INTEGER, game_mode TEXT)')
+        cursor.execute('INSERT OR REPLACE INTO game_config (id, player_count, game_mode) VALUES (1, ?, ?)', 
+                      (player_count, f"{starting_score}"))
         
         # Insert first turn
         cursor.execute('INSERT INTO turns (turn_number) VALUES (?)', (1,))
@@ -123,6 +125,17 @@ def get_player_score_before_turn(conn, player_id, turn_number):
     """Get a player's score before a specific turn"""
     cursor = conn.cursor()
     
+    # Get the game mode (starting score) from the game_config table
+    cursor.execute('SELECT game_mode FROM game_config WHERE id = 1')
+    result = cursor.fetchone()
+    starting_score = 301  # Default to 301
+    if result and result['game_mode']:
+        try:
+            starting_score = int(result['game_mode'])
+        except ValueError:
+            # If game_mode is not an integer, default to 301
+            starting_score = 301
+    
     # Get the total points scored by this player before this turn (excluding busted turns)
     cursor.execute(
         'SELECT SUM(points) as total_points FROM turn_scores WHERE player_id = ? AND turn_number < ? AND bust = 0',
@@ -131,8 +144,8 @@ def get_player_score_before_turn(conn, player_id, turn_number):
     
     total_previous_points = cursor.fetchone()['total_points'] or 0
     
-    # Calculate the score before this turn (301 - previous points)
-    score_before_turn = 301 - total_previous_points
+    # Calculate the score before this turn (starting_score - previous points)
+    score_before_turn = starting_score - total_previous_points
     
     return score_before_turn
 
@@ -181,6 +194,17 @@ def recalculate_player_scores(conn):
     cursor.execute('SELECT id FROM players')
     players = cursor.fetchall()
     
+    # Get the game mode (starting score) from the game_config table
+    cursor.execute('SELECT game_mode FROM game_config WHERE id = 1')
+    result = cursor.fetchone()
+    starting_score = 301  # Default to 301
+    if result and result['game_mode']:
+        try:
+            starting_score = int(result['game_mode'])
+        except ValueError:
+            # If game_mode is not an integer, default to 301
+            starting_score = 301
+    
     # Track if any player has a winning score
     any_player_won = False
     
@@ -194,8 +218,8 @@ def recalculate_player_scores(conn):
         )
         total_points = cursor.fetchone()['total_points'] or 0
         
-        # Update player's score (301 - total points)
-        new_score = 301 - total_points
+        # Update player's score (starting_score - total points)
+        new_score = starting_score - total_points
         cursor.execute(
             'UPDATE players SET total_score = ? WHERE id = ?',
             (new_score, player_id)
@@ -235,7 +259,7 @@ def home():
 
 @app.route('/start_game', methods=['POST'])
 def start_game():
-    """Process the player names and start the game with configurable number of players"""
+    """Process the player names and redirect to game selection"""
     # Get player count from form
     player_count = int(request.form.get('player_count', 4))
     
@@ -269,35 +293,117 @@ def start_game():
             # Insert new players
             for player_id, name in player_names.items():
                 cursor.execute('INSERT INTO players (id, name, total_score) VALUES (?, ?, ?)', 
-                              (player_id, name, 301))
+                              (player_id, name, 301))  # Default to 301
         else:
             # Just update names for existing players
             for player_id, name in player_names.items():
                 cursor.execute('UPDATE players SET name = ? WHERE id = ?', (name, player_id))
         
         # Store player count in game_config table
-        cursor.execute('CREATE TABLE IF NOT EXISTS game_config (id INTEGER PRIMARY KEY CHECK (id = 1), player_count INTEGER)')
+        cursor.execute('CREATE TABLE IF NOT EXISTS game_config (id INTEGER PRIMARY KEY CHECK (id = 1), player_count INTEGER, game_mode TEXT)')
         cursor.execute('INSERT OR REPLACE INTO game_config (id, player_count) VALUES (1, ?)', (player_count,))
         
-        # If reset_scores is checked, reinitialize the database
-        if reset_scores:
-            # Commit the player updates first
-            conn.commit()
-            conn.close()
-            
-            # Reinitialize the database with custom player names
-            initialize_game_with_custom_names(player_names)
-        else:
-            # Just commit the name changes
-            conn.commit()
-            conn.close()
-            
+        # Commit the changes
+        conn.commit()
+        
     except sqlite3.Error as e:
         print(f"Database error: {e}")
+    finally:
         conn.close()
     
-    # Redirect to the game page
+    # Instead of initializing the game directly, pass the data to game_selection
+    return render_template('game_selection.html', 
+                          player_names=player_names, 
+                          player_count=player_count,
+                          reset_scores=reset_scores)
+
+@app.route('/start_game_301', methods=['POST'])
+def start_game_301():
+    """Initialize 301 game with the provided player names"""
+    player_count = int(request.form.get('player_count', 4))
+    reset_scores = request.form.get('reset_scores') == 'on'
+    
+    # Get player names from the form
+    player_names = {}
+    for i in range(1, player_count + 1):
+        name = request.form.get(f'player{i}', '').strip() or f'Player {i}'
+        player_names[i] = name
+    
+    # If reset_scores is checked, reinitialize the database
+    if reset_scores:
+        # Reinitialize the database with custom player names and 301 starting score
+        initialize_game_with_custom_names(player_names, starting_score=301)
+    
+    # Set game mode in config
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE game_config SET game_mode = ? WHERE id = 1', ('301',))
+    conn.commit()
+    conn.close()
+    
+    flash('301 game has been started!', 'success')
     return redirect(url_for('game'))
+
+@app.route('/start_game_501', methods=['POST'])
+def start_game_501():
+    """Initialize 501 game with the provided player names"""
+    player_count = int(request.form.get('player_count', 4))
+    reset_scores = request.form.get('reset_scores') == 'on'
+    
+    # Get player names from the form
+    player_names = {}
+    for i in range(1, player_count + 1):
+        name = request.form.get(f'player{i}', '').strip() or f'Player {i}'
+        player_names[i] = name
+    
+    # If reset_scores is checked, reinitialize the database
+    if reset_scores:
+        # Reinitialize the database with custom player names and 501 starting score
+        initialize_game_with_custom_names(player_names, starting_score=501)
+    
+    # Set game mode in config
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('UPDATE game_config SET game_mode = ? WHERE id = 1', ('501',))
+    conn.commit()
+    conn.close()
+    
+    flash('501 game has been started!', 'success')
+    return redirect(url_for('game'))
+
+@app.route('/start_game_cricket', methods=['POST'])
+def start_game_cricket():
+    """Placeholder for Cricket game - not fully implemented yet"""
+    player_count = int(request.form.get('player_count', 4))
+    
+    # Get player names from the form
+    player_names = {}
+    for i in range(1, player_count + 1):
+        name = request.form.get(f'player{i}', '').strip() or f'Player {i}'
+        player_names[i] = name
+    
+    flash('Cricket game mode is not implemented yet. Check back soon!', 'warning')
+    return render_template('game_selection.html', 
+                          player_names=player_names, 
+                          player_count=player_count,
+                          reset_scores=True)
+
+@app.route('/start_game_around_clock', methods=['POST'])
+def start_game_around_clock():
+    """Placeholder for Around the Clock game - not fully implemented yet"""
+    player_count = int(request.form.get('player_count', 4))
+    
+    # Get player names from the form
+    player_names = {}
+    for i in range(1, player_count + 1):
+        name = request.form.get(f'player{i}', '').strip() or f'Player {i}'
+        player_names[i] = name
+    
+    flash('Around the Clock game mode is not implemented yet. Check back soon!', 'warning')
+    return render_template('game_selection.html', 
+                          player_names=player_names, 
+                          player_count=player_count,
+                          reset_scores=True)
     
 # Game display route (your existing route)
 @app.route('/game')
@@ -322,6 +428,12 @@ def data_json():
     
     # Build game_data dictionary from database queries
     game_data = {}
+    
+    # Get game mode from config
+    cursor = conn.cursor()
+    cursor.execute('SELECT game_mode FROM game_config WHERE id = 1')
+    config = cursor.fetchone()
+    game_data["game_mode"] = config['game_mode'] if config and config['game_mode'] else "301"
     
     # Get players
     players = []
