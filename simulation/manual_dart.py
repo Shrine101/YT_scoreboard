@@ -50,14 +50,15 @@ class ManualDartEntry:
             
             # Get the ID of the inserted throw
             throw_id = cursor.lastrowid
-            print(f"Added throw #{throw_id}: Score: {score}, Multiplier: {multiplier}, Points: {score * multiplier}, Time: {current_time}")
+            print(f"Added throw #{throw_id}: Score: {score}, Multiplier: {multiplier}, Points: {score * multiplier}")
+            print(f"Position: r={position_x}, θ={position_y}°, Time: {current_time}")
             
     def list_recent_throws(self, limit=5):
         """List the most recent throws in the database"""
         with self.get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT id, timestamp, score, multiplier, score * multiplier as points
+                SELECT id, timestamp, score, multiplier, score * multiplier as points, position_x, position_y
                 FROM throws 
                 ORDER BY timestamp DESC
                 LIMIT ?
@@ -70,14 +71,15 @@ class ManualDartEntry:
                 return
                 
             print("\nRecent throws:")
-            print("-" * 70)
-            print(f"{'ID':4} | {'Timestamp':<19} | {'Score':5} | {'Mult':4} | {'Points':6}")
-            print("-" * 70)
+            print("-" * 90)
+            print(f"{'ID':4} | {'Timestamp':<19} | {'Score':5} | {'Mult':4} | {'Points':6} | {'r (x)':6} | {'θ (y)':7}")
+            print("-" * 90)
             
             for throw in throws:
-                print(f"{throw['id']:4} | {throw['timestamp']:<19} | {throw['score']:5} | {throw['multiplier']:4} | {throw['points']:6}")
+                print(f"{throw['id']:4} | {throw['timestamp']:<19} | {throw['score']:5} | {throw['multiplier']:4} | "
+                      f"{throw['points']:6} | {throw['position_x']:6.1f} | {throw['position_y']:7.1f}")
             
-            print("-" * 70)
+            print("-" * 90)
 
 def print_menu():
     """Print the main menu"""
@@ -119,16 +121,25 @@ def main():
             else:
                 multiplier = get_valid_input("Enter multiplier (1-3): ", 1, 3, int)
             
-            # Simple position coordinates (optional)
-            use_position = input("Add position coordinates? (y/n): ").lower() == 'y'
-            position_x = position_y = 0.0
+            # Dartboard position coordinates in polar form
+            print("\n--- Enter Position in Polar Coordinates ---")
+            print("r = distance from center (0-225, where 0 is bullseye, 225 is edge)")
+            print("θ = angle in degrees (0-359, where 0° is top center, moving clockwise)")
             
-            if use_position:
-                position_x = get_valid_input("Enter X position (-1.0 to 1.0): ", -1.0, 1.0, float)
-                position_y = get_valid_input("Enter Y position (-1.0 to 1.0): ", -1.0, 1.0, float)
+            # Get r (position_x) value (0-225)
+            position_x = get_valid_input("Enter r value (0-225): ", 0, 225, float)
+            
+            # Get theta (position_y) value (0-359)
+            position_y = get_valid_input("Enter θ angle (0-359): ", 0, 359, float)
             
             # Add the throw to the database
             dart_entry.add_throw(score, multiplier, position_x, position_y)
+            
+            # Show a summary of what was added
+            print("\nThrow summary:")
+            print(f"Score: {score}, Multiplier: {multiplier}, Total points: {score * multiplier}")
+            print(f"Position: r={position_x}, θ={position_y}°")
+            print(f"This corresponds to {segment_description(score, multiplier, position_x)} on the dartboard")
             
         elif choice == '2':
             # View recent throws
@@ -141,6 +152,22 @@ def main():
             
         else:
             print("Invalid choice. Please try again.")
+
+def segment_description(score, multiplier, radius):
+    """Return a description of which segment this is likely to be"""
+    if score == 25:
+        return "bullseye" if multiplier == 1 else "double bullseye"
+    
+    # Approximate segment boundaries based on a standard dartboard
+    if multiplier == 2:
+        return "double ring"
+    elif multiplier == 3:
+        return "triple ring"
+    else:  # multiplier == 1
+        if radius < 103:  # This threshold can be adjusted based on your dartboard model
+            return "inner single (between triple and bullseye)"
+        else:
+            return "outer single (between double and edge)"
 
 if __name__ == "__main__":
     main()
