@@ -4,9 +4,11 @@ from datetime import datetime
 from contextlib import contextmanager
 
 class DartProcessor:
-    def __init__(self, cv_db_path='simulation/cv_data.db', game_db_path='game.db', poll_interval=1.0, animation_duration=3.0):
+    def __init__(self, cv_db_path='simulation/cv_data.db', game_db_path='game.db', 
+                 leds_db_path='LEDs.db', poll_interval=1.0, animation_duration=3.0):
         self.cv_db_path = cv_db_path
         self.game_db_path = game_db_path
+        self.leds_db_path = leds_db_path  # Add LEDs database path
         self.poll_interval = poll_interval
         self.animation_duration = animation_duration  # Animation duration in seconds
         
@@ -32,6 +34,16 @@ class DartProcessor:
     def get_game_connection(self):
         """Get a connection to the game database"""
         conn = sqlite3.connect(self.game_db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+        finally:
+            conn.close()
+            
+    @contextmanager
+    def get_leds_connection(self):
+        """Get a connection to the LEDs database"""
+        conn = sqlite3.connect(self.leds_db_path)
         conn.row_factory = sqlite3.Row
         try:
             yield conn
@@ -316,12 +328,47 @@ class DartProcessor:
             print(f"Advanced to Player {next_player}, Turn {next_turn}")
             return next_player, next_turn
 
+    def add_throw_to_leds_db(self, score, multiplier, position_x, position_y):
+        """Add a throw to the LEDs database with the appropriate segment type"""
+        # Determine segment type based on multiplier and position
+        segment_type = None
+        
+        if score == 25:
+            segment_type = "bullseye"
+        elif multiplier == 2:
+            segment_type = "double"
+        elif multiplier == 3:
+            segment_type = "triple"
+        elif multiplier == 1:
+            # Inner vs outer single determination based on r value
+            # Note: position_x is actually r in polar coordinates
+            r = position_x
+            if r < 103:
+                segment_type = "inner_single"
+            else:
+                segment_type = "outer_single"
+        
+        if segment_type:
+            # Add to LEDs database
+            with self.get_leds_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO dart_events (score, multiplier, segment_type, processed, timestamp)
+                    VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)
+                ''', (score, multiplier, segment_type))
+                conn.commit()
+                print(f"Added throw to LEDs database: Score={score}, Multiplier={multiplier}, Segment={segment_type}")
+        else:
+            print(f"WARNING: Could not determine segment type for throw: Score={score}, Multiplier={multiplier}")
+
     def process_throw(self, throw):
         """Process a single throw and update game state"""
         # Calculate points (score * multiplier)
         score = throw['score']
         multiplier = throw['multiplier']
         points = score * multiplier
+        position_x = throw.get('position_x', 0)  # This is actually r in polar coordinates
+        position_y = throw.get('position_y', 0)  # This is actually theta in polar coordinates
         
         # Get current game state
         game_state = self.get_current_game_state()
@@ -344,6 +391,9 @@ class DartProcessor:
             if t['points'] == 0:
                 throw_position = t['throw_number']
                 break
+        
+        # Write to LEDs database - Add this new functionality
+        self.add_throw_to_leds_db(score, multiplier, position_x, position_y)
         
         # Update the current throw with score, multiplier, and points
         self.update_current_throw(throw_position, score, multiplier, points)
