@@ -367,8 +367,18 @@ class DartProcessor:
         score = throw['score']
         multiplier = throw['multiplier']
         points = score * multiplier
-        position_x = throw.get('position_x', 0)  # This is actually r in polar coordinates
-        position_y = throw.get('position_y', 0)  # This is actually theta in polar coordinates
+        
+        # Safely access position coordinates from sqlite3.Row
+        # Fix for the AttributeError: 'sqlite3.Row' object has no attribute 'get'
+        try:
+            position_x = throw['position_x']  # This is actually r in polar coordinates
+        except (IndexError, KeyError):
+            position_x = 0
+            
+        try:
+            position_y = throw['position_y']  # This is actually theta in polar coordinates
+        except (IndexError, KeyError):
+            position_y = 0
         
         # Get current game state
         game_state = self.get_current_game_state()
