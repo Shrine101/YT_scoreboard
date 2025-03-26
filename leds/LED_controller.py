@@ -117,9 +117,6 @@ class LEDController:
         
         print(f"Processing dart event #{event_id}: Score={score}, Multiplier={multiplier}, Segment={segment_type}")
         
-        # Store original colors to restore after blinking
-        original_colors = {}
-        
         # Add the segment to the blinking segments with expiration time (current time + 2 seconds)
         expiration_time = time.time() + 2
         
@@ -131,41 +128,42 @@ class LEDController:
                 'segment_type': 'bullseye'
             }
         elif score in self.led_control.DARTBOARD_MAPPING:
-            if segment_type == 'double':  # Double ring
-                color = (255, 0, 0) if score in self.white_red_segments else (0, 0, 255)
-                self.blinking_segments[f'double_{score}'] = {
+            # Determine original color based on segment type and number
+            original_color = None
+            
+            if segment_type == 'double':
+                original_color = (255, 0, 0) if score in self.white_red_segments else (0, 0, 255)
+                segment_id = f'double_{score}'
+            elif segment_type == 'triple':
+                original_color = (255, 0, 0) if score in self.white_red_segments else (0, 0, 255)
+                segment_id = f'triple_{score}'
+            elif segment_type == 'inner_single':
+                original_color = (255, 255, 255) if score in self.white_red_segments else (255, 255, 0)
+                segment_id = f'inner_single_{score}'
+            elif segment_type == 'outer_single':
+                original_color = (255, 255, 255) if score in self.white_red_segments else (255, 255, 0)
+                segment_id = f'outer_single_{score}'
+            
+            if original_color is not None:
+                self.blinking_segments[segment_id] = {
                     'expiration': expiration_time,
-                    'original_color': color,
+                    'original_color': original_color,
                     'score': score,
-                    'segment_type': 'double'
-                }
-            elif segment_type == 'triple':  # Triple ring
-                color = (255, 0, 0) if score in self.white_red_segments else (0, 0, 255)
-                self.blinking_segments[f'triple_{score}'] = {
-                    'expiration': expiration_time,
-                    'original_color': color,
-                    'score': score,
-                    'segment_type': 'triple'
-                }
-            elif segment_type == 'inner_single':  # Inner single segment
-                color = (255, 255, 255) if score in self.white_red_segments else (255, 255, 0)
-                self.blinking_segments[f'inner_single_{score}'] = {
-                    'expiration': expiration_time,
-                    'original_color': color,
-                    'score': score,
-                    'segment_type': 'inner_single'
-                }
-            elif segment_type == 'outer_single':  # Outer single segment
-                color = (255, 255, 255) if score in self.white_red_segments else (255, 255, 0)
-                self.blinking_segments[f'outer_single_{score}'] = {
-                    'expiration': expiration_time,
-                    'original_color': color,
-                    'score': score,
-                    'segment_type': 'outer_single'
+                    'segment_type': segment_type
                 }
         
         # Immediately light up the hit segment in green
         self.update_blinking_segments(True)  # True to force update
+
+    def color_name(self, color):
+        """Convert RGB color to a name for better readability."""
+        r, g, b = color
+        if r > 200 and g > 200 and b > 200: return "WHITE"
+        if r > 200 and g > 200 and b < 50: return "YELLOW"
+        if r > 200 and g < 50 and b < 50: return "RED"
+        if r < 50 and g > 200 and b < 50: return "GREEN"
+        if r < 50 and g < 50 and b > 200: return "BLUE"
+        return f"RGB({r},{g},{b})"
 
     def update_blinking_segments(self, force_update=False):
         """Update any segments that should be blinking."""
@@ -186,17 +184,20 @@ class LEDController:
                         self.led_control.bullseye(info['original_color'])
                     elif 'segment_type' in info:
                         score = info['score']
-                        if info['segment_type'] == 'double':
+                        segment_type = info['segment_type']
+                        
+                        if segment_type == 'double':
                             self.led_control.doubleSeg(score, info['original_color'])
-                        elif info['segment_type'] == 'triple':
+                        elif segment_type == 'triple':
                             self.led_control.tripleSeg(score, info['original_color'])
-                        elif info['segment_type'] == 'single':
-                            # For simplicity, we'll update both inner and outer single segments
+                        elif segment_type == 'inner_single':
                             self.led_control.innerSingleSeg(score, info['original_color'])
+                        elif segment_type == 'outer_single':
                             self.led_control.outerSingleSeg(score, info['original_color'])
                     
                     # Mark for removal
                     to_remove.append(segment_id)
+                    print(f"Restored {segment_id} to original color: {self.color_name(info['original_color'])}")
                 else:
                     # This segment should be blinking - set to green
                     green_color = (0, 255, 0)  # Bright green
@@ -205,13 +206,15 @@ class LEDController:
                         self.led_control.bullseye(green_color)
                     elif 'segment_type' in info:
                         score = info['score']
-                        if info['segment_type'] == 'double':
+                        segment_type = info['segment_type']
+                        
+                        if segment_type == 'double':
                             self.led_control.doubleSeg(score, green_color)
-                        elif info['segment_type'] == 'triple':
+                        elif segment_type == 'triple':
                             self.led_control.tripleSeg(score, green_color)
-                        elif info['segment_type'] == 'inner_single':
+                        elif segment_type == 'inner_single':
                             self.led_control.innerSingleSeg(score, green_color)
-                        elif info['segment_type'] == 'outer_single':
+                        elif segment_type == 'outer_single':
                             self.led_control.outerSingleSeg(score, green_color)
             
             # Remove expired segments
