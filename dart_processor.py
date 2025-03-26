@@ -5,7 +5,7 @@ from contextlib import contextmanager
 
 class DartProcessor:
     def __init__(self, cv_db_path='simulation/cv_data.db', game_db_path='game.db', 
-                 leds_db_path='LEDs.db', poll_interval=1.0, animation_duration=3.0):
+                 leds_db_path='leds/LEDs.db', poll_interval=1.0, animation_duration=3.0):
         self.cv_db_path = cv_db_path
         self.game_db_path = game_db_path
         self.leds_db_path = leds_db_path  # Add LEDs database path
