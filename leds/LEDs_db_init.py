@@ -34,6 +34,7 @@ def initialize_leds_database():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             score INTEGER NOT NULL,
             multiplier INTEGER NOT NULL,
+            segment_type TEXT NOT NULL,
             processed BOOLEAN DEFAULT 0,
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
