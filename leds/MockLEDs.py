@@ -9,6 +9,7 @@ instead of controlling actual LED hardware. Used for testing without physical LE
 import time
 import colorama
 from colorama import Fore, Back, Style
+from datetime import datetime
 
 class MockLEDs:
     """A mock implementation of the LEDs class that prints status messages instead of controlling hardware."""
@@ -37,6 +38,10 @@ class MockLEDs:
         
         # Board state representation (to track LED colors)
         self.board_state = {}
+        
+        # Blinking tracking
+        self.blinking_segments = {}
+        
         self.clear_board_state()
         
         print(f"{Fore.GREEN}MockLEDs initialized - No hardware will be controlled{Style.RESET_ALL}")
@@ -84,6 +89,83 @@ class MockLEDs:
         if r > 100 and g < 50 and b > 100: return Fore.MAGENTA
         return Fore.WHITE
     
+    def get_segment_key(self, dartboard_num, segment_type):
+        """Create a consistent key for tracking segments."""
+        return f"{segment_type}_{dartboard_num}"
+    
+    def track_segment_change(self, dartboard_num, segment_type, color):
+        """Track segment changes for blinking detection."""
+        current_time = time.time()
+        segment_key = self.get_segment_key(dartboard_num, segment_type)
+        
+        # Check if we're tracking this segment
+        if segment_key in self.blinking_segments:
+            last_info = self.blinking_segments[segment_key]
+            last_color = last_info['color']
+            last_time = last_info['time']
+            
+            # Detect if we're starting a GREEN blink
+            if self.color_name(color) == "GREEN" and self.color_name(last_color) != "GREEN":
+                # Starting a blink
+                self.blinking_segments[segment_key] = {
+                    'color': color,
+                    'time': current_time,
+                    'original_color': last_color,
+                    'blink_start_time': current_time,
+                    'blink_count': last_info.get('blink_count', 0) + 1
+                }
+                
+                if last_info.get('blink_count', 0) == 0:
+                    # This is the first blink
+                    print(f"{Fore.CYAN}[BLINK START] {segment_type.upper()} {dartboard_num} starting to blink at {self.format_time(current_time)}{Style.RESET_ALL}")
+                
+                # Print progress update
+                print(f"{Fore.CYAN}[BLINK ON] {segment_type.upper()} {dartboard_num} turned GREEN (Blink #{last_info.get('blink_count', 0) + 1}){Style.RESET_ALL}")
+                
+            # Detect if we're ending a GREEN blink
+            elif self.color_name(color) != "GREEN" and self.color_name(last_color) == "GREEN":
+                # Ending a blink
+                blink_duration = current_time - last_info.get('blink_start_time', last_time)
+                
+                self.blinking_segments[segment_key] = {
+                    'color': color,
+                    'time': current_time,
+                    'blink_end_time': current_time,
+                    'blink_duration': blink_duration,
+                    'blink_count': last_info.get('blink_count', 0),
+                    'original_color': last_info.get('original_color', color)
+                }
+                
+                # Print update
+                print(f"{Fore.CYAN}[BLINK OFF] {segment_type.upper()} {dartboard_num} returned to {self.color_name(color)}{Style.RESET_ALL}")
+                
+                # Check if we've restored to original color
+                if self.color_name(color) == self.color_name(last_info.get('original_color', color)) and color != (0, 255, 0):
+                    # Calculate total blinking time
+                    total_time = current_time - last_info.get('blink_start_time', last_time)
+                    print(f"{Fore.CYAN}[BLINK END] {segment_type.upper()} {dartboard_num} finished blinking after {total_time:.2f} seconds and {last_info.get('blink_count', 0)} blinks{Style.RESET_ALL}")
+            else:
+                # Just update the tracking
+                self.blinking_segments[segment_key] = {
+                    'color': color,
+                    'time': current_time,
+                    'blink_count': last_info.get('blink_count', 0),
+                    'original_color': last_info.get('original_color', last_color),
+                    'blink_start_time': last_info.get('blink_start_time', last_time)
+                }
+        else:
+            # First time seeing this segment
+            self.blinking_segments[segment_key] = {
+                'color': color,
+                'time': current_time,
+                'blink_count': 0,
+                'original_color': color
+            }
+    
+    def format_time(self, timestamp):
+        """Format a timestamp for display."""
+        return datetime.fromtimestamp(timestamp).strftime('%H:%M:%S.%f')[:-3]
+    
     def colorWipe(self, strip_num, color, wait_ms=50):
         """Simulate color wipe effect by updating the board state."""
         start_seg, end_seg = self.getSegIndexes(strip_num)
@@ -116,6 +198,8 @@ class MockLEDs:
         strip_num = self.DARTBOARD_MAPPING[dartboard_num]
         print(f"{self.get_fore_color(color)}Number Segment: Dartboard {dartboard_num} - {self.color_name(color)}{Style.RESET_ALL}")
         
+        self.track_segment_change(dartboard_num, "number", color)
+        
         # Update in board state
         if strip_num % 2 == 0:  # even num strip
             self.board_state['strips'][strip_num][self.NUM_RING] = color
@@ -132,6 +216,8 @@ class MockLEDs:
 
         strip_num = self.DARTBOARD_MAPPING[dartboard_num]
         print(f"{self.get_fore_color(color)}Triple Segment: Dartboard {dartboard_num} - {self.color_name(color)}{Style.RESET_ALL}")
+        
+        self.track_segment_change(dartboard_num, "triple", color)
         
         # Update in board state
         if strip_num % 2 == 0:  # even num strip
@@ -150,6 +236,8 @@ class MockLEDs:
         strip_num = self.DARTBOARD_MAPPING[dartboard_num]
         print(f"{self.get_fore_color(color)}Double Segment: Dartboard {dartboard_num} - {self.color_name(color)}{Style.RESET_ALL}")
         
+        self.track_segment_change(dartboard_num, "double", color)
+        
         # Update in board state
         if strip_num % 2 == 0:  # even num strip
             self.board_state['strips'][strip_num][self.DBL_RING] = color
@@ -166,6 +254,8 @@ class MockLEDs:
 
         strip_num = self.DARTBOARD_MAPPING[dartboard_num]
         print(f"{self.get_fore_color(color)}Outer Single Segment: Dartboard {dartboard_num} - {self.color_name(color)}{Style.RESET_ALL}")
+        
+        self.track_segment_change(dartboard_num, "outer_single", color)
         
         # Update in board state - simplified just to show the concept
         if strip_num % 2 == 0:  # even num strip
@@ -186,6 +276,8 @@ class MockLEDs:
         strip_num = self.DARTBOARD_MAPPING[dartboard_num]
         print(f"{self.get_fore_color(color)}Inner Single Segment: Dartboard {dartboard_num} - {self.color_name(color)}{Style.RESET_ALL}")
         
+        self.track_segment_change(dartboard_num, "inner_single", color)
+        
         # Update in board state - simplified just to show the concept
         if strip_num % 2 == 0:  # even num strip
             for i in range(self.TRPL_RING + 1, self.NUM_LED_PER_STRIP):
@@ -199,6 +291,8 @@ class MockLEDs:
     def bullseye(self, color, wait_ms=5):
         """Light up the bullseye (centre LED)."""
         print(f"{self.get_fore_color(color)}Bullseye: {self.color_name(color)}{Style.RESET_ALL}")
+        
+        self.track_segment_change(25, "bullseye", color)
         
         # Update in board state
         self.board_state['bullseye'] = color
@@ -244,3 +338,36 @@ class MockLEDs:
                   f"Inner: {self.get_fore_color(inner_color)}{self.color_name(inner_color):<8}{Style.RESET_ALL}")
         
         print("------------------------------------\n")
+        
+    def print_blinking_summary(self):
+        """Print a summary of blinking segments."""
+        print("\n=== Blinking Segments Summary ===")
+        
+        active_blinks = {}
+        completed_blinks = {}
+        
+        for key, info in self.blinking_segments.items():
+            if info.get('blink_count', 0) > 0:
+                if 'blink_end_time' in info:
+                    # This is a completed blink
+                    completed_blinks[key] = info
+                else:
+                    # This is an active blink
+                    active_blinks[key] = info
+        
+        if active_blinks:
+            print("Currently Blinking:")
+            for key, info in active_blinks.items():
+                current_time = time.time()
+                duration = current_time - info.get('blink_start_time', current_time)
+                print(f"  - {key}: Blinking for {duration:.2f} seconds, {info.get('blink_count', 0)} blinks so far")
+        else:
+            print("No segments currently blinking")
+            
+        if completed_blinks:
+            print("\nCompleted Blinks:")
+            for key, info in completed_blinks.items():
+                duration = info.get('blink_end_time', 0) - info.get('blink_start_time', 0)
+                print(f"  - {key}: Blinked for {duration:.2f} seconds, {info.get('blink_count', 0)} total blinks")
+                
+        print("================================\n")
