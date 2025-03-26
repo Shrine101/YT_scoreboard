@@ -28,6 +28,7 @@ def initialize_database():
                 cursor.execute("DELETE FROM players")
                 cursor.execute("DELETE FROM animation_state")  # New table
                 cursor.execute("DELETE FROM last_throw")  # Clear the last throw table
+                cursor.execute("DELETE FROM game_config")  # Clear game config
             else:
                 print("Creating tables...")
                 # Create tables
@@ -112,6 +113,15 @@ def initialize_database():
                 )
                 ''')
                 
+                # Game config table with game_mode column
+                cursor.execute('''
+                CREATE TABLE game_config (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    player_count INTEGER,
+                    game_mode TEXT DEFAULT '301'
+                )
+                ''')
+                
                 print("Tables created successfully.")
             
             # Insert initial data
@@ -148,6 +158,13 @@ def initialize_database():
                 INSERT INTO last_throw
                 (id, score, multiplier, points, player_id)
                 VALUES (1, 0, 0, 0, NULL)
+            ''')
+            
+            # Insert game config with default player count and game mode
+            cursor.execute('''
+                INSERT INTO game_config
+                (id, player_count, game_mode)
+                VALUES (1, 4, '301')
             ''')
             
             # Commit changes and close connection
