@@ -8,6 +8,55 @@
     return '';
   }
   
+  // Function to check if game is over (all numbers closed by more than one player)
+  function checkGameOver(cricketData) {
+    const cricket_numbers = [15, 16, 17, 18, 19, 20, 25]; // 25 is bullseye
+    let allNumbersClosed = true;
+    
+    // For each cricket number, check if at least 2 players have closed it
+    for (const number of cricket_numbers) {
+      let closedCount = 0;
+      
+      // Count how many players have closed this number
+      for (const playerId in cricketData) {
+        const playerData = cricketData[playerId];
+        if (playerData && playerData.numbers && playerData.numbers[number] && playerData.numbers[number].closed) {
+          closedCount++;
+        }
+      }
+      
+      // If this number doesn't have at least 2 closures, game is not over
+      if (closedCount < 2) {
+        allNumbersClosed = false;
+        break;
+      }
+    }
+    
+    return allNumbersClosed;
+  }
+  
+  // Function to find winner (player with highest score)
+  function findWinner(cricketData) {
+    let highestScore = -1;
+    let winnerId = null;
+    
+    // Find player with highest score
+    for (const playerId in cricketData) {
+      const playerData = cricketData[playerId];
+      const playerScore = playerData.total_points || 0;
+      
+      if (playerScore > highestScore) {
+        highestScore = playerScore;
+        winnerId = playerId;
+      }
+    }
+    
+    return { 
+      id: winnerId, 
+      score: highestScore 
+    };
+  }
+  
   // Function to update cricket scoreboard
   function updateCricketScoreboard(game_data) {
     // First fetch the cricket scores from the database
@@ -15,6 +64,44 @@
       .then(response => response.json())
       .then(cricketData => {
         const cricket_numbers = [15, 16, 17, 18, 19, 20, 25]; // 25 is bullseye
+        
+        // Check if the game should be over (all numbers closed by at least 2 players)
+        const isGameOver = checkGameOver(cricketData);
+        
+        // If game is over but not marked as such in game_data
+        if (isGameOver && !game_data.game_over) {
+          const winner = findWinner(cricketData);
+          
+          // Display winner message
+          if (winner.id) {
+            const winnerName = cricketData[winner.id].name;
+            
+            // Set the winner's name in both banners
+            document.getElementById('winner-name').textContent = winnerName;
+            document.getElementById('winner-name-overlay').textContent = winnerName;
+            
+            // Show the overlay
+            document.getElementById('win-message-overlay').style.visibility = 'visible';
+            
+            // Highlight the winner's name and score in the table
+            const nameElement = document.getElementById(`player${winner.id}_name`);
+            const totalElement = document.getElementById(`player${winner.id}_total`);
+            
+            if (nameElement) {
+              nameElement.style.backgroundColor = 'rgba(40, 167, 69, 0.7)';
+              nameElement.style.color = 'white';
+              nameElement.style.fontWeight = 'bold';
+            }
+            
+            if (totalElement) {
+              totalElement.style.backgroundColor = 'rgba(40, 167, 69, 0.7)';
+              totalElement.style.color = 'white';
+              totalElement.style.fontWeight = 'bold';
+            }
+            
+            console.log(`Game over! Winner: ${winnerName} with ${winner.score} points`);
+          }
+        }
         
         // For each number, update all cells
         for (const number of cricket_numbers) {
@@ -132,7 +219,13 @@
         for (const player of game_data.players) {
           const totalElement = document.getElementById(`player${player.id}_total`);
           if (totalElement) {
-            totalElement.textContent = player.total_score;
+            // Use the score from cricket data if available (more accurate)
+            const playerCricketData = cricketData[player.id];
+            if (playerCricketData) {
+              totalElement.textContent = playerCricketData.total_points || 0;
+            } else {
+              totalElement.textContent = player.total_score;
+            }
           }
         }
       })
