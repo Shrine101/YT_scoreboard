@@ -413,7 +413,15 @@ def start_game_301():
         # Just update the game mode in the config
         conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # Update game mode in config
         cursor.execute('UPDATE game_config SET game_mode = ?, processor_mode = ? WHERE id = 1', ('301', 'classic'))
+        
+        # IMPORTANT: Also update all player scores to 301 even when not resetting
+        for player_id, name in player_names.items():
+            cursor.execute('UPDATE players SET name = ?, total_score = ? WHERE id = ?', 
+                          (name, 301, player_id))
+                          
         conn.commit()
         conn.close()
     
@@ -443,7 +451,15 @@ def start_game_501():
         # Just update the game mode in the config
         conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # Update game mode in config
         cursor.execute('UPDATE game_config SET game_mode = ?, processor_mode = ? WHERE id = 1', ('501', 'classic'))
+        
+        # IMPORTANT: Also update all player scores to 501 even when not resetting
+        for player_id, name in player_names.items():
+            cursor.execute('UPDATE players SET name = ?, total_score = ? WHERE id = ?', 
+                          (name, 501, player_id))
+                          
         conn.commit()
         conn.close()
     
