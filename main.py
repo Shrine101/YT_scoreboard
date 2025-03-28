@@ -1330,6 +1330,31 @@ def get_cricket_scores():
         
         return jsonify(scores_by_player)
     
+@app.route('/reset_and_home')
+def reset_and_home():
+    """Reset the game database and redirect to the home page"""
+    try:
+        # Import the initialization function
+        from initialize_db import initialize_database
+        
+        # Reset the dart processor first if it's running
+        stop_dart_processor()
+        
+        # Reset the game database
+        initialize_database()
+        
+        # Flash a success message
+        flash('Game database has been reset successfully!', 'success')
+    except Exception as e:
+        # Log the error
+        print(f"Error resetting database: {e}")
+        
+        # Flash an error message
+        flash(f'Error resetting game: {str(e)}', 'danger')
+    
+    # Redirect to the home page
+    return redirect(url_for('home'))
+
 
 @app.route('/')
 def index():
