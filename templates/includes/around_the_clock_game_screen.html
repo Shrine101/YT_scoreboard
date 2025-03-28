@@ -112,27 +112,18 @@
               {% endfor %}
             </div>
             
-            <!-- New generic buttons -->
+            <!-- Functional buttons with correct IDs and logic connections -->
             <div class="row mt-4">
               <div class="col-6">
-                <button class="btn btn-secondary w-100 py-3" style="font-size: 20px; height: 60px;">
-                  <strong>Button 1</strong>
+                <button id="manual-override-btn" class="btn btn-warning w-100 py-3" style="font-size: 20px; height: 60px;">
+                  <strong>Manual Override</strong>
                 </button>
               </div>
               <div class="col-6">
-                <button class="btn btn-secondary w-100 py-3" style="font-size: 20px; height: 60px;">
-                  <strong>Button 2</strong>
+                <button id="game-rules-btn" class="btn btn-info w-100 py-3" style="font-size: 20px; height: 60px;" 
+                        data-bs-toggle="modal" data-bs-target="#gameRulesModal">
+                  <strong>Game Rules</strong>
                 </button>
-              </div>
-            </div>
-            
-            <!-- Control Buttons section - buttons removed but structure preserved -->
-            <div class="row mt-4">
-              <div class="col-12">
-                <div class="d-flex justify-content-between">
-                  <!-- Manual override button was here -->
-                  <!-- Game rules button was here -->
-                </div>
               </div>
             </div>
             
