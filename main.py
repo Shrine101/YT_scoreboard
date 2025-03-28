@@ -519,7 +519,24 @@ def start_game_around_clock():
         # Just update the game mode in the config
         conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # Update game mode in config
         cursor.execute('UPDATE game_config SET game_mode = ?, processor_mode = ? WHERE id = 1', ('around_clock', 'around_clock'))
+        
+        # IMPORTANT: Also update all player scores to 0 even when not resetting
+        for player_id, name in player_names.items():
+            cursor.execute('UPDATE players SET name = ?, total_score = ? WHERE id = ?', 
+                          (name, 0, player_id))
+                          
+        # Also initialize around_clock_progress
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        for player_id in player_names:
+            cursor.execute('''
+                INSERT OR REPLACE INTO around_clock_progress
+                (player_id, current_number, completed, last_update)
+                VALUES (?, 1, 0, ?)
+            ''', (player_id, current_time))
+        
         conn.commit()
         conn.close()
     
