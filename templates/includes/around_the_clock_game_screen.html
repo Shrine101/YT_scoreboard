@@ -115,12 +115,13 @@
             <!-- Control Buttons with perfect alignment -->
             <div class="row mt-4">
               <div class="col-12">
-                <div style="display: block; white-space: nowrap;">
-                  <button id="manual-override-btn" class="btn btn-warning py-3 px-4" 
-                          style="display: inline-block; vertical-align: top; width: 48%; font-size: 22px; height: 60px; margin-right: 2%;">
+                <div class="d-flex justify-content-between">
+                  <button id="manual-override-btn" class="btn btn-warning py-3 flex-grow-1 me-2" 
+                          style="font-size: 22px; height: 60px;">
                     <strong>Manual Override</strong>
-                  </button><button id="game-rules-btn" class="btn btn-info py-3 px-4" 
-                          style="display: inline-block; vertical-align: top; width: 48%; font-size: 22px; height: 60px;" 
+                  </button>
+                  <button id="game-rules-btn" class="btn btn-info py-3 flex-grow-1" 
+                          style="font-size: 22px; height: 60px;" 
                           data-bs-toggle="modal" data-bs-target="#gameRulesModal">
                     <strong>Game Rules</strong>
                   </button>
