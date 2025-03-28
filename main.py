@@ -532,14 +532,28 @@ def start_game_around_clock():
 # Game display route (your existing route)
 @app.route('/game')
 def game():
-    """Display the game page"""
+    """Display the game page with the appropriate template based on game mode"""
+    # Get game data
     response = data_json()
-    # Get the actual JSON data from the response
     game_data = response.get_json()
-
+    
+    # Determine which template to use based on game mode
+    game_mode = game_data.get('game_mode', '301')
+    
+    if game_mode in ['301', '501']:
+        template = 'classic_game_screen.html'
+    elif game_mode == 'around_clock':
+        template = 'around_the_clock_game_screen.html'
+    elif game_mode == 'cricket':
+        template = 'american_cricket_game_screen.html'
+    else:
+        # Default to classic if mode is unknown
+        template = 'classic_game_screen.html'
+    
     return render_template(
         'index.html',
-        game_data = game_data
+        game_data=game_data,
+        template=template
     )
 
 @app.route('/data_json')
@@ -1260,6 +1274,44 @@ def get_throw_details():
     except Exception as e:
         print(f"Error getting throw details: {e}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/get_cricket_scores')
+def get_cricket_scores():
+    """Get all cricket scores for all players in format needed by the UI"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        # Get all cricket scores
+        cursor.execute('''
+            SELECT cs.player_id, cs.number, cs.marks, cs.points, cs.closed, p.name
+            FROM cricket_scores cs
+            JOIN players p ON cs.player_id = p.id
+            ORDER BY cs.player_id, cs.number
+        ''')
+        
+        # Create a structured response
+        scores_by_player = {}
+        for row in cursor.fetchall():
+            player_id = row['player_id']
+            if player_id not in scores_by_player:
+                scores_by_player[player_id] = {
+                    'name': row['name'],
+                    'numbers': {},
+                    'total_points': 0
+                }
+            
+            # Add the number's details
+            number = row['number']
+            scores_by_player[player_id]['numbers'][number] = {
+                'marks': row['marks'],
+                'points': row['points'],
+                'closed': row['closed'] == 1
+            }
+            
+            # Update total points
+            scores_by_player[player_id]['total_points'] += row['points']
+        
+        return jsonify(scores_by_player)
     
 
 @app.route('/')

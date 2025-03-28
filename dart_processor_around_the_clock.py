@@ -177,9 +177,10 @@ class DartProcessor:
                 WHERE player_id = ?
             ''', (current_number, 1 if completed else 0, current_time, player_id))
             
-            # Update player's total score to reflect current number (for display purposes)
+            # Update player's total_score to reflect current_number - 1
+            # This makes the UI display current_number as the target
             cursor.execute('UPDATE players SET total_score = ? WHERE id = ?', 
-                          (current_number - 1, player_id))
+                        (current_number - 1, player_id))
             
             conn.commit()
     
