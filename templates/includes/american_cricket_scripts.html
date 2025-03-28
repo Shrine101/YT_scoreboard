@@ -107,8 +107,6 @@
         for (const number of cricket_numbers) {
           // Analyze number state - who has closed it?
           let closedCount = 0;
-          let playersClosed = [];
-          let playersOpen = [];
           
           for (const playerId in cricketData) {
             const playerData = cricketData[playerId];
@@ -117,15 +115,6 @@
               
               if (numberData.closed) {
                 closedCount++;
-                playersClosed.push({
-                  id: playerId,
-                  name: playerData.name
-                });
-              } else {
-                playersOpen.push({
-                  id: playerId,
-                  name: playerData.name
-                });
               }
             }
           }
@@ -144,34 +133,6 @@
             } else {
               // Multiple players have closed - red text
               numberText.classList.add('closed');
-            }
-          }
-          
-          // Update owners cell
-          const ownerCell = document.getElementById(`owner_${number}`);
-          if (ownerCell) {
-            if (closedCount === 0) {
-              ownerCell.textContent = "Open";
-            } else if (closedCount === 1 && playersClosed.length > 0) {
-              ownerCell.textContent = playersClosed[0].name;
-            } else if (playersOpen.length === 0) {
-              ownerCell.textContent = "Closed";
-            } else if (playersOpen.length <= 2) {
-              ownerCell.textContent = playersOpen.map(p => p.name).join(", ");
-            } else {
-              ownerCell.textContent = "Multiple";
-            }
-          }
-          
-          // Update marks for current player
-          const marksCell = document.getElementById(`marks_${number}`);
-          if (marksCell && game_data.current_player) {
-            const currentPlayerData = cricketData[game_data.current_player];
-            if (currentPlayerData && currentPlayerData.numbers && currentPlayerData.numbers[number]) {
-              const marks = currentPlayerData.numbers[number].marks || 0;
-              marksCell.textContent = getMarkSymbol(marks);
-            } else {
-              marksCell.textContent = '';
             }
           }
           

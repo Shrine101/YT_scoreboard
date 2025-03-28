@@ -1,7 +1,7 @@
 <!-- Darts scoreboard layout for American Cricket mode -->
 <div class="container-fluid" style="margin-top: -50px;">
   <div class="row justify-content-center">
-    <div class="col-xl-12 col-xxl-12"> <!-- Widened the main container -->
+    <div class="col-xl-12 col-xxl-12">
       <!-- Game mode indicator -->
       <div class="row mb-2">
         <div class="col-12 text-center">
@@ -58,13 +58,11 @@
         </div>
         
         <!-- Cricket Scoring Board -->
-        <div class="col-md-7"> <!-- Increased column width for scoreboard -->
-          <div class="table-responsive cricket-table-container"> <!-- Added custom class for container -->
+        <div class="col-md-7">
+          <div class="table-responsive cricket-table-container">
             <table class="table table-bordered" id="cricketTable">
               <thead>
                 <tr>
-                  <th class="text-center turn-header py-3" style="font-size: 24px;">MARKS</th>
-                  <th class="text-center turn-header py-3" style="font-size: 24px;">OWNER</th>
                   <th class="text-center turn-header py-3" style="font-size: 24px;">NUMBER</th>
                   {% for player in game_data.players %}
                   <th class="text-center player-header py-3" id="player{{ player.id }}_name" style="font-size: 24px;">{{ player.name }}</th>
@@ -75,8 +73,6 @@
                 <!-- Cricket numbers 15-20 and Bullseye -->
                 {% for number in [20, 19, 18, 17, 16, 15, 'BULL'] %}
                 <tr>
-                  <td class="text-center py-3" id="marks_{% if number == 'BULL' %}25{% else %}{{ number }}{% endif %}" style="font-size: 28px; font-weight: bold; color: #ffffff;">0</td>
-                  <td class="text-center py-3" id="owner_{% if number == 'BULL' %}25{% else %}{{ number }}{% endif %}" style="font-size: 28px; font-weight: bold; color: #ffffff;">-</td>
                   <td class="text-center py-3" style="font-size: 28px; font-weight: bold;">
                     <span id="number_{% if number == 'BULL' %}25{% else %}{{ number }}{% endif %}" class="number-text">{{ number }}</span>
                   </td>
@@ -90,7 +86,7 @@
               </tbody>
               <tfoot>
                 <tr>
-                  <td class="text-center py-3" colspan="3" style="font-size: 28px;"><strong>POINTS</strong></td>
+                  <td class="text-center py-3" style="font-size: 28px;"><strong>POINTS</strong></td>
                   {% for player in game_data.players %}
                   <td class="text-center py-3" id="player{{ player.id }}_total" style="font-size: 28px;">{{ player.total_score }}</td>
                   {% endfor %}
@@ -101,7 +97,7 @@
         </div>
         
         <!-- Right side: Dartboard and current throws -->
-        <div class="col-md-3"> <!-- Reduced width for right column -->
+        <div class="col-md-3">
           <div class="dartboard-container mb-4">
             <img src="{{ url_for('static', filename='images/dartboard.jpg') }}" 
               alt="Dartboard" class="img-fluid" style="max-height: 400px; width: auto;">
@@ -166,7 +162,8 @@
               <li class="mb-3">Hit numbers 15-20 and bullseye</li>
               <li class="mb-3">3 marks to close a number</li>
               <li class="mb-3">Score points on open numbers</li>
-              <li class="mb-3">Close all numbers with highest score to win</li>
+              <li class="mb-3">Game ends when all numbers are closed by multiple players</li>
+              <li class="mb-3">Player with the highest score wins</li>
             </ul>
           </div>
         </div>
