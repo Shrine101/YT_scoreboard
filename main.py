@@ -15,15 +15,42 @@ app.secret_key = os.urandom(24)  # Add secret key for flash messages
 dart_processor = None  # Define the global variable
 ANIMATION_DURATION = 3.0  # Animation duration in seconds
 
-def start_dart_processor():
-    """Start the dart processor as a separate process"""
+dart_processor = None
+
+def start_dart_processor(game_mode='classic'):
+    """Start the appropriate dart processor as a separate process based on game mode
+    
+    Args:
+        game_mode (str): The game mode to start processor for ('classic', 'cricket', or 'around_clock')
+    """
     global dart_processor
-    print("Starting dart processor...")
-    dart_processor = subprocess.Popen(['python', 'dart_processor.py'])
+    
+    # Stop any existing dart processor first
+    stop_dart_processor()
+    
+    # Map game mode to the correct processor script
+    processor_scripts = {
+        'classic': 'dart_processor_classic.py',
+        'cricket': 'dart_processor_american_cricket.py',
+        'around_clock': 'dart_processor_around_the_clock.py'
+    }
+    
+    # Get the script for the selected game mode, defaulting to classic if not found
+    processor_script = processor_scripts.get(game_mode, 'dart_processor_classic.py')
+    
+    print(f"Starting dart processor for {game_mode} game mode...")
+    
+    # Check if the script file exists
+    if not os.path.exists(processor_script):
+        print(f"Warning: {processor_script} not found. Falling back to classic mode.")
+        processor_script = 'dart_processor_classic.py'
+    
+    # Start the appropriate processor
+    dart_processor = subprocess.Popen(['python', processor_script])
     print(f"Dart processor started with PID {dart_processor.pid}")
 
 def stop_dart_processor():
-    """Clean up dart processor when app shuts down"""
+    """Clean up dart processor when app shuts down or when changing game modes"""
     global dart_processor
     if dart_processor is not None:
         print(f"Stopping dart processor (PID {dart_processor.pid})...")
@@ -36,6 +63,7 @@ def stop_dart_processor():
             print("Dart processor didn't terminate, forcing kill...")
             dart_processor.kill()
         print("Dart processor stopped")
+        dart_processor = None
 
 def get_db_connection():
     """Create a connection to the SQLite database"""
@@ -43,18 +71,38 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row  # This enables column access by name
     return conn
     
-def initialize_game_with_custom_names(player_names, starting_score=301):
+def initialize_game_with_custom_names(player_names, starting_score=301, game_mode=None):
     """Initialize the game database with custom player names.
     
     Args:
         player_names (dict): Dictionary mapping player IDs to names.
         starting_score (int): Starting score for the game (e.g., 301, 501)
+        game_mode (str, optional): Game mode to initialize. If None, will use the score.
     """
     conn = sqlite3.connect('game.db')
     cursor = conn.cursor()
     
     # Get player count
     player_count = len(player_names)
+    
+    # If game_mode is not specified, determine from starting_score
+    if game_mode is None:
+        if starting_score == 301:
+            game_mode = '301'
+        elif starting_score == 501:
+            game_mode = '501'
+        elif starting_score == 0:
+            # Default for other games
+            game_mode = 'cricket'  # Default to cricket if not specified
+    
+    # Determine processor mode based on game mode
+    processor_mode = 'classic'
+    if game_mode in ['301', '501']:
+        processor_mode = 'classic'
+    elif game_mode == 'cricket':
+        processor_mode = 'cricket'
+    elif game_mode == 'around_clock':
+        processor_mode = 'around_clock'
     
     try:
         # Clear existing data first
@@ -63,6 +111,12 @@ def initialize_game_with_custom_names(player_names, starting_score=301):
         cursor.execute("DELETE FROM game_state")
         cursor.execute("DELETE FROM turns")
         cursor.execute("DELETE FROM animation_state")
+        
+        # Clear game mode specific tables
+        if game_mode == 'cricket':
+            cursor.execute("DELETE FROM cricket_scores")
+        elif game_mode == 'around_clock':
+            cursor.execute("DELETE FROM around_clock_progress")
         
         # Reset player scores but keep names
         for player_id, name in player_names.items():
@@ -80,10 +134,10 @@ def initialize_game_with_custom_names(player_names, starting_score=301):
         # Remove any players that are no longer needed
         cursor.execute('DELETE FROM players WHERE id > ?', (player_count,))
         
-        # Store player count and game mode in config
-        cursor.execute('CREATE TABLE IF NOT EXISTS game_config (id INTEGER PRIMARY KEY CHECK (id = 1), player_count INTEGER, game_mode TEXT)')
-        cursor.execute('INSERT OR REPLACE INTO game_config (id, player_count, game_mode) VALUES (1, ?, ?)', 
-                      (player_count, f"{starting_score}"))
+        # Store player count, game mode, and processor mode in config
+        cursor.execute('CREATE TABLE IF NOT EXISTS game_config (id INTEGER PRIMARY KEY CHECK (id = 1), player_count INTEGER, game_mode TEXT, processor_mode TEXT)')
+        cursor.execute('INSERT OR REPLACE INTO game_config (id, player_count, game_mode, processor_mode) VALUES (1, ?, ?, ?)', 
+                      (player_count, game_mode, processor_mode))
         
         # Insert first turn
         cursor.execute('INSERT INTO turns (turn_number) VALUES (?)', (1,))
@@ -112,9 +166,31 @@ def initialize_game_with_custom_names(player_names, starting_score=301):
             VALUES (1, 0, 0, 0, NULL)
         ''')
         
+        # Initialize game-specific tables
+        if game_mode == 'cricket':
+            # Initialize cricket_scores table for American Cricket
+            cricket_numbers = [15, 16, 17, 18, 19, 20, 25]  # Traditional cricket numbers (25 is bullseye)
+            for player_id in player_names:
+                for number in cricket_numbers:
+                    cursor.execute('''
+                        INSERT OR REPLACE INTO cricket_scores
+                        (player_id, number, marks, points, closed)
+                        VALUES (?, ?, 0, 0, 0)
+                    ''', (player_id, number))
+                    
+        elif game_mode == 'around_clock':
+            # Initialize around_clock_progress table
+            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            for player_id in player_names:
+                cursor.execute('''
+                    INSERT OR REPLACE INTO around_clock_progress
+                    (player_id, current_number, completed, last_update)
+                    VALUES (?, 1, 0, ?)
+                ''', (player_id, current_time))
+        
         # Commit changes
         conn.commit()
-        print(f"Game reinitialized with {player_count} players and starting score: {starting_score}")
+        print(f"Game reinitialized with {player_count} players, game mode: {game_mode}, processor mode: {processor_mode}")
         
     except sqlite3.Error as e:
         print(f"Error initializing game with custom names: {e}")
@@ -332,14 +408,17 @@ def start_game_301():
     # If reset_scores is checked, reinitialize the database
     if reset_scores:
         # Reinitialize the database with custom player names and 301 starting score
-        initialize_game_with_custom_names(player_names, starting_score=301)
+        initialize_game_with_custom_names(player_names, starting_score=301, game_mode='301')
+    else:
+        # Just update the game mode in the config
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('UPDATE game_config SET game_mode = ?, processor_mode = ? WHERE id = 1', ('301', 'classic'))
+        conn.commit()
+        conn.close()
     
-    # Set game mode in config
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('UPDATE game_config SET game_mode = ? WHERE id = 1', ('301',))
-    conn.commit()
-    conn.close()
+    # Start the classic dart processor
+    start_dart_processor(game_mode='classic')
     
     flash('301 game has been started!', 'success')
     return redirect(url_for('game'))
@@ -359,22 +438,26 @@ def start_game_501():
     # If reset_scores is checked, reinitialize the database
     if reset_scores:
         # Reinitialize the database with custom player names and 501 starting score
-        initialize_game_with_custom_names(player_names, starting_score=501)
+        initialize_game_with_custom_names(player_names, starting_score=501, game_mode='501')
+    else:
+        # Just update the game mode in the config
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('UPDATE game_config SET game_mode = ?, processor_mode = ? WHERE id = 1', ('501', 'classic'))
+        conn.commit()
+        conn.close()
     
-    # Set game mode in config
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('UPDATE game_config SET game_mode = ? WHERE id = 1', ('501',))
-    conn.commit()
-    conn.close()
+    # Start the classic dart processor
+    start_dart_processor(game_mode='classic')
     
     flash('501 game has been started!', 'success')
     return redirect(url_for('game'))
 
 @app.route('/start_game_cricket', methods=['POST'])
 def start_game_cricket():
-    """Placeholder for Cricket game - not fully implemented yet"""
+    """Initialize American Cricket game with the provided player names"""
     player_count = int(request.form.get('player_count', 4))
+    reset_scores = request.form.get('reset_scores') == 'on'
     
     # Get player names from the form
     player_names = {}
@@ -382,16 +465,29 @@ def start_game_cricket():
         name = request.form.get(f'player{i}', '').strip() or f'Player {i}'
         player_names[i] = name
     
-    flash('Cricket game mode is not implemented yet. Check back soon!', 'warning')
-    return render_template('game_selection.html', 
-                          player_names=player_names, 
-                          player_count=player_count,
-                          reset_scores=True)
+    # If reset_scores is checked, reinitialize the database
+    if reset_scores:
+        # Reinitialize the database with custom player names
+        initialize_game_with_custom_names(player_names, starting_score=0, game_mode='cricket')
+    else:
+        # Just update the game mode in the config
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('UPDATE game_config SET game_mode = ?, processor_mode = ? WHERE id = 1', ('cricket', 'cricket'))
+        conn.commit()
+        conn.close()
+    
+    # Start the cricket dart processor
+    start_dart_processor(game_mode='cricket')
+    
+    flash('American Cricket game has been started!', 'success')
+    return redirect(url_for('game'))
 
 @app.route('/start_game_around_clock', methods=['POST'])
 def start_game_around_clock():
-    """Placeholder for Around the Clock game - not fully implemented yet"""
+    """Initialize Around the Clock game with the provided player names"""
     player_count = int(request.form.get('player_count', 4))
+    reset_scores = request.form.get('reset_scores') == 'on'
     
     # Get player names from the form
     player_names = {}
@@ -399,11 +495,23 @@ def start_game_around_clock():
         name = request.form.get(f'player{i}', '').strip() or f'Player {i}'
         player_names[i] = name
     
-    flash('Around the Clock game mode is not implemented yet. Check back soon!', 'warning')
-    return render_template('game_selection.html', 
-                          player_names=player_names, 
-                          player_count=player_count,
-                          reset_scores=True)
+    # If reset_scores is checked, reinitialize the database
+    if reset_scores:
+        # Reinitialize the database with custom player names
+        initialize_game_with_custom_names(player_names, starting_score=0, game_mode='around_clock')
+    else:
+        # Just update the game mode in the config
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('UPDATE game_config SET game_mode = ?, processor_mode = ? WHERE id = 1', ('around_clock', 'around_clock'))
+        conn.commit()
+        conn.close()
+    
+    # Start the around the clock dart processor
+    start_dart_processor(game_mode='around_clock')
+    
+    flash('Around the Clock game has been started!', 'success')
+    return redirect(url_for('game'))
     
 # Game display route (your existing route)
 @app.route('/game')
@@ -1154,8 +1262,28 @@ if __name__ == '__main__':
         # Initialize database before starting the app
         initialize_database()
         
-        # Start the dart processor when the app starts
-        start_dart_processor()
+        # Get current game mode from the database
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT game_mode FROM game_config WHERE id = 1')
+        result = cursor.fetchone()
+        game_mode = result['game_mode'] if result else '301'
+        conn.close()
+        
+        # Determine the processor mode based on game_mode value
+        processor_mode = 'classic'  # Default
+        if game_mode in ['301', '501']:
+            processor_mode = 'classic'
+        elif game_mode == 'cricket':
+            processor_mode = 'cricket'
+        elif game_mode == 'around_clock':
+            processor_mode = 'around_clock'
+        
+        # Start the appropriate dart processor based on the current game mode
+        start_dart_processor(game_mode=processor_mode)
+        
+        # Register cleanup function to ensure dart processor is stopped on exit
+        atexit.register(stop_dart_processor)
         
         # Run the Flask app
         app.run(debug=False)
