@@ -63,7 +63,9 @@
             <table class="table table-bordered" id="cricketTable">
               <thead>
                 <tr>
-                  <th class="text-center py-3" style="font-size: 24px;">NUMBER</th>
+                  <th class="text-center turn-header py-3" style="font-size: 24px;">NUMBER</th>
+                  <th class="text-center turn-header py-3" style="font-size: 24px;">MARKS</th>
+                  <th class="text-center turn-header py-3" style="font-size: 24px;">OWNER</th>
                   {% for player in game_data.players %}
                   <th class="text-center player-header py-3" id="player{{ player.id }}_name" style="font-size: 24px;">{{ player.name }}</th>
                   {% endfor %}
@@ -73,9 +75,11 @@
                 <!-- Cricket numbers 15-20 and Bullseye -->
                 {% for number in [20, 19, 18, 17, 16, 15, 'BULL'] %}
                 <tr>
-                  <td class="text-center py-3" style="font-size: 24px;"><strong>{{ number }}</strong></td>
+                  <td class="text-center py-3 number-cell" id="number_{% if number == 'BULL' %}25{% else %}{{ number }}{% endif %}" style="font-size: 28px; font-weight: bold; color: #ffffff;"><strong>{{ number }}</strong></td>
+                  <td class="text-center py-3" id="marks_{% if number == 'BULL' %}25{% else %}{{ number }}{% endif %}" style="font-size: 28px; font-weight: bold; color: #ffffff;">0</td>
+                  <td class="text-center py-3" id="owner_{% if number == 'BULL' %}25{% else %}{{ number }}{% endif %}" style="font-size: 28px; font-weight: bold; color: #ffffff;">-</td>
                   {% for player in game_data.players %}
-                  <td class="text-center py-3" id="player{{ player.id }}_number_{% if number == 'BULL' %}25{% else %}{{ number }}{% endif %}" style="font-size: 24px;">
+                  <td class="text-center py-3" id="player{{ player.id }}_number_{% if number == 'BULL' %}25{% else %}{{ number }}{% endif %}" style="font-size: 28px; font-weight: bold; color: #ffffff;">
                     <!-- Will be populated with marks via JavaScript -->
                   </td>
                   {% endfor %}
@@ -85,6 +89,7 @@
               <tfoot>
                 <tr>
                   <td class="text-center py-3" style="font-size: 28px;"><strong>POINTS</strong></td>
+                  <td class="text-center py-3" colspan="2"></td>
                   {% for player in game_data.players %}
                   <td class="text-center py-3" id="player{{ player.id }}_total" style="font-size: 28px;">{{ player.total_score }}</td>
                   {% endfor %}
@@ -269,6 +274,37 @@
     </div>
   </div>
 </div>
+
+<style>
+  /* Styling for cricket numbers */
+  .number-cell.number-open {
+    background-color: rgba(40, 167, 69, 0.7); /* Green background for open numbers */
+  }
+  
+  .number-cell.number-closed {
+    background-color: rgba(220, 53, 69, 0.7); /* Red background for closed numbers */
+  }
+  
+  /* Update table row and cell styling to match classic */
+  #cricketTable tbody td {
+    font-size: 28px;
+    font-weight: bold;
+    text-align: center;
+    vertical-align: middle;
+    color: #ffffff;
+    padding: 8px 5px;
+    height: 45px;
+  }
+  
+  #cricketTable tbody tr {
+    height: 45px;
+  }
+  
+  .turn-header, .player-header {
+    background-color: rgba(233, 236, 239, 0.8);
+    color: #212529;
+  }
+</style>
 
 {% include 'includes/game_scripts.html' %}
 {% include 'includes/american_cricket_scripts.html' %}
