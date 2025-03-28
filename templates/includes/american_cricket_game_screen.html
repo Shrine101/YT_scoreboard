@@ -101,21 +101,6 @@
               alt="Dartboard" class="img-fluid" style="max-height: 500px; width: auto;">
           </div>
           
-          <!-- Cricket Game Rules -->
-          <div class="card mb-4">
-            <div class="card-header text-center p-3" style="background-color: #6c757d; color: white;">
-              <strong style="font-size: 20px;">GAME RULES</strong>
-            </div>
-            <div class="card-body">
-              <ul class="text-start">
-                <li>Hit numbers 15-20 and bullseye</li>
-                <li>3 marks to close a number</li>
-                <li>Score points on open numbers</li>
-                <li>Close all numbers with highest score to win</li>
-              </ul>
-            </div>
-          </div>
-          
           <div class="row mt-4">
             {% for throw in game_data.current_throws %}
             <div class="col-4">
@@ -131,11 +116,17 @@
             {% endfor %}
           </div>
           
-          <!-- Manual Override Button -->
+          <!-- Simple buttons with proper functionality -->
           <div class="row mt-4">
-            <div class="col-12 text-center">
-              <button id="manual-override-btn" class="btn btn-warning py-3 px-4" style="font-size: 22px;">
+            <div class="col-6">
+              <button id="manual-override-btn" class="btn btn-warning w-100 py-3" style="font-size: 20px; height: 60px;">
                 <strong>Manual Override</strong>
+              </button>
+            </div>
+            <div class="col-6">
+              <button id="game-rules-btn" class="btn btn-info w-100 py-3" style="font-size: 20px; height: 60px;" 
+                      data-bs-toggle="modal" data-bs-target="#gameRulesModal">
+                <strong>Game Rules</strong>
               </button>
             </div>
           </div>
@@ -149,6 +140,33 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Game Rules Modal -->
+<div class="modal fade" id="gameRulesModal" tabindex="-1" aria-labelledby="gameRulesModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content bg-dark text-dark">
+      <div class="modal-header bg-success text-white">
+        <h4 class="modal-title" id="gameRulesModalLabel">American Cricket: Game Rules</h4>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="card bg-white border-0 mb-3">
+          <div class="card-body">
+            <ul class="fs-3" style="line-height: 1.8;">
+              <li class="mb-3">Hit numbers 15-20 and bullseye</li>
+              <li class="mb-3">3 marks to close a number</li>
+              <li class="mb-3">Score points on open numbers</li>
+              <li class="mb-3">Close all numbers with highest score to win</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-lg" data-bs-dismiss="modal">Close</button>
       </div>
     </div>
   </div>
