@@ -406,9 +406,21 @@ class DartProcessor:
                 current_number += 1
                 self.update_player_progress(current_player, current_number)
                 print(f"Player {current_player} advanced to number {current_number}")
+            
+            # Set target hit animation without advancing turn
+            if throw_position < 3:  # Only if not the third throw
+                self.set_animation_state(
+                    animation_type="target_hit",
+                    turn_number=current_turn,
+                    player_id=current_player,
+                    throw_number=throw_position,
+                    next_turn=None,  # Don't advance turn yet
+                    next_player=None  # Don't advance player yet
+                )
         
-        # Process game logic when player has used their three throws or hit target
-        if hit_target or throw_position == 3:
+        # Process game logic when player has used their three throws
+        if throw_position == 3:
+            # Determine animation type based on whether the final throw hit the target
             animation_type = "target_hit" if hit_target else "third_throw"
             print(f"{animation_type.upper()} detected! Processing game logic...")
             
@@ -438,7 +450,7 @@ class DartProcessor:
         else:
             # If not a third throw, continue with normal play
             print(f"Processed throw: {score}x{multiplier}={points} points "
-                  f"(Player {current_player}, Turn {current_turn}, Throw {throw_position})")
+                f"(Player {current_player}, Turn {current_turn}, Throw {throw_position})")
 
     def run(self):
         """Main processing loop"""
