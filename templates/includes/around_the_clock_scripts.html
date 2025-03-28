@@ -105,16 +105,15 @@
     // Function to show a target hit notification
     function showTargetHitNotification(duration = 3000) {
       const targetHitBanner = document.getElementById('target-hit-banner');
-      const targetHitOverlay = document.getElementById('target-hit-overlay');
       
-      if (targetHitBanner) targetHitBanner.style.visibility = 'visible';
-      if (targetHitOverlay) targetHitOverlay.style.visibility = 'visible';
-      
-      // Hide the banner after the duration
-      setTimeout(() => {
-        if (targetHitBanner) targetHitBanner.style.visibility = 'hidden';
-        if (targetHitOverlay) targetHitOverlay.style.visibility = 'hidden';
-      }, duration);
+      if (targetHitBanner) {
+        targetHitBanner.style.visibility = 'visible';
+        
+        // Hide the banner after the duration
+        setTimeout(() => {
+          targetHitBanner.style.visibility = 'hidden';
+        }, duration);
+      }
     }
   
     // Handle Manual Override response for Around the Clock mode
