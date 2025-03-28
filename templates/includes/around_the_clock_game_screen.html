@@ -114,12 +114,12 @@
             
             <!-- Control Buttons: Manual Override and Game Rules buttons side by side -->
             <div class="row mt-4">
-              <div class="col-6 text-center">
+              <div class="col-6 text-center d-flex align-items-start">
                 <button id="manual-override-btn" class="btn btn-warning py-3 px-4" style="font-size: 22px; width: 100%;">
                   <strong>Manual Override</strong>
                 </button>
               </div>
-              <div class="col-6 text-center">
+              <div class="col-6 text-center d-flex align-items-start">
                 <button id="game-rules-btn" class="btn btn-info py-3 px-4" style="font-size: 22px; width: 100%;" data-bs-toggle="modal" data-bs-target="#gameRulesModal">
                   <strong>Game Rules</strong>
                 </button>
@@ -142,27 +142,27 @@
   
   <!-- Game Rules Modal -->
   <div class="modal fade" id="gameRulesModal" tabindex="-1" aria-labelledby="gameRulesModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content bg-dark text-white">
-        <div class="modal-header">
-          <h5 class="modal-title" id="gameRulesModalLabel">Around the Clock: Game Rules</h5>
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content bg-dark text-dark">
+        <div class="modal-header bg-info text-white">
+          <h4 class="modal-title" id="gameRulesModalLabel">Around the Clock: Game Rules</h4>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
-          <div class="card bg-secondary mb-3">
+          <div class="card bg-white border-0 mb-3">
             <div class="card-body">
-              <ul class="fs-5">
-                <li class="mb-2">Hit each number in sequence from 1 to 20</li>
-                <li class="mb-2">Finish with a bullseye</li>
-                <li class="mb-2">First player to complete the sequence wins</li>
-                <li class="mb-2">Only the current target number scores - other numbers don't count</li>
-                <li class="mb-2">Any multiplier (single, double, or triple) counts for the current target</li>
+              <ul class="fs-3" style="line-height: 1.8;">
+                <li class="mb-3">Hit each number in sequence from 1 to 20</li>
+                <li class="mb-3">Finish with a bullseye</li>
+                <li class="mb-3">First player to complete the sequence wins</li>
+                <li class="mb-3">Only the current target number scores - other numbers don't count</li>
+                <li class="mb-3">Any multiplier (single, double, or triple) counts for the current target</li>
               </ul>
             </div>
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-secondary btn-lg" data-bs-dismiss="modal">Close</button>
         </div>
       </div>
     </div>
