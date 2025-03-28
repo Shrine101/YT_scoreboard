@@ -1,7 +1,7 @@
 <!-- Darts scoreboard layout for American Cricket mode -->
 <div class="container-fluid" style="margin-top: -50px;">
   <div class="row justify-content-center">
-    <div class="col-xl-11 col-xxl-10">
+    <div class="col-xl-12 col-xxl-12"> <!-- Widened the main container -->
       <!-- Game mode indicator -->
       <div class="row mb-2">
         <div class="col-12 text-center">
@@ -58,14 +58,14 @@
         </div>
         
         <!-- Cricket Scoring Board -->
-        <div class="col-md-6">
-          <div class="table-responsive">
+        <div class="col-md-7"> <!-- Increased column width for scoreboard -->
+          <div class="table-responsive cricket-table-container"> <!-- Added custom class for container -->
             <table class="table table-bordered" id="cricketTable">
               <thead>
                 <tr>
-                  <th class="text-center turn-header py-3" style="font-size: 24px;">NUMBER</th>
                   <th class="text-center turn-header py-3" style="font-size: 24px;">MARKS</th>
                   <th class="text-center turn-header py-3" style="font-size: 24px;">OWNER</th>
+                  <th class="text-center turn-header py-3" style="font-size: 24px;">NUMBER</th>
                   {% for player in game_data.players %}
                   <th class="text-center player-header py-3" id="player{{ player.id }}_name" style="font-size: 24px;">{{ player.name }}</th>
                   {% endfor %}
@@ -75,9 +75,11 @@
                 <!-- Cricket numbers 15-20 and Bullseye -->
                 {% for number in [20, 19, 18, 17, 16, 15, 'BULL'] %}
                 <tr>
-                  <td class="text-center py-3 number-cell" id="number_{% if number == 'BULL' %}25{% else %}{{ number }}{% endif %}" style="font-size: 28px; font-weight: bold; color: #ffffff;"><strong>{{ number }}</strong></td>
                   <td class="text-center py-3" id="marks_{% if number == 'BULL' %}25{% else %}{{ number }}{% endif %}" style="font-size: 28px; font-weight: bold; color: #ffffff;">0</td>
                   <td class="text-center py-3" id="owner_{% if number == 'BULL' %}25{% else %}{{ number }}{% endif %}" style="font-size: 28px; font-weight: bold; color: #ffffff;">-</td>
+                  <td class="text-center py-3" style="font-size: 28px; font-weight: bold;">
+                    <span id="number_{% if number == 'BULL' %}25{% else %}{{ number }}{% endif %}" class="number-text">{{ number }}</span>
+                  </td>
                   {% for player in game_data.players %}
                   <td class="text-center py-3" id="player{{ player.id }}_number_{% if number == 'BULL' %}25{% else %}{{ number }}{% endif %}" style="font-size: 28px; font-weight: bold; color: #ffffff;">
                     <!-- Will be populated with marks via JavaScript -->
@@ -88,8 +90,7 @@
               </tbody>
               <tfoot>
                 <tr>
-                  <td class="text-center py-3" style="font-size: 28px;"><strong>POINTS</strong></td>
-                  <td class="text-center py-3" colspan="2"></td>
+                  <td class="text-center py-3" colspan="3" style="font-size: 28px;"><strong>POINTS</strong></td>
                   {% for player in game_data.players %}
                   <td class="text-center py-3" id="player{{ player.id }}_total" style="font-size: 28px;">{{ player.total_score }}</td>
                   {% endfor %}
@@ -100,10 +101,10 @@
         </div>
         
         <!-- Right side: Dartboard and current throws -->
-        <div class="col-md-4 text-center">
+        <div class="col-md-3"> <!-- Reduced width for right column -->
           <div class="dartboard-container mb-4">
             <img src="{{ url_for('static', filename='images/dartboard.jpg') }}" 
-              alt="Dartboard" class="img-fluid" style="max-height: 500px; width: auto;">
+              alt="Dartboard" class="img-fluid" style="max-height: 400px; width: auto;">
           </div>
           
           <div class="row mt-4">
@@ -276,13 +277,22 @@
 </div>
 
 <style>
-  /* Styling for cricket numbers */
-  .number-cell.number-open {
-    background-color: rgba(40, 167, 69, 0.7); /* Green background for open numbers */
+  /* Cricket table container - prevent scrollbar */
+  .cricket-table-container {
+    overflow-x: visible;
   }
   
-  .number-cell.number-closed {
-    background-color: rgba(220, 53, 69, 0.7); /* Red background for closed numbers */
+  /* Number text styling for different states */
+  .number-text {
+    color: #ffffff; /* Default: white text for open numbers */
+  }
+  
+  .number-text.single-owner {
+    color: #28a745; /* Green text when one player has closed */
+  }
+  
+  .number-text.closed {
+    color: #dc3545; /* Red text when multiple players have closed */
   }
   
   /* Update table row and cell styling to match classic */
@@ -303,6 +313,14 @@
   .turn-header, .player-header {
     background-color: rgba(233, 236, 239, 0.8);
     color: #212529;
+  }
+  
+  /* Make dartboard image responsive */
+  .dartboard-container img {
+    width: 100%;
+    height: auto;
+    max-height: 400px;
+    object-fit: contain;
   }
 </style>
 

@@ -16,55 +16,63 @@
       .then(cricketData => {
         const cricket_numbers = [15, 16, 17, 18, 19, 20, 25]; // 25 is bullseye
         
-        // Track which numbers are closed by all players
-        const closedNumbers = {};
-        cricket_numbers.forEach(number => {
-          closedNumbers[number] = true; // Start assuming closed
-          
-          // Check if number is closed by all players
-          for (const playerId in cricketData) {
-            const playerData = cricketData[playerId];
-            if (playerData.numbers[number] && !playerData.numbers[number].closed) {
-              closedNumbers[number] = false; // Not closed by all if any player hasn't closed it
-              break;
-            }
-          }
-        });
-        
         // For each number, update all cells
         for (const number of cricket_numbers) {
-          // Update the number cell color based on if it's closed by all
-          const numberCell = document.getElementById(`number_${number}`);
-          if (numberCell) {
-            if (closedNumbers[number]) {
-              numberCell.classList.add('number-closed');
-              numberCell.classList.remove('number-open');
-            } else {
-              numberCell.classList.add('number-open');
-              numberCell.classList.remove('number-closed');
+          // Analyze number state - who has closed it?
+          let closedCount = 0;
+          let playersClosed = [];
+          let playersOpen = [];
+          
+          for (const playerId in cricketData) {
+            const playerData = cricketData[playerId];
+            if (playerData && playerData.numbers && playerData.numbers[number]) {
+              const numberData = playerData.numbers[number];
+              
+              if (numberData.closed) {
+                closedCount++;
+                playersClosed.push({
+                  id: playerId,
+                  name: playerData.name
+                });
+              } else {
+                playersOpen.push({
+                  id: playerId,
+                  name: playerData.name
+                });
+              }
             }
           }
           
-          // Find owners of this number (players who haven't closed it)
-          let owners = [];
-          for (const playerId in cricketData) {
-            const playerData = cricketData[playerId];
-            const numberData = playerData.numbers[number];
+          // Update number text color based on state
+          const numberText = document.getElementById(`number_${number}`);
+          if (numberText) {
+            // Remove all classes first
+            numberText.classList.remove('single-owner', 'closed');
             
-            if (numberData && !numberData.closed) {
-              owners.push(playerData.name);
+            if (closedCount === 0) {
+              // Number is open to all - white text (default)
+            } else if (closedCount === 1) {
+              // One player has closed the number - green text
+              numberText.classList.add('single-owner');
+            } else {
+              // Multiple players have closed - red text
+              numberText.classList.add('closed');
             }
           }
           
           // Update owners cell
           const ownerCell = document.getElementById(`owner_${number}`);
           if (ownerCell) {
-            if (owners.length === 0) {
-              ownerCell.textContent = "Closed";
-            } else if (owners.length <= 2) {
-              ownerCell.textContent = owners.join(", ");
-            } else {
+            if (closedCount === 0) {
               ownerCell.textContent = "Open";
+            } else if (closedCount === 1 && playersClosed.length > 0) {
+              ownerCell.textContent = playersClosed[0].name;
+            } else if (playersOpen.length === 0) {
+              ownerCell.textContent = "Closed";
+            } else if (playersOpen.length <= 2) {
+              ownerCell.textContent = playersOpen.map(p => p.name).join(", ");
+            } else {
+              ownerCell.textContent = "Multiple";
             }
           }
           
@@ -72,7 +80,7 @@
           const marksCell = document.getElementById(`marks_${number}`);
           if (marksCell && game_data.current_player) {
             const currentPlayerData = cricketData[game_data.current_player];
-            if (currentPlayerData && currentPlayerData.numbers[number]) {
+            if (currentPlayerData && currentPlayerData.numbers && currentPlayerData.numbers[number]) {
               const marks = currentPlayerData.numbers[number].marks || 0;
               marksCell.textContent = getMarkSymbol(marks);
             } else {
@@ -88,7 +96,7 @@
             if (cell) {
               // Get this player's data for this number
               const playerData = cricketData[player.id];
-              if (playerData && playerData.numbers[number]) {
+              if (playerData && playerData.numbers && playerData.numbers[number]) {
                 const numberData = playerData.numbers[number];
                 const marks = numberData.marks || 0;
                 const closed = numberData.closed || false;
@@ -301,19 +309,10 @@
         font-weight: bold;
       }
       .number-closed {
-        background-color: rgba(220, 53, 69, 0.7);
+        background-color: rgba(0, 0, 0, 0.1);
       }
     `;
     document.head.appendChild(style);
-  });
-
-  // Initialize the table with empty marks
-  document.addEventListener('DOMContentLoaded', function() {
-    // Initially clear all cells
-    const cells = document.querySelectorAll('td[id^="player"][id$="25"]');
-    cells.forEach(cell => {
-      cell.textContent = '';
-    });
     
     // Start polling for updates
     updateGame(window.currentGameData || {});
