@@ -2,3 +2,5 @@ YT_boardvenv/
 game.db
 /simulation/cv_data.db
 __pycache__/
+/rpi_ws281x/
+/led_kernel/rp1_ws281x_pwm.ko
