@@ -112,17 +112,17 @@
               {% endfor %}
             </div>
             
-            <!-- Control Buttons: Manual Override and Game Rules buttons side by side -->
+            <!-- Control Buttons: Manual Override and Game Rules buttons side by side with fixed alignment -->
             <div class="row mt-4">
-              <div class="col-6 text-center d-flex align-items-start">
-                <button id="manual-override-btn" class="btn btn-warning py-3 px-4" style="font-size: 22px; width: 100%;">
-                  <strong>Manual Override</strong>
-                </button>
-              </div>
-              <div class="col-6 text-center d-flex align-items-start">
-                <button id="game-rules-btn" class="btn btn-info py-3 px-4" style="font-size: 22px; width: 100%;" data-bs-toggle="modal" data-bs-target="#gameRulesModal">
-                  <strong>Game Rules</strong>
-                </button>
+              <div class="col-12">
+                <div class="d-flex justify-content-between" style="gap: 15px;">
+                  <button id="manual-override-btn" class="btn btn-warning py-3 px-4 flex-grow-1" style="font-size: 22px; height: 64px;">
+                    <strong>Manual Override</strong>
+                  </button>
+                  <button id="game-rules-btn" class="btn btn-info py-3 px-4 flex-grow-1" style="font-size: 22px; height: 64px;" data-bs-toggle="modal" data-bs-target="#gameRulesModal">
+                    <strong>Game Rules</strong>
+                  </button>
+                </div>
               </div>
             </div>
             
