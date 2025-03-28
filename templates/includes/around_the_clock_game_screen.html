@@ -1,4 +1,4 @@
-<!-- Darts scoreboard layout for Around the Clock mode with game rules moved -->
+<!-- Darts scoreboard layout for Around the Clock mode with Game Rules button -->
 <div class="container-fluid" style="margin-top: -50px;">
     <div class="row justify-content-center">
       <div class="col-xl-11 col-xxl-10">
@@ -33,9 +33,8 @@
         
         <!-- Main content row -->
         <div class="row">
-          <!-- Left side: Last Throw Display and Game Rules (moved here) -->
+          <!-- Left side: Last Throw Display -->
           <div class="col-md-2">
-            <!-- Last Throw Display -->
             <div class="card mb-4">
               <div class="card-header text-center p-3" style="background-color: #6c757d; color: white;">
                 <strong style="font-size: 20px;">LAST THROW</strong>
@@ -54,20 +53,6 @@
                   </div>
                 </div>
                 <div class="mt-3" style="font-size: 32px; font-weight: bold; color: #28a745;" id="last-throw-points">0</div>
-              </div>
-            </div>
-            
-            <!-- Around the Clock Game Rules - FIXED WIDTH WITH RIGHT ALIGNMENT -->
-            <div class="card mb-4" style="width: 340px; position: relative; float: right; z-index: 10;">
-              <div class="card-header text-center p-3" style="background-color: #6c757d; color: white;">
-                <strong style="font-size: 20px;">GAME RULES</strong>
-              </div>
-              <div class="card-body">
-                <ul class="text-start">
-                  <li>Hit each number in sequence from 1 to 20</li>
-                  <li>Finish with a bullseye</li>
-                  <li>First player to complete wins</li>
-                </ul>
               </div>
             </div>
           </div>
@@ -105,7 +90,7 @@
             </div>
           </div>
           
-          <!-- Right side: Dartboard and current throws -->
+          <!-- Right side: Dartboard and controls -->
           <div class="col-md-4 text-center">
             <div class="dartboard-container mb-4">
               <img src="{{ url_for('static', filename='images/dartboard.jpg') }}" 
@@ -127,11 +112,16 @@
               {% endfor %}
             </div>
             
-            <!-- Manual Override Button -->
+            <!-- Control Buttons: Manual Override and Game Rules buttons side by side -->
             <div class="row mt-4">
-              <div class="col-12 text-center">
-                <button id="manual-override-btn" class="btn btn-warning py-3 px-4" style="font-size: 22px;">
+              <div class="col-6 text-center">
+                <button id="manual-override-btn" class="btn btn-warning py-3 px-4" style="font-size: 22px; width: 100%;">
                   <strong>Manual Override</strong>
+                </button>
+              </div>
+              <div class="col-6 text-center">
+                <button id="game-rules-btn" class="btn btn-info py-3 px-4" style="font-size: 22px; width: 100%;" data-bs-toggle="modal" data-bs-target="#gameRulesModal">
+                  <strong>Game Rules</strong>
                 </button>
               </div>
             </div>
@@ -150,7 +140,35 @@
     </div>
   </div>
   
-  <!-- New Win Message Overlay (added as a completely separate element) -->
+  <!-- Game Rules Modal -->
+  <div class="modal fade" id="gameRulesModal" tabindex="-1" aria-labelledby="gameRulesModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content bg-dark text-white">
+        <div class="modal-header">
+          <h5 class="modal-title" id="gameRulesModalLabel">Around the Clock: Game Rules</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="card bg-secondary mb-3">
+            <div class="card-body">
+              <ul class="fs-5">
+                <li class="mb-2">Hit each number in sequence from 1 to 20</li>
+                <li class="mb-2">Finish with a bullseye</li>
+                <li class="mb-2">First player to complete the sequence wins</li>
+                <li class="mb-2">Only the current target number scores - other numbers don't count</li>
+                <li class="mb-2">Any multiplier (single, double, or triple) counts for the current target</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- New Win Message Overlay -->
   <div id="win-message-overlay" style="position: fixed; top: 0; left: 0; right: 0; visibility: hidden; z-index: 2000; pointer-events: none;">
     <div style="width: 100%; padding-top: 80px; text-align: center;">
       <div class="alert alert-success d-inline-block py-4 px-5">
