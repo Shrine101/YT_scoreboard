@@ -582,4 +582,43 @@
     .players-8 .last-throw-card {
       font-size: 80%;
     }
+
+  /* Make the score table wider without affecting other columns */
+  @media (min-width: 768px) {
+    /* Increase width of score table column */
+    .col-md-6 {
+      width: 60%;
+      flex: 0 0 60%;
+      max-width: 60%;
+    }
+    
+    /* Keep dartboard column properly sized */
+    .col-md-4 {
+      width: 30%;
+      flex: 0 0 30%;
+      max-width: 30%;
+    }
+    
+    /* Keep last throw column at same size */
+    .col-md-2 {
+      width: 10%;
+      flex: 0 0 10%;
+      max-width: 10%;
+    }
+  }
+
+  /* Add more specific versions for larger screens if needed */
+  @media (min-width: 1200px) {
+    .col-md-6 {
+      width: 65%; /* Even wider on large screens */
+      flex: 0 0 65%;
+      max-width: 65%;
+    }
+    
+    .col-md-4 {
+      width: 25%;
+      flex: 0 0 25%;
+      max-width: 25%;
+    }
+  }
   </style>
