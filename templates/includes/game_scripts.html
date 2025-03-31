@@ -581,10 +581,10 @@
   }
 </style>
 
-<!-- Fixed Scoreboard Layout Solution -->
+<!-- Enhanced Responsive Layout Solution -->
 
 <script>
-// Updated function to adjust layout with FIXED scoreboard size
+// Enhanced function to adjust column widths after the DOM is fully loaded
 function adjustLayoutForPlayerCount() {
   const playerCount = document.querySelectorAll('.player-header').length;
   
@@ -612,17 +612,42 @@ function adjustLayoutForPlayerCount() {
     mainContainer.classList.add('col-xl-12', 'px-4'); // Use full width with some padding
   }
   
-  // FIXED LAYOUT REGARDLESS OF PLAYER COUNT
-  // These values will remain the same regardless of player count
-  lastThrowCol.style.width = '16%';
-  lastThrowCol.style.flex = '0 0 auto';
-  lastThrowCol.style.minWidth = '160px';
-  
-  scoreboardCol.style.width = '55%'; // FIXED scoreboard width
-  scoreboardCol.style.flex = '0 0 auto';
-  
-  controlsCol.style.width = '29%';
-  controlsCol.style.flex = '0 0 auto';
+  // Adjust column widths based on player count - IMPROVED SPACING
+  if (playerCount <= 4) {
+    // Default Bootstrap layout for 1-4 players
+    lastThrowCol.style.width = '16%'; // col-md-2 (slightly smaller)
+    lastThrowCol.style.flex = '0 0 auto';
+    
+    scoreboardCol.style.width = '55%'; // col-md-6 (increased)
+    scoreboardCol.style.flex = '0 0 auto';
+    
+    controlsCol.style.width = '29%'; // col-md-4 (slightly smaller)
+    controlsCol.style.flex = '0 0 auto';
+  } 
+  else if (playerCount <= 6) {
+    // Adjusted layout for 5-6 players
+    lastThrowCol.style.width = '12%'; // Narrower
+    lastThrowCol.style.flex = '0 0 auto';
+    lastThrowCol.style.minWidth = '160px'; // Fixed minimum width
+    
+    scoreboardCol.style.width = '63%'; // Wider
+    scoreboardCol.style.flex = '0 0 auto';
+    
+    controlsCol.style.width = '25%'; // Narrower
+    controlsCol.style.flex = '0 0 auto';
+  } 
+  else {
+    // Compact layout for 7-8 players
+    lastThrowCol.style.width = '10%'; // Less narrow than before
+    lastThrowCol.style.flex = '0 0 auto';
+    lastThrowCol.style.minWidth = '160px'; // Fixed minimum width
+    
+    scoreboardCol.style.width = '70%'; // Much wider
+    scoreboardCol.style.flex = '0 0 auto';
+    
+    controlsCol.style.width = '20%'; // Even narrower
+    controlsCol.style.flex = '0 0 auto';
+  }
 
   // Ensure fixed dimensions for last throw box
   const lastThrowCard = lastThrowCol.querySelector('.card');
@@ -637,7 +662,7 @@ function adjustLayoutForPlayerCount() {
     col.style.minWidth = '80px';  
   });
   
-  // Apply dynamic font sizing to player name headers based on player count
+  // Apply dynamic font sizing to player name headers
   const playerHeaders = document.querySelectorAll('.player-header');
   playerHeaders.forEach(header => {
     // Calculate font size based on player count
@@ -659,7 +684,6 @@ function adjustLayoutForPlayerCount() {
   const scoreTable = document.getElementById('scoreTable');
   if (scoreTable) {
     scoreTable.style.tableLayout = 'fixed';
-    scoreTable.style.width = '100%'; // Ensure table fills its container
     
     // Set fixed width for first column (turn numbers)
     const firstCol = scoreTable.querySelector('th:first-child');
@@ -667,7 +691,7 @@ function adjustLayoutForPlayerCount() {
       firstCol.style.width = '80px';
     }
     
-    // Calculate optimal width for player columns - this will make them adjust based on player count
+    // Calculate optimal width for player columns
     const playerWidth = `${(100 - 8) / playerCount}%`; // 8% for turn column
     
     // Apply to both header and data cells
@@ -690,10 +714,10 @@ function enhancedUpdatePlayerCountStyle(game_data) {
   // Add the appropriate class
   container.classList.add(`players-${playerCount}`);
   
-  // Handle table responsiveness for all player counts
+  // Handle table responsiveness - remove scrolling for all player counts
   const tableResponsive = document.querySelector('.table-responsive');
   if (tableResponsive) {
-    // Remove the Bootstrap class and add our custom container
+    // Remove the responsive class that forces horizontal scrolling
     tableResponsive.classList.remove('table-responsive');
     tableResponsive.classList.add('scoreboard-container');
   }
@@ -722,49 +746,15 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <style>
-/* Fixed scoreboard dimensions */
+/* Optimized responsive scoreboard styling */
+
+/* Fix table display - never use horizontal scrolling */
 .scoreboard-container {
   width: 100%;
-  overflow-x: auto !important; /* Enable horizontal scrolling if needed */
-  max-height: 500px; /* Fixed height */
-  overflow-y: auto; /* Vertical scrolling if needed */
+  overflow-x: visible !important;
 }
 
-/* Add custom scrollbar styling */
-.scoreboard-container::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.scoreboard-container::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
-}
-
-.scoreboard-container::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 4px;
-}
-
-.scoreboard-container::-webkit-scrollbar-thumb:hover {
-  background: #555;
-}
-
-/* Additional styles to maintain consistent dimensions */
-.scoreboard-column {
-  width: 55% !important; /* Fixed width scoreboard */
-}
-
-.last-throw-column {
-  width: 16% !important;
-  min-width: 160px !important;
-}
-
-.controls-column {
-  width: 29% !important;
-}
-
-/* Last throw box fixed dimensions */
+/* Ensure fixed dimensions for key elements */
 .last-throw-column .card {
   min-width: 160px;
   width: 100%;
@@ -789,7 +779,6 @@ document.addEventListener('DOMContentLoaded', function() {
 .controls-column .row.mt-4 .col-4 .card {
   min-width: 80px;
   min-height: 120px;
-  max-width: 100px; /* Add max width to prevent stretching */
 }
 
 .controls-column .row.mt-4 .card-header {
@@ -815,18 +804,6 @@ document.addEventListener('DOMContentLoaded', function() {
   white-space: nowrap !important;
 }
 
-/* Fix for buttons getting squished */
-.controls-column .btn {
-  white-space: nowrap;
-  min-height: 60px;
-}
-
-/* Dartboard size adjustment */
-.dartboard-container img {
-  max-height: 400px !important;
-  min-height: 300px !important;
-}
-
 /* Adaptive player name sizing based on count */
 .players-1 .player-header, .players-2 .player-header {
   font-size: 32px !important;
@@ -842,5 +819,24 @@ document.addEventListener('DOMContentLoaded', function() {
 
 .players-7 .player-header, .players-8 .player-header {
   font-size: 18px !important;
+}
+
+/* Fix for buttons getting squished */
+.controls-column .btn {
+  white-space: nowrap;
+  min-height: 60px;
+}
+
+/* Dartboard size adjustment for many players */
+.players-5 .dartboard-container img, 
+.players-6 .dartboard-container img {
+  max-height: 380px !important;
+  min-height: 300px !important;
+}
+
+.players-7 .dartboard-container img, 
+.players-8 .dartboard-container img {
+  max-height: 320px !important;
+  min-height: 250px !important;
 }
 </style>
