@@ -109,6 +109,19 @@
     const playerSelect = document.getElementById('playerSelect');
     const throwSelect = document.getElementById('throwSelect');
     
+    // Add classes for column sizing
+    // Find and add classes to columns for better targeting with CSS
+    const columns = document.querySelectorAll('.row > [class*="col-md-"]');
+    columns.forEach(column => {
+      if (column.querySelector('#scoreTable') || column.querySelector('.cricket-table-container')) {
+        column.classList.add('scoreboard-column');
+      } else if (column.querySelector('.last-throw-card')) {
+        column.classList.add('last-throw-column');
+      } else if (column.querySelector('.dartboard-container')) {
+        column.classList.add('dartboard-column');
+      }
+    });
+    
     // Initialize the Bootstrap modal
     const manualOverrideModal = new bootstrap.Modal(document.getElementById('manualOverrideModal'));
     
@@ -449,6 +462,7 @@
   /* Styles for the last throw card */
   .last-throw-card {
     transition: background-color 0.5s ease;
+    min-width: 150px; /* Ensure minimum width */
   }
   
   /* Fixed scoreboard table layout */
@@ -582,5 +596,55 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  
+  /* Adjusting column widths for wider scoreboard */
+  /* Target only medium-sized screens and larger (Bootstrap md breakpoint and up) */
+  @media (min-width: 768px) {
+    /* Make the scoreboard column wider - increase from col-md-6 to col-md-7 */
+    .col-md-6.scoreboard-column {
+      flex: 0 0 auto;
+      width: 58.33333%; /* Equivalent to col-md-7 (7/12 = ~58.33%) */
+    }
+    
+    /* Adjust the last throw column to be narrower */
+    .col-md-2.last-throw-column {
+      flex: 0 0 auto;
+      width: 8.33333%; /* Equivalent to col-md-1 (1/12 = ~8.33%) */
+    }
+    
+    /* The right side (dartboard) column stays at col-md-4 (4/12 = 33.33%) */
+  }
+  
+  /* Make sure the entire table uses the new width */
+  .table-responsive {
+    width: 100%;
+    overflow-x: visible; /* Prevent horizontal scroll */
+  }
+  
+  /* For very large screens, cap the maximum width of the scoreboard */
+  @media (min-width: 1800px) {
+    .col-md-6.scoreboard-column {
+      max-width: 800px; /* Limit maximum width on very large screens */
+    }
+  }
+  
+  /* For mobile screens, revert to default Bootstrap behavior */
+  @media (max-width: 767.98px) {
+    .col-md-6.scoreboard-column,
+    .col-md-2.last-throw-column {
+      width: 100%; /* Full width on mobile */
+    }
+  }
+
+  /* Cricket table specific styles to match wider layout */
+  .cricket-table-container {
+    width: 100%;
+    overflow-x: visible; /* Prevent horizontal scroll */
+  }
+
+  #cricketTable {
+    width: 100%;
+    table-layout: fixed;
   }
 </style>
