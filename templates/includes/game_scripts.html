@@ -579,12 +579,62 @@
     color: white !important;
     font-weight: bold;
   }
+
+  /* Responsive styles for different player counts */
+  .players-1 #scoreTable th, .players-1 #scoreTable td,
+  .players-2 #scoreTable th, .players-2 #scoreTable td {
+    font-size: 32px;  /* Larger text for fewer players */
+  }
+
+  /* Default is 4 players (no change needed) */
+
+  /* 5-6 players - reduce font size */
+  .players-5 #scoreTable th,
+  .players-6 #scoreTable th,
+  .players-5 #scoreTable td,
+  .players-6 #scoreTable td {
+    font-size: 24px;
+  }
+
+  /* 7-8 players - reduce even more */
+  .players-7 #scoreTable th,
+  .players-8 #scoreTable th,
+  .players-7 #scoreTable td,
+  .players-8 #scoreTable td {
+    font-size: 20px;
+    padding: 5px 3px;  /* Smaller padding for more columns */
+  }
+
+  /* Adjust column widths based on player count */
+  .players-5 #scoreTable th,
+  .players-6 #scoreTable th,
+  .players-7 #scoreTable th,
+  .players-8 #scoreTable th {
+    width: auto;  /* Let the browser determine width */
+  }
+
+  .players-6 .player-header,
+  .players-7 .player-header,
+  .players-8 .player-header {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100px; /* Limit width for more players */
+  }
+
+  /* Adjust last throw display for many players */
+  .players-5 .last-throw-card,
+  .players-6 .last-throw-card,
+  .players-7 .last-throw-card,
+  .players-8 .last-throw-card {
+    font-size: 80%;
+  }
 </style>
 
-<!-- Enhanced Responsive Layout Solution -->
+<!-- New Responsive Layout Functions and Styles -->
 
 <script>
-// Enhanced function to adjust column widths after the DOM is fully loaded
+// Function to adjust column widths after the DOM is fully loaded
 function adjustLayoutForPlayerCount() {
   const playerCount = document.querySelectorAll('.player-header').length;
   
@@ -605,238 +655,140 @@ function adjustLayoutForPlayerCount() {
   scoreboardCol.classList.add('scoreboard-column');
   controlsCol.classList.add('controls-column');
   
-  // Make the main container take up more screen space
-  const mainContainer = document.querySelector('.col-xl-11.col-xxl-10');
-  if (mainContainer) {
-    mainContainer.className = '';
-    mainContainer.classList.add('col-xl-12', 'px-4'); // Use full width with some padding
-  }
-  
-  // Adjust column widths based on player count - IMPROVED SPACING
+  // Adjust column widths based on player count
   if (playerCount <= 4) {
     // Default Bootstrap layout for 1-4 players
-    lastThrowCol.style.width = '16%'; // col-md-2 (slightly smaller)
+    lastThrowCol.style.width = '16.66%'; // col-md-2
     lastThrowCol.style.flex = '0 0 auto';
     
-    scoreboardCol.style.width = '55%'; // col-md-6 (increased)
+    scoreboardCol.style.width = '50%'; // col-md-6
     scoreboardCol.style.flex = '0 0 auto';
     
-    controlsCol.style.width = '29%'; // col-md-4 (slightly smaller)
+    controlsCol.style.width = '33.33%'; // col-md-4
     controlsCol.style.flex = '0 0 auto';
   } 
   else if (playerCount <= 6) {
     // Adjusted layout for 5-6 players
-    lastThrowCol.style.width = '12%'; // Narrower
+    lastThrowCol.style.width = '12.5%'; // Narrower
     lastThrowCol.style.flex = '0 0 auto';
-    lastThrowCol.style.minWidth = '160px'; // Fixed minimum width
+    lastThrowCol.style.minWidth = '120px';
     
-    scoreboardCol.style.width = '63%'; // Wider
+    scoreboardCol.style.width = '58.33%'; // Wider
     scoreboardCol.style.flex = '0 0 auto';
     
-    controlsCol.style.width = '25%'; // Narrower
+    controlsCol.style.width = '29.16%'; // Narrower
     controlsCol.style.flex = '0 0 auto';
   } 
   else {
     // Compact layout for 7-8 players
-    lastThrowCol.style.width = '10%'; // Less narrow than before
+    lastThrowCol.style.width = '8.33%'; // Much narrower
     lastThrowCol.style.flex = '0 0 auto';
-    lastThrowCol.style.minWidth = '160px'; // Fixed minimum width
+    lastThrowCol.style.minWidth = '110px';
     
-    scoreboardCol.style.width = '70%'; // Much wider
+    scoreboardCol.style.width = '66.66%'; // Much wider
     scoreboardCol.style.flex = '0 0 auto';
     
-    controlsCol.style.width = '20%'; // Even narrower
+    controlsCol.style.width = '25%'; // Even narrower
     controlsCol.style.flex = '0 0 auto';
   }
-
-  // Ensure fixed dimensions for last throw box
-  const lastThrowCard = lastThrowCol.querySelector('.card');
-  if (lastThrowCard) {
-    lastThrowCard.style.width = '100%';
-    lastThrowCard.style.minWidth = '160px';
-  }
-  
-  // Fixed width for throw columns
-  const throwCols = document.querySelectorAll('.controls-column .row.mt-4 .col-4');
-  throwCols.forEach(col => {
-    col.style.minWidth = '80px';  
-  });
-  
-  // Apply dynamic font sizing to player name headers
-  const playerHeaders = document.querySelectorAll('.player-header');
-  playerHeaders.forEach(header => {
-    // Calculate font size based on player count
-    if (playerCount <= 4) {
-      header.style.fontSize = '28px';
-    } else if (playerCount <= 6) {
-      header.style.fontSize = '22px';
-    } else {
-      header.style.fontSize = '18px';
-    }
-    
-    // Add text trimming classes
-    header.style.overflow = 'hidden';
-    header.style.textOverflow = 'ellipsis';
-    header.style.whiteSpace = 'nowrap';
-  });
-  
-  // Make sure table is set to fixed layout
-  const scoreTable = document.getElementById('scoreTable');
-  if (scoreTable) {
-    scoreTable.style.tableLayout = 'fixed';
-    
-    // Set fixed width for first column (turn numbers)
-    const firstCol = scoreTable.querySelector('th:first-child');
-    if (firstCol) {
-      firstCol.style.width = '80px';
-    }
-    
-    // Calculate optimal width for player columns
-    const playerWidth = `${(100 - 8) / playerCount}%`; // 8% for turn column
-    
-    // Apply to both header and data cells
-    const playerCols = scoreTable.querySelectorAll('th:not(:first-child), td:not(:first-child)');
-    playerCols.forEach(col => {
-      col.style.width = playerWidth;
-    });
-  }
 }
-
-// Enhanced function to remove scrolling and apply player count styles
-function enhancedUpdatePlayerCountStyle(game_data) {
-  const playerCount = game_data.players.length;
-  const container = document.querySelector('.container-fluid');
-  
-  // Remove any existing player count classes
-  container.classList.remove('players-1', 'players-2', 'players-3', 'players-4', 
-                             'players-5', 'players-6', 'players-7', 'players-8');
-  
-  // Add the appropriate class
-  container.classList.add(`players-${playerCount}`);
-  
-  // Handle table responsiveness - remove scrolling for all player counts
-  const tableResponsive = document.querySelector('.table-responsive');
-  if (tableResponsive) {
-    // Remove the responsive class that forces horizontal scrolling
-    tableResponsive.classList.remove('table-responsive');
-    tableResponsive.classList.add('scoreboard-container');
-  }
-  
-  // Run our layout adjustment function
-  adjustLayoutForPlayerCount();
-}
-
-// Override the existing updatePlayerCountStyle function with our enhanced version
-updatePlayerCountStyle = enhancedUpdatePlayerCountStyle;
 
 // Run initialization when DOM is completely loaded
 document.addEventListener('DOMContentLoaded', function() {
   // Initial calls if game data exists
   if (window.currentGameData) {
-    enhancedUpdatePlayerCountStyle(window.currentGameData);
+    adjustLayoutForPlayerCount();
   }
   
   // Add resize handling
   window.addEventListener('resize', function() {
     if (window.currentGameData) {
-      enhancedUpdatePlayerCountStyle(window.currentGameData);
+      adjustLayoutForPlayerCount();
     }
   });
 });
 </script>
 
 <style>
-/* Optimized responsive scoreboard styling */
+/* Responsive scoreboard styling for many players */
 
-/* Fix table display - never use horizontal scrolling */
+/* Fix table display when normally would need scrolling */
 .scoreboard-container {
   width: 100%;
   overflow-x: visible !important;
 }
 
-/* Ensure fixed dimensions for key elements */
-.last-throw-column .card {
-  min-width: 160px;
-  width: 100%;
-}
-
-.last-throw-column .card-body {
-  min-height: 160px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-/* Keep fixed width for turn numbers column */
+/* Ensure turn number column stays narrow */
 #scoreTable th:first-child,
 #scoreTable td:first-child {
-  width: 80px !important;
-  min-width: 80px !important;
-  max-width: 80px !important;
+  width: 80px !important; /* Keep turn column fixed width */
 }
 
-/* Turn boxes with fixed dimensions */
-.controls-column .row.mt-4 .col-4 .card {
-  min-width: 80px;
-  min-height: 120px;
-}
-
-.controls-column .row.mt-4 .card-header {
-  height: 70px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.controls-column .row.mt-4 .card-body {
-  height: 50px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* Ensure all player-related elements have proper text overflow handling */
+/* Player column styles - ensure text doesn't overflow */
 .player-header, 
-#scoreTable td:not(:first-child),
 #scoreTable tfoot td:not(:first-child) {
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-}
-
-/* Adaptive player name sizing based on count */
-.players-1 .player-header, .players-2 .player-header {
-  font-size: 32px !important;
-}
-
-.players-3 .player-header, .players-4 .player-header {
-  font-size: 28px !important;
-}
-
-.players-5 .player-header, .players-6 .player-header {
-  font-size: 22px !important;
-}
-
-.players-7 .player-header, .players-8 .player-header {
-  font-size: 18px !important;
-}
-
-/* Fix for buttons getting squished */
-.controls-column .btn {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  min-height: 60px;
 }
 
-/* Dartboard size adjustment for many players */
-.players-5 .dartboard-container img, 
-.players-6 .dartboard-container img {
-  max-height: 380px !important;
-  min-height: 300px !important;
-}
-
-.players-7 .dartboard-container img, 
-.players-8 .dartboard-container img {
-  max-height: 320px !important;
-  min-height: 250px !important;
+/* Adjustments for many players */
+@media (min-width: 768px) {
+  /* Dartboard image sizing */
+  .players-5 .dartboard-container img, 
+  .players-6 .dartboard-container img {
+    max-height: 400px !important;
+  }
+  
+  .players-7 .dartboard-container img, 
+  .players-8 .dartboard-container img {
+    max-height: 300px !important;
+  }
+  
+  /* Card and throw display sizing */
+  .players-5 .card-header strong, 
+  .players-6 .card-header strong,
+  .players-7 .card-header strong, 
+  .players-8 .card-header strong {
+    font-size: 16px !important;
+  }
+  
+  /* Last throw display */
+  .players-5 #last-throw-player, 
+  .players-6 #last-throw-player {
+    font-size: 16px !important;
+  }
+  
+  .players-7 #last-throw-player, 
+  .players-8 #last-throw-player {
+    font-size: 14px !important;
+  }
+  
+  .players-7 #last-throw-score, .players-7 #last-throw-multiplier,
+  .players-8 #last-throw-score, .players-8 #last-throw-multiplier {
+    font-size: 18px !important;
+  }
+  
+  .players-7 #last-throw-points, 
+  .players-8 #last-throw-points {
+    font-size: 24px !important;
+  }
+  
+  /* Buttons */
+  .players-7 #manual-override-btn, .players-8 #manual-override-btn,
+  .players-7 #game-rules-btn, .players-8 #game-rules-btn {
+    font-size: 16px !important;
+    height: 50px !important;
+    padding: 5px !important;
+  }
+  
+  /* Spacing */
+  .players-7 .mb-4, .players-8 .mb-4 {
+    margin-bottom: 0.5rem !important;
+  }
+  
+  .players-7 .mt-4, .players-8 .mt-4 {
+    margin-top: 0.5rem !important;
+  }
 }
 </style>
