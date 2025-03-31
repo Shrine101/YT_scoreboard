@@ -1,7 +1,7 @@
 <!-- Darts scoreboard layout for American Cricket mode -->
 <div class="container-fluid" style="margin-top: -50px;">
   <div class="row justify-content-center">
-    <div class="col-xl-12 col-xxl-12">
+    <div class="col-xl-11 col-xxl-10">
       <!-- Game mode indicator -->
       <div class="row mb-2">
         <div class="col-12 text-center">
@@ -57,8 +57,8 @@
           </div>
         </div>
         
-        <!-- Cricket Scoring Board -->
-        <div class="col-md-7">
+        <!-- Cricket Scoring Board - Changed from col-md-7 to col-md-6 -->
+        <div class="col-md-6">
           <div class="table-responsive cricket-table-container">
             <table class="table table-bordered" id="cricketTable">
               <thead>
@@ -96,8 +96,8 @@
           </div>
         </div>
         
-        <!-- Right side: Dartboard and current throws -->
-        <div class="col-md-3">
+        <!-- Right side: Dartboard and current throws - Changed from col-md-3 to col-md-4 with text-center -->
+        <div class="col-md-4 text-center">
           <div class="dartboard-container mb-4">
             <img src="{{ url_for('static', filename='images/dartboard.jpg') }}" 
               alt="Dartboard" class="img-fluid" style="max-height: 400px; width: auto;">
