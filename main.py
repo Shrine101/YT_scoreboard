@@ -489,7 +489,35 @@ def start_game_cricket():
         # Just update the game mode in the config
         conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # Update game mode in config
         cursor.execute('UPDATE game_config SET game_mode = ?, processor_mode = ? WHERE id = 1', ('cricket', 'cricket'))
+        
+        # IMPORTANT: Also update all player scores to 0 even when not resetting
+        for player_id, name in player_names.items():
+            # Check if player exists
+            cursor.execute('SELECT 1 FROM players WHERE id = ?', (player_id,))
+            if cursor.fetchone():
+                # Update existing player
+                cursor.execute('UPDATE players SET name = ?, total_score = ? WHERE id = ?', 
+                              (name, 0, player_id))
+            else:
+                # Insert new player with score 0
+                cursor.execute('INSERT INTO players (id, name, total_score) VALUES (?, ?, ?)', 
+                              (player_id, name, 0))
+            
+            # Ensure cricket scores are initialized for this player
+            cricket_numbers = [15, 16, 17, 18, 19, 20, 25]  # Traditional cricket numbers
+            for number in cricket_numbers:
+                cursor.execute('''
+                    INSERT OR REPLACE INTO cricket_scores
+                    (player_id, number, marks, points, closed)
+                    VALUES (?, ?, 0, 0, 0)
+                ''', (player_id, number))
+        
+        # Remove any players that are no longer needed
+        cursor.execute('DELETE FROM players WHERE id > ?', (player_count,))
+                          
         conn.commit()
         conn.close()
     
