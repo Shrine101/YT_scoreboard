@@ -560,7 +560,7 @@ class DartProcessor:
         # Process the cricket game logic
         # First, check if this is a cricket number (15-20 or bullseye)
         is_cricket_number = score in self.cricket_numbers
-        animation_type = None
+        cricket_event_type = None
         
         if is_cricket_number:
             print(f"Player {current_player} hit cricket number {score} with multiplier {multiplier}")
@@ -588,7 +588,7 @@ class DartProcessor:
                     update_result = self.update_cricket_score(current_player, score, 0, points_to_add)
                     
                     if points_to_add > 0:
-                        animation_type = "cricket_points"
+                        cricket_event_type = "cricket_points"
                 else:
                     # Player hasn't closed this number yet
                     # Calculate how many marks can be applied before closing (max 3 total)
@@ -619,10 +619,10 @@ class DartProcessor:
                     
                     if update_result and update_result['newly_closed']:
                         print(f"Player {current_player} closed number {score}!")
-                        animation_type = "cricket_closed"
+                        cricket_event_type = "cricket_closed"
                     else:
                         print(f"Player {current_player} added {marks_to_apply} marks to number {score}")
-                        animation_type = "cricket_marks"
+                        cricket_event_type = "cricket_marks"
             else:
                 print(f"Number {score} is already closed by all players. No points scored.")
         else:
@@ -665,9 +665,8 @@ class DartProcessor:
             next_player = current_player % player_count + 1  # Cycle to next player (1-based)
             next_turn = current_turn + (1 if next_player == 1 else 0)  # Increment turn if we wrapped around
             
-            # Set appropriate animation type if not already set
-            if not animation_type:
-                animation_type = "third_throw"
+            # KEY FIX: Always use third_throw animation type for third throws, regardless of cricket action
+            animation_type = "third_throw"
             
             # Set animation state BEFORE advancing game state
             self.set_animation_state(
@@ -685,10 +684,10 @@ class DartProcessor:
             print(f"Game state advanced. Animation state set for: {animation_type}")
         else:
             # If not a third throw, continue with normal play
-            # Set appropriate animation type if one was determined
-            if animation_type:
+            # Set appropriate animation type for cricket events if one was determined
+            if cricket_event_type:
                 self.set_animation_state(
-                    animation_type=animation_type,
+                    animation_type=cricket_event_type,
                     turn_number=current_turn,
                     player_id=current_player,
                     throw_number=throw_position,
@@ -697,7 +696,7 @@ class DartProcessor:
                 )
             
             print(f"Processed throw: {score}x{multiplier}={points} points "
-                  f"(Player {current_player}, Turn {current_turn}, Throw {throw_position})")
+                f"(Player {current_player}, Turn {current_turn}, Throw {throw_position})")
 
     def run(self):
         """Main processing loop"""
