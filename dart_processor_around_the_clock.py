@@ -433,6 +433,13 @@ class DartProcessor:
             next_player = current_player % player_count + 1  # Cycle to next player (1-based)
             next_turn = current_turn + (1 if next_player == 1 else 0)  # Increment turn if we wrapped around
             
+            # Get player's current progress to record
+            player_progress = self.get_player_progress(current_player)
+            current_target = player_progress['current_number']
+            
+            # Record the player's current target
+            self.record_player_target(current_turn, current_player, current_target)
+            
             # Set animation state BEFORE advancing game state
             self.set_animation_state(
                 animation_type=animation_type,
@@ -473,6 +480,40 @@ class DartProcessor:
                 
         except KeyboardInterrupt:
             print("\nAround The Clock dart processor stopped.")
+
+    def record_player_target(self, turn_number, player_id, target_number):
+        """
+        Record a player's current target number in the turn_scores table.
+        This allows displaying progress history in the UI.
+        """
+        with self.get_game_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Check if this turn exists
+            cursor.execute('SELECT 1 FROM turns WHERE turn_number = ?', (turn_number,))
+            if not cursor.fetchone():
+                cursor.execute('INSERT INTO turns (turn_number) VALUES (?)', (turn_number,))
+            
+            # Check if player already has a score for this turn
+            cursor.execute(
+                'SELECT 1 FROM turn_scores WHERE turn_number = ? AND player_id = ?',
+                (turn_number, player_id)
+            )
+            
+            if cursor.fetchone():
+                # Update existing record
+                cursor.execute(
+                    'UPDATE turn_scores SET points = ? WHERE turn_number = ? AND player_id = ?',
+                    (target_number, turn_number, player_id)
+                )
+            else:
+                # Insert new record
+                cursor.execute(
+                    'INSERT INTO turn_scores (turn_number, player_id, points) VALUES (?, ?, ?)',
+                    (turn_number, player_id, target_number)
+                )
+            
+            conn.commit()
 
 def main():
     processor = DartProcessor()

@@ -1,244 +1,249 @@
 <script>
-    // Function to update player highlights
-    function updatePlayerHighlights(game_data) {
-      // Update player names and highlights
-      for (let i = 0; i < game_data.players.length; i++) {
-        const player = game_data.players[i];
-        const nameElement = document.getElementById(`player${player.id}_name`);
+  // Function to update player highlights
+  function updatePlayerHighlights(game_data) {
+    // Update player names and highlights
+    for (let i = 0; i < game_data.players.length; i++) {
+      const player = game_data.players[i];
+      const nameElement = document.getElementById(`player${player.id}_name`);
+      
+      if (nameElement) {
+        nameElement.textContent = player.name;
         
-        if (nameElement) {
-          nameElement.textContent = player.name;
-          
-          // Highlight current player
-          if (player.id === game_data.current_player) {
-            nameElement.classList.add('active-player');
-          } else {
-            nameElement.classList.remove('active-player');
-          }
+        // Highlight current player
+        if (player.id === game_data.current_player) {
+          nameElement.classList.add('active-player');
+        } else {
+          nameElement.classList.remove('active-player');
         }
-        
-        // Update target display
-        const totalElement = document.getElementById(`player${player.id}_total`);
-        if (totalElement) {
-          if (player.total_score === 20) {
-            totalElement.textContent = 'BULL';
-          } else {
-            totalElement.textContent = (player.total_score + 1).toString();
-          }
+      }
+      
+      // Update target display
+      const totalElement = document.getElementById(`player${player.id}_total`);
+      if (totalElement) {
+        if (player.total_score === 20) {
+          totalElement.textContent = 'BULL';
+        } else {
+          totalElement.textContent = (player.total_score + 1).toString();
         }
       }
     }
-  
-    // Function to update score table
-    function updateScoreTable(game_data) {
-      // Determine which turns to display (last 10 turns)
-      const maxTurnsToShow = 10;
-      let turnsToDisplay = game_data.turns;
+  }
+
+  // Function to update score table
+  function updateScoreTable(game_data) {
+    // Determine which turns to display (last 10 turns)
+    const maxTurnsToShow = 10;
+    let turnsToDisplay = game_data.turns;
+    
+    if (game_data.turns.length > maxTurnsToShow) {
+      // Show only the last 10 turns
+      turnsToDisplay = game_data.turns.slice(-maxTurnsToShow);
+    }
+    
+    // Rebuild the turns table
+    const tbody = document.getElementById('turns_body');
+    let tableHTML = '';
+    
+    // Add rows for the turns to display
+    for (const turn of turnsToDisplay) {
+      tableHTML += `<tr><td class="text-center">${turn.turn_number}</td>`;
       
-      if (game_data.turns.length > maxTurnsToShow) {
-        // Show only the last 10 turns
-        turnsToDisplay = game_data.turns.slice(-maxTurnsToShow);
-      }
-      
-      // Rebuild the turns table
-      const tbody = document.getElementById('turns_body');
-      let tableHTML = '';
-      
-      // Add rows for the turns to display
-      for (const turn of turnsToDisplay) {
-        tableHTML += `<tr><td class="text-center">${turn.turn_number}</td>`;
+      for (const player of game_data.players) {
+        tableHTML += `<td class="text-center" id="turn_${turn.turn_number}_player_${player.id}">`;
         
-        for (const player of game_data.players) {
-          tableHTML += `<td class="text-center" id="turn_${turn.turn_number}_player_${player.id}">`;
-          
-          // Find score for this player
-          const score = turn.scores.find(s => s.player_id === player.id);
-          if (score) {
+        // Find score for this player
+        const score = turn.scores.find(s => s.player_id === player.id);
+        if (score) {
+          // In Around the Clock mode, points represent the target number
+          if (score.points === 21) {
+            tableHTML += "BULL";
+          } else {
             tableHTML += score.points;
           }
-          
-          tableHTML += `</td>`;
+        }
+        
+        tableHTML += `</td>`;
+      }
+      
+      tableHTML += `</tr>`;
+    }
+    
+    // Add empty rows if we have fewer than 10 turns
+    if (turnsToDisplay.length < maxTurnsToShow) {
+      const nextTurnNumber = game_data.turns.length > 0 
+        ? Math.max(...game_data.turns.map(t => t.turn_number)) + 1 
+        : 1;
+      
+      for (let i = 0; i < maxTurnsToShow - turnsToDisplay.length; i++) {
+        const turnNumber = nextTurnNumber + i;
+        
+        tableHTML += `<tr><td class="text-center">${turnNumber}</td>`;
+        
+        for (const player of game_data.players) {
+          tableHTML += `<td class="text-center" id="turn_${turnNumber}_player_${player.id}"></td>`;
         }
         
         tableHTML += `</tr>`;
       }
-      
-      // Add empty rows if we have fewer than 10 turns
-      if (turnsToDisplay.length < maxTurnsToShow) {
-        const nextTurnNumber = game_data.turns.length > 0 
-          ? Math.max(...game_data.turns.map(t => t.turn_number)) + 1 
-          : 1;
-        
-        for (let i = 0; i < maxTurnsToShow - turnsToDisplay.length; i++) {
-          const turnNumber = nextTurnNumber + i;
-          
-          tableHTML += `<tr><td class="text-center">${turnNumber}</td>`;
-          
-          for (const player of game_data.players) {
-            tableHTML += `<td class="text-center" id="turn_${turnNumber}_player_${player.id}"></td>`;
-          }
-          
-          tableHTML += `</tr>`;
-        }
-      }
-      
-      // Update the table
-      tbody.innerHTML = tableHTML;
-    }
-  
-    // Function to update throws normally
-    function updateNormalThrows(game_data) {
-      // Update all throws
-      for (let i = 0; i < game_data.current_throws.length; i++) {
-        const throwData = game_data.current_throws[i];
-        const throwElement = document.getElementById(`throw${throwData.throw_number}_points`);
-        
-        // Only blink update if value has changed
-        if (throwElement && throwElement.textContent !== throwData.points.toString()) {
-          // Use a different color for zero values vs non-zero
-          const blinkColor = throwData.points > 0 ? '#00ff00' : '#333333';
-          blinkUpdate(throwElement, throwData.points.toString(), blinkColor);
-        }
-      }
     }
     
-    // Function to show a target hit notification
-    function showTargetHitNotification(duration = 3000) {
-      const targetHitBanner = document.getElementById('target-hit-banner');
+    // Update the table
+    tbody.innerHTML = tableHTML;
+  }
+
+  // Function to update throws normally
+  function updateNormalThrows(game_data) {
+    // Update all throws
+    for (let i = 0; i < game_data.current_throws.length; i++) {
+      const throwData = game_data.current_throws[i];
+      const throwElement = document.getElementById(`throw${throwData.throw_number}_points`);
       
-      if (targetHitBanner) {
-        targetHitBanner.style.visibility = 'visible';
-        
-        // Hide the banner after the duration
-        setTimeout(() => {
-          targetHitBanner.style.visibility = 'hidden';
-        }, duration);
+      // Only blink update if value has changed
+      if (throwElement && throwElement.textContent !== throwData.points.toString()) {
+        // Use a different color for zero values vs non-zero
+        const blinkColor = throwData.points > 0 ? '#00ff00' : '#333333';
+        blinkUpdate(throwElement, throwData.points.toString(), blinkColor);
       }
     }
+  }
   
-    // Handle Manual Override response for Around the Clock mode
-    window.handleManualOverrideResponse = function(data, manualOverrideModal) {
-      // We'll need to customize this for Around the Clock logic
-      manualOverrideModal.hide();
-      
-      // Refresh the game data regardless
-      fetch('/data_json')
-        .then(response => response.json())
-        .then(gameData => updateGame(gameData))
-        .catch(error => console.error('Error fetching data:', error));
-        
-      // Alert with throw information
-      alert(`Throw updated successfully! Score: ${data.score}, Points: ${data.points}`);
-    };
+  // Function to show a target hit notification
+  function showTargetHitNotification(duration = 3000) {
+    const targetHitBanner = document.getElementById('target-hit-banner');
     
-    // Function to update the game with new data
-    function updateGame(game_data) {
-      // Apply styling based on player count
-      updatePlayerCountStyle(game_data);
+    if (targetHitBanner) {
+      targetHitBanner.style.visibility = 'visible';
       
-      // Store current game data globally for delayed updates
-      window.currentGameData = game_data;
+      // Hide the banner after the duration
+      setTimeout(() => {
+        targetHitBanner.style.visibility = 'hidden';
+      }, duration);
+    }
+  }
+
+  // Handle Manual Override response for Around the Clock mode
+  window.handleManualOverrideResponse = function(data, manualOverrideModal) {
+    // We'll need to customize this for Around the Clock logic
+    manualOverrideModal.hide();
+    
+    // Refresh the game data regardless
+    fetch('/data_json')
+      .then(response => response.json())
+      .then(gameData => updateGame(gameData))
+      .catch(error => console.error('Error fetching data:', error));
       
-      // Update the last throw display
-      updateLastThrow(game_data.last_throw, game_data.players, game_data);
-      
-      // Check if game is over and update banner
-      if (game_data.game_over) {
-        // For Around the Clock, check animation state for the winner
-        if (game_data.animating && game_data.animation_type === 'win') {
-          const winner = game_data.players.find(player => player.id === game_data.current_player);
-          if (winner) {
-            // Set the winner's name in both banners
-            document.getElementById('winner-name').textContent = winner.name;
-            document.getElementById('winner-name-overlay').textContent = winner.name;
-            
-            // Show the overlay
-            document.getElementById('win-message-overlay').style.visibility = 'visible';
-            
-            // Highlight the winner's name and target in the table
-            const nameElement = document.getElementById(`player${winner.id}_name`);
-            const totalElement = document.getElementById(`player${winner.id}_total`);
-            
-            if (nameElement) {
-              nameElement.style.backgroundColor = 'rgba(40, 167, 69, 0.7)';
-              nameElement.style.color = 'white';
-              nameElement.style.fontWeight = 'bold';
-            }
-            
-            if (totalElement) {
-              totalElement.style.backgroundColor = 'rgba(40, 167, 69, 0.7)';
-              totalElement.style.color = 'white';
-              totalElement.style.fontWeight = 'bold';
-            }
+    // Alert with throw information
+    alert(`Throw updated successfully! Score: ${data.score}, Points: ${data.points}`);
+  };
+  
+  // Function to update the game with new data
+  function updateGame(game_data) {
+    // Apply styling based on player count
+    updatePlayerCountStyle(game_data);
+    
+    // Store current game data globally for delayed updates
+    window.currentGameData = game_data;
+    
+    // Update the last throw display
+    updateLastThrow(game_data.last_throw, game_data.players, game_data);
+    
+    // Check if game is over and update banner
+    if (game_data.game_over) {
+      // For Around the Clock, check animation state for the winner
+      if (game_data.animating && game_data.animation_type === 'win') {
+        const winner = game_data.players.find(player => player.id === game_data.current_player);
+        if (winner) {
+          // Set the winner's name in both banners
+          document.getElementById('winner-name').textContent = winner.name;
+          document.getElementById('winner-name-overlay').textContent = winner.name;
+          
+          // Show the overlay
+          document.getElementById('win-message-overlay').style.visibility = 'visible';
+          
+          // Highlight the winner's name and target in the table
+          const nameElement = document.getElementById(`player${winner.id}_name`);
+          const totalElement = document.getElementById(`player${winner.id}_total`);
+          
+          if (nameElement) {
+            nameElement.style.backgroundColor = 'rgba(40, 167, 69, 0.7)';
+            nameElement.style.color = 'white';
+            nameElement.style.fontWeight = 'bold';
+          }
+          
+          if (totalElement) {
+            totalElement.style.backgroundColor = 'rgba(40, 167, 69, 0.7)';
+            totalElement.style.color = 'white';
+            totalElement.style.fontWeight = 'bold';
           }
         }
-      } else {
-        document.getElementById('win-message-overlay').style.visibility = 'hidden';
       }
-      
-      // Handle animation based on type
-      if (game_data.animating) {
-        if (game_data.animation_type === 'target_hit') {
-          // Show target hit notification
-          showTargetHitNotification();
-          
-          // Continue with normal updates
-          updatePlayerHighlights(game_data);
-          updateScoreTable(game_data);
-          updateNormalThrows(game_data);
-        } else if (game_data.animation_type === 'third_throw') {
-          // For third throw animations, update normally
-          updatePlayerHighlights(game_data);
-          updateScoreTable(game_data);
-          updateNormalThrows(game_data);
-        } else if (game_data.animation_type === 'win') {
-          // Show game over banner for win animations
-          const winner = game_data.players.find(player => player.id === game_data.current_player);
-          if (winner) {
-            // Update both winner displays
-            document.getElementById('winner-name').textContent = winner.name;
-            document.getElementById('winner-name-overlay').textContent = winner.name;
-            document.getElementById('win-message-overlay').style.visibility = 'visible';
-          }
-          
-          // Find the winning throw
-          const throwNumber = game_data.throw_number;
-          const throwElement = document.getElementById(`throw${throwNumber}_points`);
-          
-          if (throwElement) {
-            // Check if we already started this animation
-            if (!window.animatingWin) {
-              window.animatingWin = true;
-              
-              // Set the throw to a gold color to indicate it's the winning throw
-              const winThrow = game_data.current_throws.find(t => t.throw_number === parseInt(throwNumber));
-              if (winThrow) {
-                throwElement.textContent = winThrow.points.toString();
-                throwElement.style.color = '#ffd700'; // Gold color
-              }
-              
-              // Update the rest of the UI
-              updatePlayerHighlights(game_data);
-              updateScoreTable(game_data);
-              
-              // Reset animation flag after a delay
-              setTimeout(() => {
-                window.animatingWin = false;
-              }, 3000);
-            }
-          }
-        }
-      } else {
-        // Standard non-animation updates
-        document.getElementById('target-hit-banner').style.visibility = 'hidden';
-        document.getElementById('target-hit-overlay').style.visibility = 'hidden';
+    } else {
+      document.getElementById('win-message-overlay').style.visibility = 'hidden';
+    }
+    
+    // Handle animation based on type
+    if (game_data.animating) {
+      if (game_data.animation_type === 'target_hit') {
+        // Show target hit notification
+        showTargetHitNotification();
         
-        // If we're not in an animation, update everything normally
-        if (!window.animatingWin) {
-          updatePlayerHighlights(game_data);
-          updateScoreTable(game_data);
-          updateNormalThrows(game_data);
+        // Continue with normal updates
+        updatePlayerHighlights(game_data);
+        updateScoreTable(game_data);
+        updateNormalThrows(game_data);
+      } else if (game_data.animation_type === 'third_throw') {
+        // For third throw animations, update normally
+        updatePlayerHighlights(game_data);
+        updateScoreTable(game_data);
+        updateNormalThrows(game_data);
+      } else if (game_data.animation_type === 'win') {
+        // Show game over banner for win animations
+        const winner = game_data.players.find(player => player.id === game_data.current_player);
+        if (winner) {
+          // Update both winner displays
+          document.getElementById('winner-name').textContent = winner.name;
+          document.getElementById('winner-name-overlay').textContent = winner.name;
+          document.getElementById('win-message-overlay').style.visibility = 'visible';
         }
+        
+        // Find the winning throw
+        const throwNumber = game_data.throw_number;
+        const throwElement = document.getElementById(`throw${throwNumber}_points`);
+        
+        if (throwElement) {
+          // Check if we already started this animation
+          if (!window.animatingWin) {
+            window.animatingWin = true;
+            
+            // Set the throw to a gold color to indicate it's the winning throw
+            const winThrow = game_data.current_throws.find(t => t.throw_number === parseInt(throwNumber));
+            if (winThrow) {
+              throwElement.textContent = winThrow.points.toString();
+              throwElement.style.color = '#ffd700'; // Gold color
+            }
+            
+            // Update the rest of the UI
+            updatePlayerHighlights(game_data);
+            updateScoreTable(game_data);
+            
+            // Reset animation flag after a delay
+            setTimeout(() => {
+              window.animatingWin = false;
+            }, 3000);
+          }
+        }
+      }
+    } else {
+      // Standard non-animation updates
+      document.getElementById('target-hit-banner').style.visibility = 'hidden';
+      document.getElementById('target-hit-overlay').style.visibility = 'hidden';
+      
+      // If we're not in an animation, update everything normally
+      if (!window.animatingWin) {
+        updatePlayerHighlights(game_data);
+        updateScoreTable(game_data);
+        updateNormalThrows(game_data);
       }
     }
-  </script>
+  }
+</script>
