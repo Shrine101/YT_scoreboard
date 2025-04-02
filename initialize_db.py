@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import time
+from datetime import datetime
 
 def initialize_database():
     """Initialize the game database by clearing existing tables and inserting new data."""
@@ -26,8 +27,12 @@ def initialize_database():
                 cursor.execute("DELETE FROM game_state")
                 cursor.execute("DELETE FROM turns")
                 cursor.execute("DELETE FROM players")
-                cursor.execute("DELETE FROM animation_state")  # New table
-                cursor.execute("DELETE FROM last_throw")  # Clear the last throw table
+                cursor.execute("DELETE FROM animation_state")
+                cursor.execute("DELETE FROM last_throw")
+                cursor.execute("DELETE FROM game_config")
+                # Clear game-specific tables
+                cursor.execute("DELETE FROM cricket_scores")
+                cursor.execute("DELETE FROM around_clock_progress")
             else:
                 print("Creating tables...")
                 # Create tables
@@ -112,18 +117,50 @@ def initialize_database():
                 )
                 ''')
                 
+                # Game config table with game_mode and processor_mode columns
+                cursor.execute('''
+                CREATE TABLE game_config (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    player_count INTEGER,
+                    game_mode TEXT DEFAULT '301',
+                    processor_mode TEXT DEFAULT 'classic'
+                )
+                ''')
+                
+                # Create cricket_scores table for American Cricket game mode
+                cursor.execute('''
+                CREATE TABLE cricket_scores (
+                    player_id INTEGER,
+                    number INTEGER,  -- 15-20 and 25 for bullseye
+                    marks INTEGER DEFAULT 0,
+                    points INTEGER DEFAULT 0,
+                    closed BOOLEAN DEFAULT 0,
+                    PRIMARY KEY (player_id, number),
+                    FOREIGN KEY (player_id) REFERENCES players(id)
+                )
+                ''')
+                
+                # Create around_clock_progress table for Around the Clock game mode
+                cursor.execute('''
+                CREATE TABLE around_clock_progress (
+                    player_id INTEGER PRIMARY KEY,
+                    current_number INTEGER DEFAULT 1,
+                    completed BOOLEAN DEFAULT 0,
+                    last_update TIMESTAMP,
+                    FOREIGN KEY (player_id) REFERENCES players(id)
+                )
+                ''')
+                
                 print("Tables created successfully.")
             
             # Insert initial data
             print("Inserting initial data...")
             
             # Insert players
-            cursor.executemany('INSERT INTO players (id, name, total_score) VALUES (?, ?, ?)', [
-                (1, 'Player 1', 301),
-                (2, 'Player 2', 301),
-                (3, 'Player 3', 301),
-                (4, 'Player 4', 301)
-            ])
+            players_to_insert = []
+            for i in range(1, 5):  # Default to 4 players initially
+                players_to_insert.append((i, f'Player {i}', 301))
+            cursor.executemany('INSERT INTO players (id, name, total_score) VALUES (?, ?, ?)', players_to_insert)
             
             # Insert first turn
             cursor.execute('INSERT INTO turns (turn_number) VALUES (?)', (1,))
@@ -151,6 +188,38 @@ def initialize_database():
                 (id, score, multiplier, points, player_id)
                 VALUES (1, 0, 0, 0, NULL)
             ''')
+            
+            # Insert game config with default player count, game mode, and processor mode
+            cursor.execute('''
+                INSERT INTO game_config
+                (id, player_count, game_mode, processor_mode)
+                VALUES (1, 4, '301', 'classic')
+            ''')
+            
+            # Initialize cricket_scores for all players (numbers 15-20 and bullseye 25)
+            cricket_numbers = [15, 16, 17, 18, 19, 20, 25]  # Standard cricket numbers
+            cricket_data = []
+            for player_id in range(1, 5):  # For all 4 default players
+                for number in cricket_numbers:
+                    cricket_data.append((player_id, number, 0, 0, 0))
+            
+            cursor.executemany('''
+                INSERT INTO cricket_scores
+                (player_id, number, marks, points, closed)
+                VALUES (?, ?, ?, ?, ?)
+            ''', cricket_data)
+            
+            # Initialize around_clock_progress for all players
+            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            around_clock_data = []
+            for player_id in range(1, 5):  # For all 4 default players
+                around_clock_data.append((player_id, 1, 0, current_time))
+            
+            cursor.executemany('''
+                INSERT INTO around_clock_progress
+                (player_id, current_number, completed, last_update)
+                VALUES (?, ?, ?, ?)
+            ''', around_clock_data)
             
             # Commit changes and close connection
             conn.commit()

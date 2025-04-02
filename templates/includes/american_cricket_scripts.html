@@ -1,0 +1,494 @@
+<script>
+  // Function to resize the NUMBER header text to fill 75% of its container width
+  function adjustNumberHeaderSize() {
+    // Get the NUMBER header element
+    const numberHeader = document.querySelector('#cricketTable thead th:first-child');
+    if (!numberHeader) return;
+    
+    // Get the width of the container
+    const containerWidth = numberHeader.offsetWidth;
+    
+    // Create a temporary span to measure text width at various font sizes
+    const tempSpan = document.createElement('span');
+    tempSpan.textContent = 'NUMBER';
+    tempSpan.style.visibility = 'hidden';
+    tempSpan.style.position = 'absolute';
+    tempSpan.style.whiteSpace = 'nowrap';
+    document.body.appendChild(tempSpan);
+    
+    // Start with current font size or 24px as baseline
+    let currentSize = parseInt(window.getComputedStyle(numberHeader).fontSize) || 24;
+    let targetRatio = 0.75; // Target to fill 75% of container width
+    let minSize = 16; // Don't go smaller than this
+    let maxSize = 60; // Don't go larger than this
+    
+    // Binary search to find the best font size
+    let low = minSize;
+    let high = maxSize;
+    let bestSize = currentSize;
+    
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      tempSpan.style.fontSize = `${mid}px`;
+      const textWidth = tempSpan.offsetWidth;
+      const ratio = textWidth / containerWidth;
+      
+      // If we're within 5% of target, consider it good enough
+      if (Math.abs(ratio - targetRatio) < 0.05) {
+        bestSize = mid;
+        break;
+      }
+      
+      if (ratio < targetRatio) {
+        low = mid + 1;
+        bestSize = mid; // This size still fits, so it's a candidate
+      } else {
+        high = mid - 1;
+      }
+    }
+    
+    // Apply the best size
+    numberHeader.style.fontSize = `${bestSize}px`;
+    
+    // Clean up
+    document.body.removeChild(tempSpan);
+  }
+
+  // Helper function to get mark symbol
+  function getMarkSymbol(marks) {
+    if (marks === 0) return '';
+    if (marks === 1) return 'X';
+    if (marks === 2) return 'XX';
+    if (marks === 3) return 'XXX';
+    return '';
+  }
+  
+  // Function to check if game is over (all numbers closed by more than one player)
+  function checkGameOver(cricketData) {
+    const cricket_numbers = [15, 16, 17, 18, 19, 20, 25]; // 25 is bullseye
+    let allNumbersClosed = true;
+    
+    // For each cricket number, check if at least 2 players have closed it
+    for (const number of cricket_numbers) {
+      let closedCount = 0;
+      
+      // Count how many players have closed this number
+      for (const playerId in cricketData) {
+        const playerData = cricketData[playerId];
+        if (playerData && playerData.numbers && playerData.numbers[number] && playerData.numbers[number].closed) {
+          closedCount++;
+        }
+      }
+      
+      // If this number doesn't have at least 2 closures, game is not over
+      if (closedCount < 2) {
+        allNumbersClosed = false;
+        break;
+      }
+    }
+    
+    return allNumbersClosed;
+  }
+  
+  // Function to find winner (player with highest score)
+  function findWinner(cricketData) {
+    let highestScore = -1;
+    let winnerId = null;
+    
+    // Find player with highest score
+    for (const playerId in cricketData) {
+      const playerData = cricketData[playerId];
+      const playerScore = playerData.total_points || 0;
+      
+      if (playerScore > highestScore) {
+        highestScore = playerScore;
+        winnerId = playerId;
+      }
+    }
+    
+    return { 
+      id: winnerId, 
+      score: highestScore 
+    };
+  }
+  
+  // Function to update cricket scoreboard
+  function updateCricketScoreboard(game_data) {
+    // First fetch the cricket scores from the database
+    fetch('/get_cricket_scores')
+      .then(response => response.json())
+      .then(cricketData => {
+        const cricket_numbers = [15, 16, 17, 18, 19, 20, 25]; // 25 is bullseye
+        
+        // Check if the game should be over (all numbers closed by at least 2 players)
+        const isGameOver = checkGameOver(cricketData);
+        
+        // If game is over but not marked as such in game_data
+        if (isGameOver && !game_data.game_over) {
+          const winner = findWinner(cricketData);
+          
+          // Display winner message
+          if (winner.id) {
+            const winnerName = cricketData[winner.id].name;
+            
+            // Set the winner's name in both banners
+            document.getElementById('winner-name').textContent = winnerName;
+            document.getElementById('winner-name-overlay').textContent = winnerName;
+            
+            // Show the overlay
+            document.getElementById('win-message-overlay').style.visibility = 'visible';
+            
+            // Highlight the winner's name and score in the table
+            const nameElement = document.getElementById(`player${winner.id}_name`);
+            const totalElement = document.getElementById(`player${winner.id}_total`);
+            
+            if (nameElement) {
+              nameElement.style.backgroundColor = 'rgba(40, 167, 69, 0.7)';
+              nameElement.style.color = 'white';
+              nameElement.style.fontWeight = 'bold';
+            }
+            
+            if (totalElement) {
+              totalElement.style.backgroundColor = 'rgba(40, 167, 69, 0.7)';
+              totalElement.style.color = 'white';
+              totalElement.style.fontWeight = 'bold';
+            }
+            
+            console.log(`Game over! Winner: ${winnerName} with ${winner.score} points`);
+          }
+        }
+        
+        // For each number, update all cells
+        for (const number of cricket_numbers) {
+          // Analyze number state - who has closed it?
+          let closedCount = 0;
+          
+          for (const playerId in cricketData) {
+            const playerData = cricketData[playerId];
+            if (playerData && playerData.numbers && playerData.numbers[number]) {
+              const numberData = playerData.numbers[number];
+              
+              if (numberData.closed) {
+                closedCount++;
+              }
+            }
+          }
+          
+          // Update number text color based on state
+          const numberText = document.getElementById(`number_${number}`);
+          if (numberText) {
+            // Remove all classes first
+            numberText.classList.remove('single-owner', 'closed');
+            
+            if (closedCount === 0) {
+              // Number is open to all - white text (default)
+            } else if (closedCount === 1) {
+              // One player has closed the number - green text
+              numberText.classList.add('single-owner');
+            } else {
+              // Multiple players have closed - red text
+              numberText.classList.add('closed');
+            }
+          }
+          
+          // Update each player's marks for this number
+          for (const player of game_data.players) {
+            const cellId = `player${player.id}_number_${number}`;
+            const cell = document.getElementById(cellId);
+            
+            if (cell) {
+              // Get this player's data for this number
+              const playerData = cricketData[player.id];
+              if (playerData && playerData.numbers && playerData.numbers[number]) {
+                const numberData = playerData.numbers[number];
+                const marks = numberData.marks || 0;
+                const closed = numberData.closed || false;
+                
+                // Create the content for the cell
+                if (closed) {
+                  cell.innerHTML = `<span class="cricket-closed">XXX</span>`;
+                  cell.classList.add('number-closed');
+                } else {
+                  cell.textContent = getMarkSymbol(marks);
+                  cell.classList.remove('number-closed');
+                }
+              } else {
+                cell.textContent = '';
+              }
+            }
+          }
+        }
+        
+        // Highlight current player
+        for (const player of game_data.players) {
+          const nameElement = document.getElementById(`player${player.id}_name`);
+          if (nameElement) {
+            if (player.id === game_data.current_player) {
+              nameElement.classList.add('active-player');
+            } else {
+              nameElement.classList.remove('active-player');
+            }
+          }
+        }
+        
+        // Update player total scores
+        for (const player of game_data.players) {
+          const totalElement = document.getElementById(`player${player.id}_total`);
+          if (totalElement) {
+            // Use the score from cricket data if available (more accurate)
+            const playerCricketData = cricketData[player.id];
+            if (playerCricketData) {
+              totalElement.textContent = playerCricketData.total_points || 0;
+            } else {
+              totalElement.textContent = player.total_score;
+            }
+          }
+        }
+        
+        // Apply the NUMBER header font sizing
+        adjustNumberHeaderSize();
+      })
+      .catch(error => {
+        console.error('Error fetching cricket scores:', error);
+      });
+  }
+
+  // Function to update throws
+  function updateNormalThrows(game_data) {
+    // Update all throws
+    for (let i = 0; i < game_data.current_throws.length; i++) {
+      const throwData = game_data.current_throws[i];
+      const throwElement = document.getElementById(`throw${throwData.throw_number}_points`);
+      
+      // Only blink update if value has changed
+      if (throwElement && throwElement.textContent !== throwData.points.toString()) {
+        // Use a different color for zero values vs non-zero
+        const blinkColor = throwData.points > 0 ? '#00ff00' : '#333333';
+        blinkUpdate(throwElement, throwData.points.toString(), blinkColor);
+      }
+    }
+  }
+  
+  // Function to show a cricket notification
+  function showCricketNotification(type, duration = 3000) {
+    const cricketBanner = document.getElementById('cricket-banner');
+    const numberClosedOverlay = document.getElementById('number-closed-overlay');
+    
+    if (type === 'closed') {
+      if (cricketBanner) cricketBanner.style.visibility = 'visible';
+      // Only show the green notification (cricket-banner), not the blue overlay
+    }
+    
+    // Hide the banner after the duration
+    setTimeout(() => {
+      if (cricketBanner) cricketBanner.style.visibility = 'hidden';
+      if (numberClosedOverlay) numberClosedOverlay.style.visibility = 'hidden';
+    }, duration);
+  }
+
+  // Handle Manual Override response for American Cricket mode
+  window.handleManualOverrideResponse = function(data, manualOverrideModal) {
+    manualOverrideModal.hide();
+    
+    // Refresh the game data regardless
+    fetch('/data_json')
+      .then(response => response.json())
+      .then(gameData => updateGame(gameData))
+      .catch(error => console.error('Error fetching data:', error));
+      
+    // Alert with throw information
+    alert(`Throw updated successfully! Score: ${data.score}, Points: ${data.points}`);
+  };
+  
+  // Function to update the game with new data
+  function updateGame(game_data) {
+    // Apply styling based on player count
+    updatePlayerCountStyle(game_data);
+    
+    // Store current game data globally for delayed updates
+    window.currentGameData = game_data;
+    
+    // Update the last throw display
+    updateLastThrow(game_data.last_throw, game_data.players, game_data);
+    
+    // Check if game is over and update banner
+    if (game_data.game_over) {
+      // For Cricket, check animation state for the winner
+      if (game_data.animating && game_data.animation_type === 'win') {
+        const winner = game_data.players.find(player => player.id === game_data.current_player);
+        if (winner) {
+          // Set the winner's name in both banners
+          document.getElementById('winner-name').textContent = winner.name;
+          document.getElementById('winner-name-overlay').textContent = winner.name;
+          
+          // Show the overlay
+          document.getElementById('win-message-overlay').style.visibility = 'visible';
+          
+          // Highlight the winner's name and score in the table
+          const nameElement = document.getElementById(`player${winner.id}_name`);
+          const totalElement = document.getElementById(`player${winner.id}_total`);
+          
+          if (nameElement) {
+            nameElement.style.backgroundColor = 'rgba(40, 167, 69, 0.7)';
+            nameElement.style.color = 'white';
+            nameElement.style.fontWeight = 'bold';
+          }
+          
+          if (totalElement) {
+            totalElement.style.backgroundColor = 'rgba(40, 167, 69, 0.7)';
+            totalElement.style.color = 'white';
+            totalElement.style.fontWeight = 'bold';
+          }
+        }
+      }
+    } else {
+      document.getElementById('win-message-overlay').style.visibility = 'hidden';
+    }
+    
+    // Handle animation based on type
+    if (game_data.animating) {
+      if (game_data.animation_type === 'cricket_closed') {
+        // Show number closed notification
+        showCricketNotification('closed');
+        
+        // Update cricket scoreboard
+        updateCricketScoreboard(game_data);
+        updateNormalThrows(game_data);
+      } 
+      else if (game_data.animation_type === 'cricket_marks' || game_data.animation_type === 'cricket_points') {
+        // Update normally for marks or points (not third throw)
+        updateCricketScoreboard(game_data);
+        updateNormalThrows(game_data);
+      } 
+      else if (game_data.animation_type === 'third_throw') {
+        // IMPORTANT: Check if this third throw also had a cricket event
+        const cricketEvent = game_data.cricket_event;
+        
+        // If this was a cricket closed event, show the notification
+        if (cricketEvent === 'cricket_closed') {
+          showCricketNotification('closed');
+        }
+        
+        // For third throw animations, only update the throw display initially
+        // and delay the scoreboard update - similar to classic mode
+        const thirdThrow = game_data.current_throws.find(t => t.throw_number === 3);
+        if (thirdThrow) {
+          const throwElement = document.getElementById(`throw3_points`);
+          if (throwElement) {
+            // Check if we already started this animation
+            if (!window.animatingThirdThrow) {
+              window.animatingThirdThrow = true;
+              
+              // Set the throw immediately to the new value but with green color
+              throwElement.textContent = thirdThrow.points.toString();
+              throwElement.style.color = '#00ff00';
+              
+              // Also update other throws without blinking (but don't update scoreboard yet)
+              for (let i = 1; i <= 2; i++) {
+                const throw_data = game_data.current_throws.find(t => t.throw_number === i);
+                if (throw_data) {
+                  const element = document.getElementById(`throw${i}_points`);
+                  if (element) {
+                    element.textContent = throw_data.points.toString();
+                  }
+                }
+              }
+              
+              // After 2 seconds, reset the color back to black
+              setTimeout(() => {
+                throwElement.style.color = '#000000';
+                
+                // After another brief delay, update the rest of the UI
+                setTimeout(() => {
+                  // Update cricket scoreboard
+                  updateCricketScoreboard(game_data);
+                  
+                  // Reset animation flag
+                  window.animatingThirdThrow = false;
+                }, 500); // 500ms after color change (total 2.5s)
+              }, 2000); // 2s for the green highlight
+            }
+          }
+        }
+      } 
+      else if (game_data.animation_type === 'win') {
+        // Show game over banner for win animations
+        const winner = game_data.players.find(player => player.id === game_data.current_player);
+        if (winner) {
+          // Update both winner displays
+          document.getElementById('winner-name').textContent = winner.name;
+          document.getElementById('winner-name-overlay').textContent = winner.name;
+          document.getElementById('win-message-overlay').style.visibility = 'visible';
+        }
+        
+        // Find the winning throw
+        const throwNumber = game_data.throw_number;
+        const throwElement = document.getElementById(`throw${throwNumber}_points`);
+        
+        if (throwElement) {
+          // Check if we already started this animation
+          if (!window.animatingWin) {
+            window.animatingWin = true;
+            
+            // Set the throw to a gold color to indicate it's the winning throw
+            const winThrow = game_data.current_throws.find(t => t.throw_number === parseInt(throwNumber));
+            if (winThrow) {
+              throwElement.textContent = winThrow.points.toString();
+              throwElement.style.color = '#ffd700'; // Gold color
+            }
+            
+            // Update the cricket scoreboard
+            updateCricketScoreboard(game_data);
+            
+            // Reset animation flag after a delay
+            setTimeout(() => {
+              window.animatingWin = false;
+            }, 3000);
+          }
+        }
+      }
+    } else {
+      // Standard non-animation updates
+      document.getElementById('cricket-banner').style.visibility = 'hidden';
+      document.getElementById('number-closed-overlay').style.visibility = 'hidden';
+      
+      // If we're not in an animation, update everything normally
+      if (!window.animatingThirdThrow && !window.animatingWin) {
+        updateCricketScoreboard(game_data);
+        updateNormalThrows(game_data);
+      }
+    }
+    
+    // Apply the NUMBER header font sizing after all updates
+    setTimeout(adjustNumberHeaderSize, 100);
+  }
+
+  // Add style for cricket marks
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add style for cricket closed numbers
+    const style = document.createElement('style');
+    style.textContent = `
+      .cricket-closed {
+        color: #28a745;
+        font-weight: bold;
+      }
+      .number-closed {
+        background-color: rgba(0, 0, 0, 0.1);
+      }
+    `;
+    document.head.appendChild(style);
+    
+    // Apply the NUMBER header font sizing on load
+    adjustNumberHeaderSize();
+    
+    // Also apply when window is resized
+    window.addEventListener('resize', adjustNumberHeaderSize);
+    
+    // Initialize animation state flags
+    window.animatingThirdThrow = false;
+    window.animatingWin = false;
+    
+    // Start polling for updates
+    updateGame(window.currentGameData || {});
+  });
+</script>

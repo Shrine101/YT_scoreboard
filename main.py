@@ -11,18 +11,46 @@ from datetime import datetime
 
 
 app = Flask(__name__)
+app.secret_key = os.urandom(24)  # Add secret key for flash messages
 dart_processor = None  # Define the global variable
 ANIMATION_DURATION = 3.0  # Animation duration in seconds
 
-def start_dart_processor():
-    """Start the dart processor as a separate process"""
+dart_processor = None
+
+def start_dart_processor(game_mode='classic'):
+    """Start the appropriate dart processor as a separate process based on game mode
+    
+    Args:
+        game_mode (str): The game mode to start processor for ('classic', 'cricket', or 'around_clock')
+    """
     global dart_processor
-    print("Starting dart processor...")
-    dart_processor = subprocess.Popen(['python', 'dart_processor.py'])
+    
+    # Stop any existing dart processor first
+    stop_dart_processor()
+    
+    # Map game mode to the correct processor script
+    processor_scripts = {
+        'classic': 'dart_processor_classic.py',
+        'cricket': 'dart_processor_american_cricket.py',
+        'around_clock': 'dart_processor_around_the_clock.py'
+    }
+    
+    # Get the script for the selected game mode, defaulting to classic if not found
+    processor_script = processor_scripts.get(game_mode, 'dart_processor_classic.py')
+    
+    print(f"Starting dart processor for {game_mode} game mode...")
+    
+    # Check if the script file exists
+    if not os.path.exists(processor_script):
+        print(f"Warning: {processor_script} not found. Falling back to classic mode.")
+        processor_script = 'dart_processor_classic.py'
+    
+    # Start the appropriate processor
+    dart_processor = subprocess.Popen(['python', processor_script])
     print(f"Dart processor started with PID {dart_processor.pid}")
 
 def stop_dart_processor():
-    """Clean up dart processor when app shuts down"""
+    """Clean up dart processor when app shuts down or when changing game modes"""
     global dart_processor
     if dart_processor is not None:
         print(f"Stopping dart processor (PID {dart_processor.pid})...")
@@ -35,6 +63,7 @@ def stop_dart_processor():
             print("Dart processor didn't terminate, forcing kill...")
             dart_processor.kill()
         print("Dart processor stopped")
+        dart_processor = None
 
 def get_db_connection():
     """Create a connection to the SQLite database"""
@@ -42,15 +71,38 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row  # This enables column access by name
     return conn
     
-def initialize_game_with_custom_names(player_names, starting_score=301):
-    """Initialize the game database but preserve custom player names.
+def initialize_game_with_custom_names(player_names, starting_score=301, game_mode=None):
+    """Initialize the game database with custom player names.
     
     Args:
         player_names (dict): Dictionary mapping player IDs to names.
         starting_score (int): Starting score for the game (e.g., 301, 501)
+        game_mode (str, optional): Game mode to initialize. If None, will use the score.
     """
     conn = sqlite3.connect('game.db')
     cursor = conn.cursor()
+    
+    # Get player count
+    player_count = len(player_names)
+    
+    # If game_mode is not specified, determine from starting_score
+    if game_mode is None:
+        if starting_score == 301:
+            game_mode = '301'
+        elif starting_score == 501:
+            game_mode = '501'
+        elif starting_score == 0:
+            # Default for other games
+            game_mode = 'cricket'  # Default to cricket if not specified
+    
+    # Determine processor mode based on game mode
+    processor_mode = 'classic'
+    if game_mode in ['301', '501']:
+        processor_mode = 'classic'
+    elif game_mode == 'cricket':
+        processor_mode = 'cricket'
+    elif game_mode == 'around_clock':
+        processor_mode = 'around_clock'
     
     try:
         # Clear existing data first
@@ -60,10 +112,32 @@ def initialize_game_with_custom_names(player_names, starting_score=301):
         cursor.execute("DELETE FROM turns")
         cursor.execute("DELETE FROM animation_state")
         
+        # Clear game mode specific tables
+        if game_mode == 'cricket':
+            cursor.execute("DELETE FROM cricket_scores")
+        elif game_mode == 'around_clock':
+            cursor.execute("DELETE FROM around_clock_progress")
+        
         # Reset player scores but keep names
         for player_id, name in player_names.items():
-            cursor.execute('UPDATE players SET total_score = ? WHERE id = ?', 
-                          (starting_score, player_id))
+            # Check if player exists
+            cursor.execute('SELECT 1 FROM players WHERE id = ?', (player_id,))
+            if cursor.fetchone():
+                # Update existing player
+                cursor.execute('UPDATE players SET name = ?, total_score = ? WHERE id = ?', 
+                              (name, starting_score, player_id))
+            else:
+                # Insert new player
+                cursor.execute('INSERT INTO players (id, name, total_score) VALUES (?, ?, ?)', 
+                              (player_id, name, starting_score))
+                              
+        # Remove any players that are no longer needed
+        cursor.execute('DELETE FROM players WHERE id > ?', (player_count,))
+        
+        # Store player count, game mode, and processor mode in config
+        cursor.execute('CREATE TABLE IF NOT EXISTS game_config (id INTEGER PRIMARY KEY CHECK (id = 1), player_count INTEGER, game_mode TEXT, processor_mode TEXT)')
+        cursor.execute('INSERT OR REPLACE INTO game_config (id, player_count, game_mode, processor_mode) VALUES (1, ?, ?, ?)', 
+                      (player_count, game_mode, processor_mode))
         
         # Insert first turn
         cursor.execute('INSERT INTO turns (turn_number) VALUES (?)', (1,))
@@ -85,9 +159,38 @@ def initialize_game_with_custom_names(player_names, starting_score=301):
             VALUES (1, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
         ''')
         
+        # Insert last throw data (empty)
+        cursor.execute('''
+            INSERT OR REPLACE INTO last_throw
+            (id, score, multiplier, points, player_id)
+            VALUES (1, 0, 0, 0, NULL)
+        ''')
+        
+        # Initialize game-specific tables
+        if game_mode == 'cricket':
+            # Initialize cricket_scores table for American Cricket
+            cricket_numbers = [15, 16, 17, 18, 19, 20, 25]  # Traditional cricket numbers (25 is bullseye)
+            for player_id in player_names:
+                for number in cricket_numbers:
+                    cursor.execute('''
+                        INSERT OR REPLACE INTO cricket_scores
+                        (player_id, number, marks, points, closed)
+                        VALUES (?, ?, 0, 0, 0)
+                    ''', (player_id, number))
+                    
+        elif game_mode == 'around_clock':
+            # Initialize around_clock_progress table
+            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            for player_id in player_names:
+                cursor.execute('''
+                    INSERT OR REPLACE INTO around_clock_progress
+                    (player_id, current_number, completed, last_update)
+                    VALUES (?, 1, 0, ?)
+                ''', (player_id, current_time))
+        
         # Commit changes
         conn.commit()
-        print(f"Game reinitialized with custom player names and starting score: {starting_score}")
+        print(f"Game reinitialized with {player_count} players, game mode: {game_mode}, processor mode: {processor_mode}")
         
     except sqlite3.Error as e:
         print(f"Error initializing game with custom names: {e}")
@@ -98,6 +201,17 @@ def get_player_score_before_turn(conn, player_id, turn_number):
     """Get a player's score before a specific turn"""
     cursor = conn.cursor()
     
+    # Get the game mode (starting score) from the game_config table
+    cursor.execute('SELECT game_mode FROM game_config WHERE id = 1')
+    result = cursor.fetchone()
+    starting_score = 301  # Default to 301
+    if result and result['game_mode']:
+        try:
+            starting_score = int(result['game_mode'])
+        except ValueError:
+            # If game_mode is not an integer, default to 301
+            starting_score = 301
+    
     # Get the total points scored by this player before this turn (excluding busted turns)
     cursor.execute(
         'SELECT SUM(points) as total_points FROM turn_scores WHERE player_id = ? AND turn_number < ? AND bust = 0',
@@ -106,8 +220,8 @@ def get_player_score_before_turn(conn, player_id, turn_number):
     
     total_previous_points = cursor.fetchone()['total_points'] or 0
     
-    # Calculate the score before this turn (301 - previous points)
-    score_before_turn = 301 - total_previous_points
+    # Calculate the score before this turn (starting_score - previous points)
+    score_before_turn = starting_score - total_previous_points
     
     return score_before_turn
 
@@ -156,6 +270,17 @@ def recalculate_player_scores(conn):
     cursor.execute('SELECT id FROM players')
     players = cursor.fetchall()
     
+    # Get the game mode (starting score) from the game_config table
+    cursor.execute('SELECT game_mode FROM game_config WHERE id = 1')
+    result = cursor.fetchone()
+    starting_score = 301  # Default to 301
+    if result and result['game_mode']:
+        try:
+            starting_score = int(result['game_mode'])
+        except ValueError:
+            # If game_mode is not an integer, default to 301
+            starting_score = 301
+    
     # Track if any player has a winning score
     any_player_won = False
     
@@ -169,8 +294,8 @@ def recalculate_player_scores(conn):
         )
         total_points = cursor.fetchone()['total_points'] or 0
         
-        # Update player's score (301 - total points)
-        new_score = 301 - total_points
+        # Update player's score (starting_score - total points)
+        new_score = starting_score - total_points
         cursor.execute(
             'UPDATE players SET total_score = ? WHERE id = ?',
             (new_score, player_id)
@@ -210,14 +335,19 @@ def home():
 
 @app.route('/start_game', methods=['POST'])
 def start_game():
-    """Process the player names and start the game"""
+    """Process the player names and redirect to game selection"""
+    # Get player count from form
+    player_count = int(request.form.get('player_count', 4))
+    
+    # Validate player count
+    if player_count < 1 or player_count > 8:
+        player_count = 4  # Default to 4 if invalid
+    
     # Get player names from the form
-    player_names = {
-        1: request.form.get('player1', '').strip() or 'Player 1',
-        2: request.form.get('player2', '').strip() or 'Player 2',
-        3: request.form.get('player3', '').strip() or 'Player 3',
-        4: request.form.get('player4', '').strip() or 'Player 4'
-    }
+    player_names = {}
+    for i in range(1, player_count + 1):
+        name = request.form.get(f'player{i}', '').strip() or f'Player {i}'
+        player_names[i] = name
     
     # Check if we should reset scores
     reset_scores = request.form.get('reset_scores') == 'on'
@@ -227,41 +357,248 @@ def start_game():
     cursor = conn.cursor()
     
     try:
-        # Update each player's name
-        for player_id, name in player_names.items():
-            cursor.execute('UPDATE players SET name = ? WHERE id = ?', (name, player_id))
+        # Clear existing players if we're changing player count
+        current_player_count_result = cursor.execute('SELECT COUNT(*) as count FROM players').fetchone()
+        current_player_count = current_player_count_result['count'] if current_player_count_result else 0
         
-        # If reset_scores is checked, reinitialize the database
-        if reset_scores:
-            # Commit the player name updates first
-            conn.commit()
-            conn.close()
+        if current_player_count != player_count:
+            # Player count has changed, we need to reset the players table
+            cursor.execute("DELETE FROM players")
+            reset_scores = True  # Force a reset when player count changes
             
-            # Reinitialize the database but preserve player names
-            initialize_game_with_custom_names(player_names)
+            # Insert new players
+            for player_id, name in player_names.items():
+                cursor.execute('INSERT INTO players (id, name, total_score) VALUES (?, ?, ?)', 
+                              (player_id, name, 301))  # Default to 301
         else:
-            # Just commit the name changes
-            conn.commit()
-            conn.close()
-            
+            # Just update names for existing players
+            for player_id, name in player_names.items():
+                cursor.execute('UPDATE players SET name = ? WHERE id = ?', (name, player_id))
+        
+        # Store player count in game_config table
+        cursor.execute('CREATE TABLE IF NOT EXISTS game_config (id INTEGER PRIMARY KEY CHECK (id = 1), player_count INTEGER, game_mode TEXT)')
+        cursor.execute('INSERT OR REPLACE INTO game_config (id, player_count) VALUES (1, ?)', (player_count,))
+        
+        # Commit the changes
+        conn.commit()
+        
     except sqlite3.Error as e:
         print(f"Database error: {e}")
+    finally:
         conn.close()
     
-    # Redirect to the game page
+    # Instead of initializing the game directly, pass the data to game_selection
+    return render_template('game_selection.html', 
+                          player_names=player_names, 
+                          player_count=player_count,
+                          reset_scores=reset_scores)
+
+@app.route('/start_game_301', methods=['POST'])
+def start_game_301():
+    """Initialize 301 game with the provided player names"""
+    player_count = int(request.form.get('player_count', 4))
+    reset_scores = request.form.get('reset_scores') == 'on'
+    
+    # Get player names from the form
+    player_names = {}
+    for i in range(1, player_count + 1):
+        name = request.form.get(f'player{i}', '').strip() or f'Player {i}'
+        player_names[i] = name
+    
+    # If reset_scores is checked, reinitialize the database
+    if reset_scores:
+        # Reinitialize the database with custom player names and 301 starting score
+        initialize_game_with_custom_names(player_names, starting_score=301, game_mode='301')
+    else:
+        # Just update the game mode in the config
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Update game mode in config
+        cursor.execute('UPDATE game_config SET game_mode = ?, processor_mode = ? WHERE id = 1', ('301', 'classic'))
+        
+        # IMPORTANT: Also update all player scores to 301 even when not resetting
+        for player_id, name in player_names.items():
+            cursor.execute('UPDATE players SET name = ?, total_score = ? WHERE id = ?', 
+                          (name, 301, player_id))
+                          
+        conn.commit()
+        conn.close()
+    
+    # Start the classic dart processor
+    start_dart_processor(game_mode='classic')
+    
+    flash('301 game has been started!', 'success')
+    return redirect(url_for('game'))
+
+@app.route('/start_game_501', methods=['POST'])
+def start_game_501():
+    """Initialize 501 game with the provided player names"""
+    player_count = int(request.form.get('player_count', 4))
+    reset_scores = request.form.get('reset_scores') == 'on'
+    
+    # Get player names from the form
+    player_names = {}
+    for i in range(1, player_count + 1):
+        name = request.form.get(f'player{i}', '').strip() or f'Player {i}'
+        player_names[i] = name
+    
+    # If reset_scores is checked, reinitialize the database
+    if reset_scores:
+        # Reinitialize the database with custom player names and 501 starting score
+        initialize_game_with_custom_names(player_names, starting_score=501, game_mode='501')
+    else:
+        # Just update the game mode in the config
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Update game mode in config
+        cursor.execute('UPDATE game_config SET game_mode = ?, processor_mode = ? WHERE id = 1', ('501', 'classic'))
+        
+        # IMPORTANT: Also update all player scores to 501 even when not resetting
+        for player_id, name in player_names.items():
+            cursor.execute('UPDATE players SET name = ?, total_score = ? WHERE id = ?', 
+                          (name, 501, player_id))
+                          
+        conn.commit()
+        conn.close()
+    
+    # Start the classic dart processor
+    start_dart_processor(game_mode='classic')
+    
+    flash('501 game has been started!', 'success')
+    return redirect(url_for('game'))
+
+@app.route('/start_game_cricket', methods=['POST'])
+def start_game_cricket():
+    """Initialize American Cricket game with the provided player names"""
+    player_count = int(request.form.get('player_count', 4))
+    reset_scores = request.form.get('reset_scores') == 'on'
+    
+    # Get player names from the form
+    player_names = {}
+    for i in range(1, player_count + 1):
+        name = request.form.get(f'player{i}', '').strip() or f'Player {i}'
+        player_names[i] = name
+    
+    # If reset_scores is checked, reinitialize the database
+    if reset_scores:
+        # Reinitialize the database with custom player names
+        initialize_game_with_custom_names(player_names, starting_score=0, game_mode='cricket')
+    else:
+        # Just update the game mode in the config
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Update game mode in config
+        cursor.execute('UPDATE game_config SET game_mode = ?, processor_mode = ? WHERE id = 1', ('cricket', 'cricket'))
+        
+        # IMPORTANT: Also update all player scores to 0 even when not resetting
+        for player_id, name in player_names.items():
+            # Check if player exists
+            cursor.execute('SELECT 1 FROM players WHERE id = ?', (player_id,))
+            if cursor.fetchone():
+                # Update existing player
+                cursor.execute('UPDATE players SET name = ?, total_score = ? WHERE id = ?', 
+                              (name, 0, player_id))
+            else:
+                # Insert new player with score 0
+                cursor.execute('INSERT INTO players (id, name, total_score) VALUES (?, ?, ?)', 
+                              (player_id, name, 0))
+            
+            # Ensure cricket scores are initialized for this player
+            cricket_numbers = [15, 16, 17, 18, 19, 20, 25]  # Traditional cricket numbers
+            for number in cricket_numbers:
+                cursor.execute('''
+                    INSERT OR REPLACE INTO cricket_scores
+                    (player_id, number, marks, points, closed)
+                    VALUES (?, ?, 0, 0, 0)
+                ''', (player_id, number))
+        
+        # Remove any players that are no longer needed
+        cursor.execute('DELETE FROM players WHERE id > ?', (player_count,))
+                          
+        conn.commit()
+        conn.close()
+    
+    # Start the cricket dart processor
+    start_dart_processor(game_mode='cricket')
+    
+    flash('American Cricket game has been started!', 'success')
+    return redirect(url_for('game'))
+
+@app.route('/start_game_around_clock', methods=['POST'])
+def start_game_around_clock():
+    """Initialize Around the Clock game with the provided player names"""
+    player_count = int(request.form.get('player_count', 4))
+    reset_scores = request.form.get('reset_scores') == 'on'
+    
+    # Get player names from the form
+    player_names = {}
+    for i in range(1, player_count + 1):
+        name = request.form.get(f'player{i}', '').strip() or f'Player {i}'
+        player_names[i] = name
+    
+    # If reset_scores is checked, reinitialize the database
+    if reset_scores:
+        # Reinitialize the database with custom player names
+        initialize_game_with_custom_names(player_names, starting_score=0, game_mode='around_clock')
+    else:
+        # Just update the game mode in the config
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Update game mode in config
+        cursor.execute('UPDATE game_config SET game_mode = ?, processor_mode = ? WHERE id = 1', ('around_clock', 'around_clock'))
+        
+        # IMPORTANT: Also update all player scores to 0 even when not resetting
+        for player_id, name in player_names.items():
+            cursor.execute('UPDATE players SET name = ?, total_score = ? WHERE id = ?', 
+                          (name, 0, player_id))
+                          
+        # Also initialize around_clock_progress
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        for player_id in player_names:
+            cursor.execute('''
+                INSERT OR REPLACE INTO around_clock_progress
+                (player_id, current_number, completed, last_update)
+                VALUES (?, 1, 0, ?)
+            ''', (player_id, current_time))
+        
+        conn.commit()
+        conn.close()
+    
+    # Start the around the clock dart processor
+    start_dart_processor(game_mode='around_clock')
+    
+    flash('Around the Clock game has been started!', 'success')
     return redirect(url_for('game'))
     
 # Game display route (your existing route)
 @app.route('/game')
 def game():
-    """Display the game page"""
+    """Display the game page with the appropriate template based on game mode"""
+    # Get game data
     response = data_json()
-    # Get the actual JSON data from the response
     game_data = response.get_json()
-
+    
+    # Determine which template to use based on game mode
+    game_mode = game_data.get('game_mode', '301')
+    
+    if game_mode in ['301', '501']:
+        template = 'classic_game_screen.html'
+    elif game_mode == 'around_clock':
+        template = 'around_the_clock_game_screen.html'
+    elif game_mode == 'cricket':
+        template = 'american_cricket_game_screen.html'
+    else:
+        # Default to classic if mode is unknown
+        template = 'classic_game_screen.html'
+    
     return render_template(
         'index.html',
-        game_data = game_data
+        game_data=game_data,
+        template=template
     )
 
 @app.route('/data_json')
@@ -274,6 +611,12 @@ def data_json():
     
     # Build game_data dictionary from database queries
     game_data = {}
+    
+    # Get game mode from config
+    cursor = conn.cursor()
+    cursor.execute('SELECT game_mode FROM game_config WHERE id = 1')
+    config = cursor.fetchone()
+    game_data["game_mode"] = config['game_mode'] if config and config['game_mode'] else "301"
     
     # Get players
     players = []
@@ -295,6 +638,19 @@ def data_json():
         # Update game_data to reflect animation state
         game_data["animating"] = True
         game_data["animation_type"] = animation_type
+        
+        # Pass target_hit flag if it exists in the animation_state table (for Around the Clock)
+        try:
+            game_data["target_hit"] = bool(animation_state['target_hit'])
+        except (KeyError, sqlite3.OperationalError):
+            game_data["target_hit"] = False
+            
+        # Pass cricket_event if it exists in the animation_state table (for Cricket)
+        try:
+            if animation_state['cricket_event']:
+                game_data["cricket_event"] = animation_state['cricket_event']
+        except (KeyError, sqlite3.OperationalError):
+            pass  # Skip if the column doesn't exist
         
         if animation_type in ['bust', 'third_throw', 'win']:
             # For these animations, we want to show the throw but not advance player yet
@@ -976,7 +1332,70 @@ def get_throw_details():
     except Exception as e:
         print(f"Error getting throw details: {e}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/get_cricket_scores')
+def get_cricket_scores():
+    """Get all cricket scores for all players in format needed by the UI"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        # Get all cricket scores
+        cursor.execute('''
+            SELECT cs.player_id, cs.number, cs.marks, cs.points, cs.closed, p.name
+            FROM cricket_scores cs
+            JOIN players p ON cs.player_id = p.id
+            ORDER BY cs.player_id, cs.number
+        ''')
+        
+        # Create a structured response
+        scores_by_player = {}
+        for row in cursor.fetchall():
+            player_id = row['player_id']
+            if player_id not in scores_by_player:
+                scores_by_player[player_id] = {
+                    'name': row['name'],
+                    'numbers': {},
+                    'total_points': 0
+                }
+            
+            # Add the number's details
+            number = row['number']
+            scores_by_player[player_id]['numbers'][number] = {
+                'marks': row['marks'],
+                'points': row['points'],
+                'closed': row['closed'] == 1
+            }
+            
+            # Update total points
+            scores_by_player[player_id]['total_points'] += row['points']
+        
+        return jsonify(scores_by_player)
     
+@app.route('/reset_and_home')
+def reset_and_home():
+    """Reset the game database and redirect to the home page"""
+    try:
+        # Import the initialization function
+        from initialize_db import initialize_database
+        
+        # Reset the dart processor first if it's running
+        stop_dart_processor()
+        
+        # Reset the game database
+        initialize_database()
+        
+        # Flash a success message
+        flash('Game database has been reset successfully!', 'success')
+    except Exception as e:
+        # Log the error
+        print(f"Error resetting database: {e}")
+        
+        # Flash an error message
+        flash(f'Error resetting game: {str(e)}', 'danger')
+    
+    # Redirect to the home page
+    return redirect(url_for('home'))
+
 
 @app.route('/')
 def index():
@@ -989,13 +1408,53 @@ def index():
         game_data = game_data
     )
 
+@app.route('/system_state')
+def system_state():
+    """Get the current system state"""
+    try:
+        conn = sqlite3.connect('simulation/cv_data.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute('SELECT ready_for_throw, last_updated FROM system_state WHERE id = 1')
+        state = cursor.fetchone()
+        conn.close()
+        
+        if state:
+            return jsonify({
+                'ready_for_throw': bool(state['ready_for_throw']),
+                'last_updated': state['last_updated']
+            })
+        return jsonify({'ready_for_throw': True, 'error': 'No state found'})
+    except Exception as e:
+        return jsonify({'ready_for_throw': True, 'error': str(e)})
+
 if __name__ == '__main__':
     try:
         # Initialize database before starting the app
         initialize_database()
         
-        # Start the dart processor when the app starts
-        start_dart_processor()
+        # Get current game mode from the database
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT game_mode FROM game_config WHERE id = 1')
+        result = cursor.fetchone()
+        game_mode = result['game_mode'] if result else '301'
+        conn.close()
+        
+        # Determine the processor mode based on game_mode value
+        processor_mode = 'classic'  # Default
+        if game_mode in ['301', '501']:
+            processor_mode = 'classic'
+        elif game_mode == 'cricket':
+            processor_mode = 'cricket'
+        elif game_mode == 'around_clock':
+            processor_mode = 'around_clock'
+        
+        # Start the appropriate dart processor based on the current game mode
+        start_dart_processor(game_mode=processor_mode)
+        
+        # Register cleanup function to ensure dart processor is stopped on exit
+        atexit.register(stop_dart_processor)
         
         # Run the Flask app
         app.run(debug=False)

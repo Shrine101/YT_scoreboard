@@ -47,6 +47,7 @@
                     {% for player_id, name in player_names.items() %}
                     <input type="hidden" name="player{{ player_id }}" value="{{ name }}">
                     {% endfor %}
+                    <input type="hidden" name="player_count" value="{{ player_count }}">
                     <input type="hidden" name="reset_scores" value="{{ reset_scores }}">
                     <button type="submit" class="btn btn-primary btn-lg w-100">Play 301</button>
                   </form>
@@ -64,6 +65,7 @@
                     {% for player_id, name in player_names.items() %}
                     <input type="hidden" name="player{{ player_id }}" value="{{ name }}">
                     {% endfor %}
+                    <input type="hidden" name="player_count" value="{{ player_count }}">
                     <input type="hidden" name="reset_scores" value="{{ reset_scores }}">
                     <button type="submit" class="btn btn-success btn-lg w-100">Play Cricket</button>
                   </form>
@@ -81,6 +83,7 @@
                     {% for player_id, name in player_names.items() %}
                     <input type="hidden" name="player{{ player_id }}" value="{{ name }}">
                     {% endfor %}
+                    <input type="hidden" name="player_count" value="{{ player_count }}">
                     <input type="hidden" name="reset_scores" value="{{ reset_scores }}">
                     <button type="submit" class="btn btn-warning btn-lg w-100">Play Around the Clock</button>
                   </form>
@@ -98,6 +101,7 @@
                     {% for player_id, name in player_names.items() %}
                     <input type="hidden" name="player{{ player_id }}" value="{{ name }}">
                     {% endfor %}
+                    <input type="hidden" name="player_count" value="{{ player_count }}">
                     <input type="hidden" name="reset_scores" value="{{ reset_scores }}">
                     <button type="submit" class="btn btn-info btn-lg w-100">Play 501</button>
                   </form>

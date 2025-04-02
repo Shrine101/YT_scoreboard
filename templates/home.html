@@ -43,23 +43,58 @@
                 </div>
                 
                 <div class="mb-3">
+                  <label for="player_count" class="form-label">Number of Players:</label>
+                  <select class="form-select" id="player_count" name="player_count">
+                    <option value="1">1 Player</option>
+                    <option value="2">2 Players</option>
+                    <option value="3">3 Players</option>
+                    <option value="4" selected>4 Players</option>
+                    <option value="5">5 Players</option>
+                    <option value="6">6 Players</option>
+                    <option value="7">7 Players</option>
+                    <option value="8">8 Players</option>
+                  </select>
+                </div>
+                
+                <div class="mb-3 player-input" id="player1-container">
                   <label for="player1" class="form-label">Player 1:</label>
                   <input type="text" class="form-control" id="player1" name="player1" placeholder="Player 1">
                 </div>
                 
-                <div class="mb-3">
+                <div class="mb-3 player-input" id="player2-container">
                   <label for="player2" class="form-label">Player 2:</label>
                   <input type="text" class="form-control" id="player2" name="player2" placeholder="Player 2">
                 </div>
                 
-                <div class="mb-3">
+                <div class="mb-3 player-input" id="player3-container">
                   <label for="player3" class="form-label">Player 3:</label>
                   <input type="text" class="form-control" id="player3" name="player3" placeholder="Player 3">
                 </div>
                 
-                <div class="mb-3">
+                <div class="mb-3 player-input" id="player4-container">
                   <label for="player4" class="form-label">Player 4:</label>
                   <input type="text" class="form-control" id="player4" name="player4" placeholder="Player 4">
+                </div>
+                
+                <!-- New player inputs for players 5-8 -->
+                <div class="mb-3 player-input" id="player5-container" style="display: none;">
+                  <label for="player5" class="form-label">Player 5:</label>
+                  <input type="text" class="form-control" id="player5" name="player5" placeholder="Player 5">
+                </div>
+                
+                <div class="mb-3 player-input" id="player6-container" style="display: none;">
+                  <label for="player6" class="form-label">Player 6:</label>
+                  <input type="text" class="form-control" id="player6" name="player6" placeholder="Player 6">
+                </div>
+                
+                <div class="mb-3 player-input" id="player7-container" style="display: none;">
+                  <label for="player7" class="form-label">Player 7:</label>
+                  <input type="text" class="form-control" id="player7" name="player7" placeholder="Player 7">
+                </div>
+                
+                <div class="mb-3 player-input" id="player8-container" style="display: none;">
+                  <label for="player8" class="form-label">Player 8:</label>
+                  <input type="text" class="form-control" id="player8" name="player8" placeholder="Player 8">
                 </div>
                 
                 <div class="form-check mb-3">
@@ -80,6 +115,38 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+    
+    <script>
+      // Function to update player input visibility based on selected player count
+      function updatePlayerInputs() {
+        const playerCount = parseInt(document.getElementById('player_count').value);
+        
+        // Show or hide player input fields based on the selected count
+        for (let i = 1; i <= 8; i++) {
+          const container = document.getElementById(`player${i}-container`);
+          if (container) {
+            if (i <= playerCount) {
+              container.style.display = 'block';
+            } else {
+              container.style.display = 'none';
+            }
+          }
+        }
+      }
+      
+      // Set up the event listener when the page loads
+      document.addEventListener('DOMContentLoaded', function() {
+        const playerCountSelect = document.getElementById('player_count');
+        
+        // Initialize player inputs based on default selection
+        updatePlayerInputs();
+        
+        // Add event listener for changes to player count
+        if (playerCountSelect) {
+          playerCountSelect.addEventListener('change', updatePlayerInputs);
+        }
+      });
+    </script>
   </body>
   <style>
     body {

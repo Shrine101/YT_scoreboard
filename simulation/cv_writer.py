@@ -33,13 +33,45 @@ class CVDatabaseWriter:
                     position_y REAL
                 )
             ''')
+            # Add the system_state table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS system_state (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    ready_for_throw BOOLEAN DEFAULT 1,
+                    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # Insert initial state if not exists
+            cursor.execute('''
+                INSERT OR IGNORE INTO system_state (id, ready_for_throw)
+                VALUES (1, 1)
+            ''')
+            
             conn.commit()
+    
+    def set_ready_state(self, is_ready):
+        """Update the ready state in the database"""
+        try:
+            with self.get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    UPDATE system_state 
+                    SET ready_for_throw = ?, last_updated = CURRENT_TIMESTAMP
+                    WHERE id = 1
+                ''', (1 if is_ready else 0,))
+                conn.commit()
+        except sqlite3.Error as e:
+            print(f"Error updating ready state: {e}")
 
     def record_throw(self, throw_data):
         """Record a throw to the database"""
         if not throw_data:
             return
 
+        # Set system as not ready to process throws
+        self.set_ready_state(False)
+        
         score, multiplier, position = throw_data
         # Get current local time as a string in the format SQLite expects
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -54,9 +86,22 @@ class CVDatabaseWriter:
                 conn.commit()
                 print(f"Recorded throw at {current_time}: Score={score}, Multiplier={multiplier}")
                 print("")
+            
+            # Wait 2 seconds before setting system back to ready
+            print("Waiting 2 seconds before accepting next throw...")
+            time.sleep(2)
+            
+            # After successful processing and delay, set back to ready
+            self.set_ready_state(True)
         except sqlite3.Error as e:
+            # On error, still wait 2 seconds then set back to ready
+            time.sleep(2)
+            self.set_ready_state(True)
             print(f"Database error: {e}")
         except Exception as e:
+            # On error, still wait 2 seconds then set back to ready
+            time.sleep(2)
+            self.set_ready_state(True)
             print(f"Error recording throw: {e}")
 
 def main():

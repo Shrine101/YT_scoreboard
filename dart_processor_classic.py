@@ -4,9 +4,11 @@ from datetime import datetime
 from contextlib import contextmanager
 
 class DartProcessor:
-    def __init__(self, cv_db_path='simulation/cv_data.db', game_db_path='game.db', poll_interval=1.0, animation_duration=3.0):
+    def __init__(self, cv_db_path='simulation/cv_data.db', game_db_path='game.db', 
+                 leds_db_path='leds/LEDs.db', poll_interval=1.0, animation_duration=3.0):
         self.cv_db_path = cv_db_path
         self.game_db_path = game_db_path
+        self.leds_db_path = leds_db_path  # Add LEDs database path
         self.poll_interval = poll_interval
         self.animation_duration = animation_duration  # Animation duration in seconds
         
@@ -32,6 +34,16 @@ class DartProcessor:
     def get_game_connection(self):
         """Get a connection to the game database"""
         conn = sqlite3.connect(self.game_db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+        finally:
+            conn.close()
+            
+    @contextmanager
+    def get_leds_connection(self):
+        """Get a connection to the LEDs database"""
+        conn = sqlite3.connect(self.leds_db_path)
         conn.row_factory = sqlite3.Row
         try:
             yield conn
@@ -117,11 +129,23 @@ class DartProcessor:
             cursor.execute('SELECT throw_number, points, score, multiplier FROM current_throws ORDER BY throw_number')
             throws = [dict(throw) for throw in cursor.fetchall()]
             
+            # Get game mode (301 or 501)
+            cursor.execute('SELECT game_mode FROM game_config WHERE id = 1')
+            config = cursor.fetchone()
+            game_mode = config['game_mode'] if config and config['game_mode'] else "301"
+            
+            # Try to convert game_mode to integer if possible
+            try:
+                starting_score = int(game_mode)
+            except (ValueError, TypeError):
+                starting_score = 301  # Default to 301 if not a valid integer
+            
             return {
                 'current_turn': state['current_turn'],
                 'current_player': state['current_player'],
                 'game_over': state['game_over'],
-                'current_throws': throws
+                'current_throws': throws,
+                'starting_score': starting_score
             }
 
     def update_current_throw(self, throw_number, score, multiplier, points):
@@ -150,6 +174,21 @@ class DartProcessor:
         with self.get_game_connection() as conn:
             cursor = conn.cursor()
             
+            # Get starting score from game_config
+            cursor.execute('SELECT game_mode FROM game_config WHERE id = 1')
+            config = cursor.fetchone()
+            starting_score = 301  # Default to 301
+            
+            if config and config['game_mode']:
+                try:
+                    starting_score = int(config['game_mode'])
+                except (ValueError, TypeError):
+                    # If not a valid number, check for mode strings
+                    if config['game_mode'] == '501':
+                        starting_score = 501
+                    else:
+                        starting_score = 301  # Default
+            
             # Get the total points scored by this player before this turn
             cursor.execute(
                 'SELECT SUM(points) as total_points FROM turn_scores WHERE player_id = ? AND turn_number < ? AND bust = 0',
@@ -158,8 +197,8 @@ class DartProcessor:
             
             total_previous_points = cursor.fetchone()['total_points'] or 0
             
-            # Calculate the score before this turn (301 - previous points)
-            score_before_turn = 301 - total_previous_points
+            # Calculate the score before this turn (starting_score - previous points)
+            score_before_turn = starting_score - total_previous_points
             
             return score_before_turn
 
@@ -242,7 +281,22 @@ class DartProcessor:
                     )
                 )
             
-            # Update player's total score - MODIFIED for 301 game with bust handling
+            # Get starting score from game_config
+            cursor.execute('SELECT game_mode FROM game_config WHERE id = 1')
+            config = cursor.fetchone()
+            starting_score = 301  # Default to 301
+            
+            if config and config['game_mode']:
+                try:
+                    starting_score = int(config['game_mode'])
+                except (ValueError, TypeError):
+                    # If not a valid number, check for mode strings
+                    if config['game_mode'] == '501':
+                        starting_score = 501
+                    else:
+                        starting_score = 301  # Default
+            
+            # Update player's total score based on game mode
             # Get sum of all points scored by this player from non-busted turns
             cursor.execute(
                 'SELECT SUM(points) as total_points FROM turn_scores WHERE player_id = ? AND bust = 0',
@@ -250,8 +304,8 @@ class DartProcessor:
             )
             total_player_points = cursor.fetchone()['total_points'] or 0
             
-            # Subtract from 301 to get current score
-            new_score = 301 - total_player_points
+            # Subtract from starting score to get current score
+            new_score = starting_score - total_player_points
             
             # Update player's total score
             cursor.execute(
@@ -287,8 +341,13 @@ class DartProcessor:
                 print("Game is over, not advancing to next player")
                 return None, None
             
+            # Get player count from the players table
             cursor.execute('SELECT COUNT(*) as count FROM players')
             player_count = cursor.fetchone()['count']
+            
+            if player_count == 0:
+                print("No players found in database, cannot advance")
+                return None, None
             
             # Calculate next player and turn
             current_player = state['current_player']
@@ -308,7 +367,41 @@ class DartProcessor:
             
             conn.commit()
             
+            print(f"Advanced to Player {next_player}, Turn {next_turn}")
             return next_player, next_turn
+
+    def add_throw_to_leds_db(self, score, multiplier, position_x, position_y):
+        """Add a throw to the LEDs database with the appropriate segment type"""
+        # Determine segment type based on multiplier and position
+        segment_type = None
+        
+        if score == 25:
+            segment_type = "bullseye"
+        elif multiplier == 2:
+            segment_type = "double"
+        elif multiplier == 3:
+            segment_type = "triple"
+        elif multiplier == 1:
+            # Inner vs outer single determination based on r value
+            # Note: position_x is actually r in polar coordinates
+            r = position_x
+            if r < 103:
+                segment_type = "inner_single"
+            else:
+                segment_type = "outer_single"
+        
+        if segment_type:
+            # Add to LEDs database
+            with self.get_leds_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO dart_events (score, multiplier, segment_type, processed, timestamp)
+                    VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)
+                ''', (score, multiplier, segment_type))
+                conn.commit()
+                print(f"Added throw to LEDs database: Score={score}, Multiplier={multiplier}, Segment={segment_type}")
+        else:
+            print(f"WARNING: Could not determine segment type for throw: Score={score}, Multiplier={multiplier}")
 
     def process_throw(self, throw):
         """Process a single throw and update game state"""
@@ -316,6 +409,18 @@ class DartProcessor:
         score = throw['score']
         multiplier = throw['multiplier']
         points = score * multiplier
+        
+        # Safely access position coordinates from sqlite3.Row
+        # Fix for the AttributeError: 'sqlite3.Row' object has no attribute 'get'
+        try:
+            position_x = throw['position_x']  # This is actually r in polar coordinates
+        except (IndexError, KeyError):
+            position_x = 0
+            
+        try:
+            position_y = throw['position_y']  # This is actually theta in polar coordinates
+        except (IndexError, KeyError):
+            position_y = 0
         
         # Get current game state
         game_state = self.get_current_game_state()
@@ -338,6 +443,9 @@ class DartProcessor:
             if t['points'] == 0:
                 throw_position = t['throw_number']
                 break
+        
+        # Write to LEDs database - Add this new functionality
+        self.add_throw_to_leds_db(score, multiplier, position_x, position_y)
         
         # Update the current throw with score, multiplier, and points
         self.update_current_throw(throw_position, score, multiplier, points)
