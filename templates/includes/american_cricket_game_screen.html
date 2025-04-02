@@ -327,7 +327,86 @@
     max-height: 400px;
     object-fit: contain;
   }
+  
+  /* Adjust the NUMBER column to make text take up 75% of container */
+  #cricketTable .number-text {
+    font-size: 2.5em; /* Larger font size */
+    font-weight: bold;
+    display: block; /* Make span full width of container */
+    line-height: 1.2; /* Better spacing */
+    padding: 0.25em 0; /* Add some vertical padding */
+    transition: color 0.3s ease; /* Smooth color transition for state changes */
+  }
+
+  /* Make the NUMBER column wider to accommodate larger text */
+  #cricketTable tbody tr td:first-child {
+    width: 15%; /* Control the width of the number column */
+    vertical-align: middle;
+    padding: 0.25em;
+    position: relative;
+  }
+
+  /* Ensure proper alignment of the number cells */
+  #cricketTable tbody tr td:first-child {
+    background-color: rgba(0, 0, 0, 0.2); /* Slight background to distinguish */
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  /* Create a container effect around the number */
+  #cricketTable .number-container {
+    position: relative;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Apply subtle effects to make numbers pop */
+  #cricketTable .number-text {
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Enhanced styling for different states */
+  #cricketTable .number-text.single-owner {
+    color: #28a745; /* Green text when one player has closed */
+    text-shadow: 0 0 8px rgba(40, 167, 69, 0.7);
+  }
+
+  #cricketTable .number-text.closed {
+    color: #dc3545; /* Red text when multiple players have closed */
+    text-shadow: 0 0 8px rgba(220, 53, 69, 0.7);
+  }
+
+  /* Special styling for BULL */
+  #cricketTable #number_25 {
+    color: #ffc107; /* Make bullseye gold/yellow */
+    text-shadow: 0 0 10px rgba(255, 193, 7, 0.8);
+  }
 </style>
 
 {% include 'includes/game_scripts.html' %}
 {% include 'includes/american_cricket_scripts.html' %}
+
+<!-- JavaScript to apply the new number container styles -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Add the container divs around the number text
+  const numberCells = document.querySelectorAll('#cricketTable tbody tr td:first-child');
+  
+  numberCells.forEach(cell => {
+    // Get the number text element
+    const numberText = cell.querySelector('.number-text');
+    
+    if (numberText) {
+      // Create a container div
+      const container = document.createElement('div');
+      container.className = 'number-container';
+      
+      // Move the number text into the container
+      cell.removeChild(numberText);
+      container.appendChild(numberText);
+      cell.appendChild(container);
+    }
+  });
+});
+</script>
