@@ -1,618 +1,700 @@
 <script>
-    // Global variables for tracking last throw state
-    let currentLastThrowState = "normal"; // can be "normal", "bust", or "win"
-    let previousLastThrow = null;
-  
-    // Function to update the player count styling
-    function updatePlayerCountStyle(game_data) {
-      const playerCount = game_data.players.length;
-      const container = document.querySelector('.container-fluid');
-      
-      // Remove any existing player count classes
-      container.classList.remove('players-1', 'players-2', 'players-3', 'players-4', 
-                                'players-5', 'players-6', 'players-7', 'players-8');
-      
-      // Add the appropriate class
-      container.classList.add(`players-${playerCount}`);
-    }
-  
-    // Function to update the last throw display
-    function updateLastThrow(lastThrow, players, game_data) {
-      if (!lastThrow) return;
-      
-      // Get the card body element for the last throw
-      const lastThrowCard = document.querySelector('.last-throw-card');
-      const pointsElement = document.getElementById('last-throw-points');
-      
-      // Check if this is a new throw by comparing with previous data
-      const isNewThrow = !previousLastThrow || 
-                        previousLastThrow.score !== lastThrow.score || 
-                        previousLastThrow.multiplier !== lastThrow.multiplier ||
-                        previousLastThrow.player_id !== lastThrow.player_id;
-      
-      // Update the score, multiplier and points
-      document.getElementById('last-throw-score').textContent = lastThrow.score;
-      document.getElementById('last-throw-multiplier').textContent = lastThrow.multiplier;
-      document.getElementById('last-throw-points').textContent = lastThrow.points;
-      
-      // Find the player name
-      if (lastThrow.player_id) {
-        const player = players.find(p => p.id === lastThrow.player_id);
-        if (player) {
-          document.getElementById('last-throw-player').textContent = 'Player: ' + player.name;
+  // Global variables for tracking last throw state
+  let currentLastThrowState = "normal"; // can be "normal", "bust", or "win"
+  let previousLastThrow = null;
+
+  // Function to update the player count styling
+  function updatePlayerCountStyle(game_data) {
+    const playerCount = game_data.players.length;
+    const container = document.querySelector('.container-fluid');
+    
+    // Remove any existing player count classes
+    container.classList.remove('players-1', 'players-2', 'players-3', 'players-4', 
+                              'players-5', 'players-6', 'players-7', 'players-8');
+    
+    // Add the appropriate class
+    container.classList.add(`players-${playerCount}`);
+  }
+
+  // Function to update the last throw display
+  function updateLastThrow(lastThrow, players, game_data) {
+    if (!lastThrow) return;
+    
+    // Get the card body element for the last throw
+    const lastThrowCard = document.querySelector('.last-throw-card');
+    const pointsElement = document.getElementById('last-throw-points');
+    
+    // Check if this is a new throw by comparing with previous data
+    const isNewThrow = !previousLastThrow || 
+                      previousLastThrow.score !== lastThrow.score || 
+                      previousLastThrow.multiplier !== lastThrow.multiplier ||
+                      previousLastThrow.player_id !== lastThrow.player_id;
+    
+    // Update the score, multiplier and points
+    document.getElementById('last-throw-score').textContent = lastThrow.score;
+    document.getElementById('last-throw-multiplier').textContent = lastThrow.multiplier;
+    document.getElementById('last-throw-points').textContent = lastThrow.points;
+    
+    // Find the player name
+    if (lastThrow.player_id) {
+      const player = players.find(p => p.id === lastThrow.player_id);
+      if (player) {
+        document.getElementById('last-throw-player').textContent = 'Player: ' + player.name;
+        
+        // Check if this is a win
+        if (game_data.game_over && game_data.animating && game_data.animation_type === 'win') {
+          // Set background to yellow for win
+          lastThrowCard.style.backgroundColor = '#fff3cd'; // Light yellow
+          pointsElement.style.color = '#ffc107'; // Yellow/gold text
+          currentLastThrowState = "win";
+        }
+        // If this is a new throw (not a win), reset colors
+        else if (isNewThrow) {
+          // Reset to normal styles for a new throw
+          lastThrowCard.style.backgroundColor = '#f8f9fa'; // Default light gray
           
-          // Check if this is a win
-          if (game_data.game_over && game_data.animating && game_data.animation_type === 'win') {
-            // Set background to yellow for win
-            lastThrowCard.style.backgroundColor = '#fff3cd'; // Light yellow
-            pointsElement.style.color = '#ffc107'; // Yellow/gold text
-            currentLastThrowState = "win";
+          if (lastThrow.points > 0) {
+            pointsElement.style.color = '#28a745'; // Green for positive points
+          } else {
+            pointsElement.style.color = '#212529'; // Default color for zero
           }
-          // If this is a new throw (not a win), reset colors
-          else if (isNewThrow) {
-            // Reset to normal styles for a new throw
-            lastThrowCard.style.backgroundColor = '#f8f9fa'; // Default light gray
-            
-            if (lastThrow.points > 0) {
-              pointsElement.style.color = '#28a745'; // Green for positive points
-            } else {
-              pointsElement.style.color = '#212529'; // Default color for zero
-            }
-            
-            currentLastThrowState = "normal";
-          }
-        } else {
-          document.getElementById('last-throw-player').textContent = 'Player: ' + lastThrow.player_id;
+          
+          currentLastThrowState = "normal";
         }
       } else {
-        document.getElementById('last-throw-player').textContent = 'Player: -';
+        document.getElementById('last-throw-player').textContent = 'Player: ' + lastThrow.player_id;
       }
-      
-      // Save this throw data for future comparison
-      previousLastThrow = { ...lastThrow };
+    } else {
+      document.getElementById('last-throw-player').textContent = 'Player: -';
     }
+    
+    // Save this throw data for future comparison
+    previousLastThrow = { ...lastThrow };
+  }
+
+  function blinkUpdate(element, newValue, newColor='#00ff00') {
+    // Always make sure to capture the previous color properly
+    const previousColor = element.style.color || '#000000';
+    
+    // Update the text
+    element.textContent = newValue;
+    element.style.color = newColor;
+    
+    // Set back to original color after timeout ms
+    setTimeout(() => {
+      element.style.color = '#000000'; // Explicitly set to black to ensure consistency
+    }, 2000);
+  }
+
+  // Set up polling for updates
+  setInterval(function() {
+    fetch('/data_json')
+      .then(response => response.json())
+      .then(data => updateGame(data))
+      .catch(error => console.error('Error fetching data:', error));
+  }, 1000);
   
-    function blinkUpdate(element, newValue, newColor='#00ff00') {
-      // Always make sure to capture the previous color properly
-      const previousColor = element.style.color || '#000000';
-      
-      // Update the text
-      element.textContent = newValue;
-      element.style.color = newColor;
-      
-      // Set back to original color after timeout ms
-      setTimeout(() => {
-        element.style.color = '#000000'; // Explicitly set to black to ensure consistency
-      }, 2000);
+  // Initialize animation state flags
+  window.animatingThirdThrow = false;
+  window.animatingWin = false;
+  
+  // Common Manual Override functionality
+  document.addEventListener('DOMContentLoaded', function() {
+    const manualOverrideBtn = document.getElementById('manual-override-btn');
+    const saveOverrideBtn = document.getElementById('saveOverrideBtn');
+    const scoreInput = document.getElementById('scoreInput');
+    const multiplierInput = document.getElementById('multiplierInput');
+    const totalPoints = document.getElementById('totalPoints');
+    const turnSelect = document.getElementById('turnSelect');
+    const playerSelect = document.getElementById('playerSelect');
+    const throwSelect = document.getElementById('throwSelect');
+    
+    // Initialize the Bootstrap modal
+    const manualOverrideModal = new bootstrap.Modal(document.getElementById('manualOverrideModal'));
+    
+    // Populate the total points when score or multiplier changes
+    function updateTotalPoints() {
+      const score = parseInt(scoreInput.value) || 0;
+      const multiplier = parseInt(multiplierInput.value) || 0;
+      totalPoints.textContent = score * multiplier;
     }
-  
-    // Set up polling for updates
-    setInterval(function() {
-      fetch('/data_json')
-        .then(response => response.json())
-        .then(data => updateGame(data))
-        .catch(error => console.error('Error fetching data:', error));
-    }, 1000);
     
-    // Initialize animation state flags
-    window.animatingThirdThrow = false;
-    window.animatingWin = false;
+    scoreInput.addEventListener('input', updateTotalPoints);
+    multiplierInput.addEventListener('change', updateTotalPoints);
     
-    // Common Manual Override functionality
-    document.addEventListener('DOMContentLoaded', function() {
-      const manualOverrideBtn = document.getElementById('manual-override-btn');
-      const saveOverrideBtn = document.getElementById('saveOverrideBtn');
-      const scoreInput = document.getElementById('scoreInput');
-      const multiplierInput = document.getElementById('multiplierInput');
-      const totalPoints = document.getElementById('totalPoints');
-      const turnSelect = document.getElementById('turnSelect');
-      const playerSelect = document.getElementById('playerSelect');
-      const throwSelect = document.getElementById('throwSelect');
-      
-      // Initialize the Bootstrap modal
-      const manualOverrideModal = new bootstrap.Modal(document.getElementById('manualOverrideModal'));
-      
-      // Populate the total points when score or multiplier changes
-      function updateTotalPoints() {
-        const score = parseInt(scoreInput.value) || 0;
-        const multiplier = parseInt(multiplierInput.value) || 0;
-        totalPoints.textContent = score * multiplier;
-      }
-      
-      scoreInput.addEventListener('input', updateTotalPoints);
-      multiplierInput.addEventListener('change', updateTotalPoints);
-      
-      // When the bullseye (25) is selected, limit multiplier to 1 or 2
-      scoreInput.addEventListener('change', function() {
-        if (parseInt(this.value) === 25) {
-          // Bullseye can only have multiplier 1 or 2
-          multiplierInput.innerHTML = `
-            <option value="1">1 (Single)</option>
-            <option value="2">2 (Double)</option>
-          `;
-          
-          // If multiplier was 3, reset to 1
-          if (parseInt(multiplierInput.value) === 3) {
-            multiplierInput.value = 1;
-          }
-        } else {
-          // Regular score can have multiplier 1, 2, or 3
-          multiplierInput.innerHTML = `
-            <option value="1">1 (Single)</option>
-            <option value="2">2 (Double)</option>
-            <option value="3">3 (Triple)</option>
-          `;
+    // When the bullseye (25) is selected, limit multiplier to 1 or 2
+    scoreInput.addEventListener('change', function() {
+      if (parseInt(this.value) === 25) {
+        // Bullseye can only have multiplier 1 or 2
+        multiplierInput.innerHTML = `
+          <option value="1">1 (Single)</option>
+          <option value="2">2 (Double)</option>
+        `;
+        
+        // If multiplier was 3, reset to 1
+        if (parseInt(multiplierInput.value) === 3) {
+          multiplierInput.value = 1;
         }
-        updateTotalPoints();
-      });
+      } else {
+        // Regular score can have multiplier 1, 2, or 3
+        multiplierInput.innerHTML = `
+          <option value="1">1 (Single)</option>
+          <option value="2">2 (Double)</option>
+          <option value="3">3 (Triple)</option>
+        `;
+      }
+      updateTotalPoints();
+    });
+    
+    // Function to fetch throw details for a turn and player
+    function fetchThrowDetails(turnNumber, playerId) {
+      fetch(`/get_throw_details?turn_number=${turnNumber}&player_id=${playerId}`)
+        .then(response => response.json())
+        .then(data => {
+          // Update the throw display with the fetched throw data
+          updateThrowDisplay(data);
+        })
+        .catch(error => {
+          console.error('Error fetching throw details:', error);
+        });
+    }
+    
+    // Function to update the throw display with current throw values
+    function updateThrowDisplay(data) {
+      const throwData = data.throws;
+      const isBust = data.bust;
       
-      // Function to fetch throw details for a turn and player
-      function fetchThrowDetails(turnNumber, playerId) {
+      // Update the display for each throw
+      for (let i = 1; i <= 3; i++) {
+        const displayElement = document.getElementById(`displayThrow${i}`);
+        if (displayElement) {
+          // Find the throw data for this throw number
+          const throwInfo = throwData.find(t => t.throw_number === i);
+          const points = throwInfo ? throwInfo.points : 0;
+          
+          // Update the display
+          displayElement.textContent = points;
+          
+          // Highlight the throw if it has points (non-zero)
+          if (points > 0) {
+            displayElement.classList.add('has-points');
+          } else {
+            displayElement.classList.remove('has-points');
+          }
+        }
+      }
+      
+      // Update the bust indicator if present
+      const bustIndicator = document.getElementById('bustIndicator');
+      if (bustIndicator) {
+        bustIndicator.style.display = isBust ? 'block' : 'none';
+      }
+      
+      // Update the pre-filled values for the currently selected throw
+      if (throwSelect) {
+        const selectedThrowNumber = parseInt(throwSelect.value);
+        const selectedThrow = throwData.find(t => t.throw_number === selectedThrowNumber);
+        
+        if (selectedThrow && selectedThrow.points > 0) {
+          // Use the actual score and multiplier values
+          document.getElementById('scoreInput').value = selectedThrow.score || '';
+          document.getElementById('multiplierInput').value = selectedThrow.multiplier || '1';
+          document.getElementById('totalPoints').textContent = selectedThrow.points || '0';
+        } else {
+          // Reset form values if no throw data or zero points
+          document.getElementById('scoreInput').value = '';
+          document.getElementById('multiplierInput').value = '1';
+          document.getElementById('totalPoints').textContent = '0';
+        }
+      }
+    }
+  
+    // When turn selection changes
+    if (turnSelect) {
+      turnSelect.addEventListener('change', function() {
+        const turnNumber = parseInt(this.value);
+        const playerId = parseInt(playerSelect.value);
+        fetchThrowDetails(turnNumber, playerId);
+      });
+    }
+
+    // When player selection changes
+    if (playerSelect) {
+      playerSelect.addEventListener('change', function() {
+        const playerId = parseInt(this.value);
+        const turnNumber = parseInt(turnSelect.value);
+        fetchThrowDetails(turnNumber, playerId);
+      });
+    }
+
+    // When throw selection changes
+    if (throwSelect) {
+      throwSelect.addEventListener('change', function() {
+        const turnNumber = parseInt(turnSelect.value);
+        const playerId = parseInt(playerSelect.value);
+        
         fetch(`/get_throw_details?turn_number=${turnNumber}&player_id=${playerId}`)
           .then(response => response.json())
           .then(data => {
-            // Update the throw display with the fetched throw data
-            updateThrowDisplay(data);
+            const selectedThrow = data.throws.find(t => t.throw_number === parseInt(this.value));
+            if (selectedThrow) {
+              // Use score and multiplier values from the selected throw
+              document.getElementById('scoreInput').value = selectedThrow.score || '';
+              document.getElementById('multiplierInput').value = selectedThrow.multiplier || '1';
+              document.getElementById('totalPoints').textContent = selectedThrow.points || '0';
+            } else {
+              // Reset form if throw not found
+              document.getElementById('scoreInput').value = '';
+              document.getElementById('multiplierInput').value = '1';
+              document.getElementById('totalPoints').textContent = '0';
+            }
           })
           .catch(error => {
             console.error('Error fetching throw details:', error);
           });
-      }
-      
-      // Function to update the throw display with current throw values
-      function updateThrowDisplay(data) {
-        const throwData = data.throws;
-        const isBust = data.bust;
-        
-        // Update the display for each throw
-        for (let i = 1; i <= 3; i++) {
-          const displayElement = document.getElementById(`displayThrow${i}`);
-          if (displayElement) {
-            // Find the throw data for this throw number
-            const throwInfo = throwData.find(t => t.throw_number === i);
-            const points = throwInfo ? throwInfo.points : 0;
-            
-            // Update the display
-            displayElement.textContent = points;
-            
-            // Highlight the throw if it has points (non-zero)
-            if (points > 0) {
-              displayElement.classList.add('has-points');
-            } else {
-              displayElement.classList.remove('has-points');
-            }
-          }
-        }
-        
-        // Update the bust indicator if present
-        const bustIndicator = document.getElementById('bustIndicator');
-        if (bustIndicator) {
-          bustIndicator.style.display = isBust ? 'block' : 'none';
-        }
-        
-        // Update the pre-filled values for the currently selected throw
-        if (throwSelect) {
-          const selectedThrowNumber = parseInt(throwSelect.value);
-          const selectedThrow = throwData.find(t => t.throw_number === selectedThrowNumber);
-          
-          if (selectedThrow && selectedThrow.points > 0) {
-            // Use the actual score and multiplier values
-            document.getElementById('scoreInput').value = selectedThrow.score || '';
-            document.getElementById('multiplierInput').value = selectedThrow.multiplier || '1';
-            document.getElementById('totalPoints').textContent = selectedThrow.points || '0';
-          } else {
-            // Reset form values if no throw data or zero points
-            document.getElementById('scoreInput').value = '';
-            document.getElementById('multiplierInput').value = '1';
-            document.getElementById('totalPoints').textContent = '0';
-          }
-        }
-      }
+      });
+    }
     
-      // When turn selection changes
-      if (turnSelect) {
-        turnSelect.addEventListener('change', function() {
-          const turnNumber = parseInt(this.value);
-          const playerId = parseInt(playerSelect.value);
-          fetchThrowDetails(turnNumber, playerId);
-        });
-      }
-  
-      // When player selection changes
-      if (playerSelect) {
-        playerSelect.addEventListener('change', function() {
-          const playerId = parseInt(this.value);
-          const turnNumber = parseInt(turnSelect.value);
-          fetchThrowDetails(turnNumber, playerId);
-        });
-      }
-  
-      // When throw selection changes
-      if (throwSelect) {
-        throwSelect.addEventListener('change', function() {
-          const turnNumber = parseInt(turnSelect.value);
-          const playerId = parseInt(playerSelect.value);
-          
-          fetch(`/get_throw_details?turn_number=${turnNumber}&player_id=${playerId}`)
-            .then(response => response.json())
-            .then(data => {
-              const selectedThrow = data.throws.find(t => t.throw_number === parseInt(this.value));
-              if (selectedThrow) {
-                // Use score and multiplier values from the selected throw
-                document.getElementById('scoreInput').value = selectedThrow.score || '';
-                document.getElementById('multiplierInput').value = selectedThrow.multiplier || '1';
-                document.getElementById('totalPoints').textContent = selectedThrow.points || '0';
-              } else {
-                // Reset form if throw not found
-                document.getElementById('scoreInput').value = '';
-                document.getElementById('multiplierInput').value = '1';
-                document.getElementById('totalPoints').textContent = '0';
-              }
-            })
-            .catch(error => {
-              console.error('Error fetching throw details:', error);
-            });
-        });
-      }
-      
-      // When the manual override button is clicked
-      if (manualOverrideBtn) {
-        manualOverrideBtn.addEventListener('click', function() {
-          // Fetch current game data to populate the form
-          fetch('/data_json')
-            .then(response => response.json())
-            .then(data => {
-              // Populate turn select dropdown
-              turnSelect.innerHTML = '';
-              
-              // Create options for existing turns and the current turn
-              const existingTurns = new Set(data.turns.map(turn => turn.turn_number));
-              
-              // Add current turn if not in existing turns
-              if (!existingTurns.has(data.current_turn)) {
-                existingTurns.add(data.current_turn);
-              }
-              
-              // Sort turns numerically
-              const sortedTurns = Array.from(existingTurns).sort((a, b) => a - b);
-              
-              // Add options to select
-              sortedTurns.forEach(turn => {
-                const option = document.createElement('option');
-                option.value = turn;
-                option.textContent = `Turn ${turn}`;
-                if (turn === data.current_turn) {
-                  option.textContent += ' (Current)';
-                  option.selected = true;
-                }
-                turnSelect.appendChild(option);
-              });
-              
-              // Populate player select dropdown
-              playerSelect.innerHTML = '';
-              
-              data.players.forEach(player => {
-                const option = document.createElement('option');
-                option.value = player.id;
-                option.textContent = `${player.name} (${player.total_score})`;
-                if (player.id === data.current_player) {
-                  option.textContent += ' (Current)';
-                  option.selected = true;
-                }
-                playerSelect.appendChild(option);
-              });
-              
-              // Reset throw selection to first throw
-              throwSelect.value = "1";
-              
-              // Fetch throw details for the selected turn/player
-              const initialTurnNumber = parseInt(turnSelect.value);
-              const initialPlayerId = parseInt(playerSelect.value);
-              fetchThrowDetails(initialTurnNumber, initialPlayerId);
-              
-              // Show the modal
-              manualOverrideModal.show();
-            })
-            .catch(error => {
-              console.error('Error fetching game data:', error);
-              alert('Failed to load game data. Please try again.');
-            });
-        });
-      }
-      
-      // When the save button is clicked
-      if (saveOverrideBtn) {
-        saveOverrideBtn.addEventListener('click', function() {
-          // Validate the form
-          const turnNumber = turnSelect.value;
-          const playerId = playerSelect.value;
-          const throwNumber = throwSelect.value;
-          const score = scoreInput.value;
-          const multiplier = multiplierInput.value;
-          
-          if (!turnNumber || !playerId || !throwNumber || !score || !multiplier) {
-            alert('Please fill in all fields');
-            return;
-          }
-          
-          // Validate score range
-          const scoreVal = parseInt(score);
-          if (isNaN(scoreVal) || (scoreVal < 1 || scoreVal > 20) && scoreVal !== 25) {
-            alert('Score must be between 1-20 or 25 for bullseye');
-            return;
-          }
-          
-          // Validate multiplier for bullseye
-          if (scoreVal === 25 && parseInt(multiplier) > 2) {
-            alert('Bullseye can only have a multiplier of 1 or 2');
-            return;
-          }
-          
-          // Send the update request to the server
-          fetch('/update_throw', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              turn_number: parseInt(turnNumber),
-              player_id: parseInt(playerId),
-              throw_number: parseInt(throwNumber),
-              score: scoreVal,
-              multiplier: parseInt(multiplier)
-            }),
-          })
-          .then(response => {
-            if (!response.ok) {
-              return response.json().then(err => { throw new Error(err.error || 'Unknown error'); });
-            }
-            return response.json();
-          })
+    // When the manual override button is clicked
+    if (manualOverrideBtn) {
+      manualOverrideBtn.addEventListener('click', function() {
+        // Fetch current game data to populate the form
+        fetch('/data_json')
+          .then(response => response.json())
           .then(data => {
-            // Handle the specific game mode response
-            if (window.handleManualOverrideResponse) {
-              window.handleManualOverrideResponse(data, manualOverrideModal);
-            } else {
-              // Default handling
-              manualOverrideModal.hide();
-              alert(`Throw updated successfully! Points: ${data.points}`);
-              
-              // Refresh the game data
-              fetch('/data_json')
-                .then(response => response.json())
-                .then(gameData => updateGame(gameData))
-                .catch(error => console.error('Error fetching data:', error));
+            // Populate turn select dropdown
+            turnSelect.innerHTML = '';
+            
+            // Create options for existing turns and the current turn
+            const existingTurns = new Set(data.turns.map(turn => turn.turn_number));
+            
+            // Add current turn if not in existing turns
+            if (!existingTurns.has(data.current_turn)) {
+              existingTurns.add(data.current_turn);
             }
+            
+            // Sort turns numerically
+            const sortedTurns = Array.from(existingTurns).sort((a, b) => a - b);
+            
+            // Add options to select
+            sortedTurns.forEach(turn => {
+              const option = document.createElement('option');
+              option.value = turn;
+              option.textContent = `Turn ${turn}`;
+              if (turn === data.current_turn) {
+                option.textContent += ' (Current)';
+                option.selected = true;
+              }
+              turnSelect.appendChild(option);
+            });
+            
+            // Populate player select dropdown
+            playerSelect.innerHTML = '';
+            
+            data.players.forEach(player => {
+              const option = document.createElement('option');
+              option.value = player.id;
+              option.textContent = `${player.name} (${player.total_score})`;
+              if (player.id === data.current_player) {
+                option.textContent += ' (Current)';
+                option.selected = true;
+              }
+              playerSelect.appendChild(option);
+            });
+            
+            // Reset throw selection to first throw
+            throwSelect.value = "1";
+            
+            // Fetch throw details for the selected turn/player
+            const initialTurnNumber = parseInt(turnSelect.value);
+            const initialPlayerId = parseInt(playerSelect.value);
+            fetchThrowDetails(initialTurnNumber, initialPlayerId);
+            
+            // Show the modal
+            manualOverrideModal.show();
           })
           .catch(error => {
-            console.error('Error updating throw:', error);
-            alert(`Failed to update throw: ${error.message}`);
+            console.error('Error fetching game data:', error);
+            alert('Failed to load game data. Please try again.');
           });
+      });
+    }
+    
+    // When the save button is clicked
+    if (saveOverrideBtn) {
+      saveOverrideBtn.addEventListener('click', function() {
+        // Validate the form
+        const turnNumber = turnSelect.value;
+        const playerId = playerSelect.value;
+        const throwNumber = throwSelect.value;
+        const score = scoreInput.value;
+        const multiplier = multiplierInput.value;
+        
+        if (!turnNumber || !playerId || !throwNumber || !score || !multiplier) {
+          alert('Please fill in all fields');
+          return;
+        }
+        
+        // Validate score range
+        const scoreVal = parseInt(score);
+        if (isNaN(scoreVal) || (scoreVal < 1 || scoreVal > 20) && scoreVal !== 25) {
+          alert('Score must be between 1-20 or 25 for bullseye');
+          return;
+        }
+        
+        // Validate multiplier for bullseye
+        if (scoreVal === 25 && parseInt(multiplier) > 2) {
+          alert('Bullseye can only have a multiplier of 1 or 2');
+          return;
+        }
+        
+        // Send the update request to the server
+        fetch('/update_throw', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            turn_number: parseInt(turnNumber),
+            player_id: parseInt(playerId),
+            throw_number: parseInt(throwNumber),
+            score: scoreVal,
+            multiplier: parseInt(multiplier)
+          }),
+        })
+        .then(response => {
+          if (!response.ok) {
+            return response.json().then(err => { throw new Error(err.error || 'Unknown error'); });
+          }
+          return response.json();
+        })
+        .then(data => {
+          // Handle the specific game mode response
+          if (window.handleManualOverrideResponse) {
+            window.handleManualOverrideResponse(data, manualOverrideModal);
+          } else {
+            // Default handling
+            manualOverrideModal.hide();
+            alert(`Throw updated successfully! Points: ${data.points}`);
+            
+            // Refresh the game data
+            fetch('/data_json')
+              .then(response => response.json())
+              .then(gameData => updateGame(gameData))
+              .catch(error => console.error('Error fetching data:', error));
+          }
+        })
+        .catch(error => {
+          console.error('Error updating throw:', error);
+          alert(`Failed to update throw: ${error.message}`);
         });
-      }
-    });
-  </script>
-  
-  <style>
-    /* Make modal text larger */
-    .modal-title {
-      font-size: 24px;
+      });
     }
-    
-    .modal-body label {
-      font-size: 18px;
-    }
-    
-    .modal-body .form-control, 
-    .modal-body .form-select {
-      font-size: 18px;
-      padding: 10px;
-    }
-    
-    .modal-footer .btn {
-      font-size: 18px;
-      padding: 8px 16px;
-    }
-    
-    #totalPoints {
-      font-size: 24px;
-      font-weight: bold;
-    }
-    
-    /* Added style for game mode indicator */
-    .game-mode-indicator {
-      margin-bottom: 15px;
-    }
-    
-    .game-mode-indicator .badge {
-      font-size: 1.2rem;
-      padding: 10px 20px;
-      border-radius: 5px;
-    }
-    
-    .turn-header, .player-header {
-      background-color: rgba(233, 236, 239, 0.8);
-      color: #212529;
-    }
-    
-    .card-header {
-      background-color: #6c757d;
-      color: white;
-    }
-    
-    .card-body {
-      font-size: 32px;
-      font-weight: bold;
-      color: #000000;
-    }
-    
-    /* Styles for the last throw card */
-    .last-throw-card {
-      transition: background-color 0.5s ease;
-    }
-    
-    #scoreTable tbody td {
-      font-size: 28px;
-      font-weight: bold;
-      text-align: center;
-      vertical-align: middle;
-      color: #ffffff;
-      padding: 8px 5px; /* Reduced padding from 15px to 8px */
-      height: 45px; /* Set a fixed height to make rows more compact */
-    }
-    
-    /* Make individual turn rows more compact */
-    #scoreTable tbody tr {
-      height: 45px; /* Fixed height for each row */
-    }
-  
-    #scoreTable {
-      margin-bottom: 20px; /* Add space below the table */
-    }
-  
-    /* Keep the header and footer rows at their original size */
-    #scoreTable thead th,
-    #scoreTable tfoot td {
-      padding: 12px 5px; /* Still generous padding for header/footer */
-    }
-    
-    /* Make the totals row stand out */
-    #scoreTable tfoot tr {
-      font-size: 28px;
-      font-weight: bold;
-      text-align: center;
-      vertical-align: middle;
-      color: #ffffff;
-    }
-    
-    /* Style for the manual override button */
-    #manual-override-btn {
-      font-size: 22px;
-      padding: 12px 24px;
-    }
-    
-    /* Style for the last throw display */
-    #last-throw-points {
-      transition: color 0.5s ease;
-    }
-    
-    /* Styles for the throw display */
-    .throw-points {
-      font-size: 28px;
-      font-weight: bold;
-      background-color: #343a40;
-      color: white;
-      padding: 12px;
-      border-radius: 5px;
-      margin-top: 5px;
-    }
-  
-    .has-points {
-      background-color: #28a745;
-      color: white;
-    }
-  
-    #currentThrowsDisplay {
-      margin-bottom: 15px;
-    }
-    
-    /* Style for bust scores */
-    .bust-score {
-      color: #ffffff;
-      background-color: #dc3545;
-      padding: 4px 10px;
-      border-radius: 4px;
-      font-weight: bold;
-      font-size: 22px;
-    }
-    
-    /* Highlight the current player */
-    .active-player {
-      background-color: rgba(0, 123, 255, 0.7);
-      color: white !important;
-      font-weight: bold;
-    }
-  
-    /* Responsive styles for different player counts */
-    .players-1 #scoreTable th, .players-1 #scoreTable td,
-    .players-2 #scoreTable th, .players-2 #scoreTable td {
-      font-size: 32px;  /* Larger text for fewer players */
-    }
-  
-    /* Default is 4 players (no change needed) */
-  
-    /* 5-6 players - reduce font size */
-    .players-5 #scoreTable th,
-    .players-6 #scoreTable th,
-    .players-5 #scoreTable td,
-    .players-6 #scoreTable td {
-      font-size: 24px;
-    }
-  
-    /* 7-8 players - reduce even more */
-    .players-7 #scoreTable th,
-    .players-8 #scoreTable th,
-    .players-7 #scoreTable td,
-    .players-8 #scoreTable td {
-      font-size: 20px;
-      padding: 5px 3px;  /* Smaller padding for more columns */
-    }
-  
-    /* Adjust column widths based on player count */
-    .players-5 #scoreTable th,
-    .players-6 #scoreTable th,
-    .players-7 #scoreTable th,
-    .players-8 #scoreTable th {
-      width: auto;  /* Let the browser determine width */
-    }
-  
-    .players-6 .player-header,
-    .players-7 .player-header,
-    .players-8 .player-header {
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 100px; /* Limit width for more players */
-    }
-  
-    /* Adjust last throw display for many players */
-    .players-5 .last-throw-card,
-    .players-6 .last-throw-card,
-    .players-7 .last-throw-card,
-    .players-8 .last-throw-card {
-      font-size: 80%;
-    }
+  });
 
-  /* Make the score table wider without affecting other columns */
-  @media (min-width: 768px) {
-    /* Increase width of score table column */
-    .col-md-6 {
-      width: 60%;
-      flex: 0 0 60%;
-      max-width: 60%;
-    }
-    
-    /* Keep dartboard column properly sized */
-    .col-md-4 {
-      width: 28%;
-      flex: 0 0 28%;
-      max-width: 28%;
-    }
-    
-    /* Keep last throw column at same size */
-    .col-md-2 {
-      width: 12%;
-      flex: 0 0 12%;
-      max-width: 12%;
-    }
-  }
-  /* Add this to game_scripts.html */
-  @media (min-width: 1200px) {
-    .col-xl-11, .col-xxl-10 {
-      width: 100%;
-      max-width: 100%;
-      flex: 0 0 100%;
-    }
+  // Function to adjust player name font sizes
+  function adjustPlayerNameFontSizes() {
+      // Get all player name headers
+      const playerHeaders = document.querySelectorAll('.player-header');
+      
+      playerHeaders.forEach(header => {
+          // Get the original text
+          const originalText = header.textContent;
+          
+          // Skip if empty
+          if (!originalText) return;
+          
+          // Reset font size to measure with default size
+          header.style.fontSize = '';
+          
+          // Calculate available width vs text width
+          const headerWidth = header.offsetWidth;
+          
+          // Skip if we can't get the width (e.g., element not visible)
+          if (!headerWidth) return;
+          
+          // Create a temp span to measure text width
+          const tempSpan = document.createElement('span');
+          tempSpan.style.visibility = 'hidden';
+          tempSpan.style.position = 'absolute';
+          tempSpan.style.whiteSpace = 'nowrap';
+          tempSpan.style.fontSize = window.getComputedStyle(header).fontSize;
+          tempSpan.textContent = originalText;
+          document.body.appendChild(tempSpan);
+          
+          const textWidth = tempSpan.offsetWidth;
+          document.body.removeChild(tempSpan);
+          
+          // If text is wider than its container, reduce font size
+          if (textWidth > headerWidth * 0.9) { // 90% of container width for some padding
+              const ratio = (headerWidth * 0.9) / textWidth;
+              const computedSize = window.getComputedStyle(header).fontSize;
+              const currentSize = parseInt(computedSize);
+              const newSize = Math.max(12, Math.floor(currentSize * ratio)); // Min 12px
+              
+              header.style.fontSize = `${newSize}px`;
+          }
+      });
   }
 
-  </style>
+  // Add window resize handler
+  window.addEventListener('resize', function() {
+      // Debounce to prevent performance issues
+      if (window.resizeTimer) clearTimeout(window.resizeTimer);
+      window.resizeTimer = setTimeout(adjustPlayerNameFontSizes, 250);
+  });
+
+  // Call adjustPlayerNameFontSizes after the DOM is fully loaded
+  document.addEventListener('DOMContentLoaded', function() {
+      // Add styles for player headers
+      const styleEl = document.createElement('style');
+      styleEl.textContent = `
+          .player-header {
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              transition: font-size 0.2s ease;
+          }
+      `;
+      document.head.appendChild(styleEl);
+      
+      // Initial adjustment
+      setTimeout(adjustPlayerNameFontSizes, 100);
+  });
+
+  // Store reference to the original function
+  const originalUpdatePlayerCountStyle = updatePlayerCountStyle;
+
+  // Replace with our enhanced version
+  updatePlayerCountStyle = function(game_data) {
+      // Call the original function
+      originalUpdatePlayerCountStyle(game_data);
+      
+      // Now adjust font sizes after a short delay
+      setTimeout(adjustPlayerNameFontSizes, 50);
+  };
+</script>
+
+<style>
+  /* Make modal text larger */
+  .modal-title {
+    font-size: 24px;
+  }
+  
+  .modal-body label {
+    font-size: 18px;
+  }
+  
+  .modal-body .form-control, 
+  .modal-body .form-select {
+    font-size: 18px;
+    padding: 10px;
+  }
+  
+  .modal-footer .btn {
+    font-size: 18px;
+    padding: 8px 16px;
+  }
+  
+  #totalPoints {
+    font-size: 24px;
+    font-weight: bold;
+  }
+  
+  /* Added style for game mode indicator */
+  .game-mode-indicator {
+    margin-bottom: 15px;
+  }
+  
+  .game-mode-indicator .badge {
+    font-size: 1.2rem;
+    padding: 10px 20px;
+    border-radius: 5px;
+  }
+  
+  .turn-header, .player-header {
+    background-color: rgba(233, 236, 239, 0.8);
+    color: #212529;
+  }
+  
+  .card-header {
+    background-color: #6c757d;
+    color: white;
+  }
+  
+  .card-body {
+    font-size: 32px;
+    font-weight: bold;
+    color: #000000;
+  }
+  
+  /* Styles for the last throw card */
+  .last-throw-card {
+    transition: background-color 0.5s ease;
+  }
+  
+  #scoreTable tbody td {
+    font-size: 28px;
+    font-weight: bold;
+    text-align: center;
+    vertical-align: middle;
+    color: #ffffff;
+    padding: 8px 5px; /* Reduced padding from 15px to 8px */
+    height: 45px; /* Set a fixed height to make rows more compact */
+  }
+  
+  /* Make individual turn rows more compact */
+  #scoreTable tbody tr {
+    height: 45px; /* Fixed height for each row */
+  }
+
+  #scoreTable {
+    margin-bottom: 20px; /* Add space below the table */
+  }
+
+  /* Keep the header and footer rows at their original size */
+  #scoreTable thead th,
+  #scoreTable tfoot td {
+    padding: 12px 5px; /* Still generous padding for header/footer */
+  }
+  
+  /* Make the totals row stand out */
+  #scoreTable tfoot tr {
+    font-size: 28px;
+    font-weight: bold;
+    text-align: center;
+    vertical-align: middle;
+    color: #ffffff;
+  }
+  
+  /* Style for the manual override button */
+  #manual-override-btn {
+    font-size: 22px;
+    padding: 12px 24px;
+  }
+  
+  /* Style for the last throw display */
+  #last-throw-points {
+    transition: color 0.5s ease;
+  }
+  
+  /* Styles for the throw display */
+  .throw-points {
+    font-size: 28px;
+    font-weight: bold;
+    background-color: #343a40;
+    color: white;
+    padding: 12px;
+    border-radius: 5px;
+    margin-top: 5px;
+  }
+
+  .has-points {
+    background-color: #28a745;
+    color: white;
+  }
+
+  #currentThrowsDisplay {
+    margin-bottom: 15px;
+  }
+  
+  /* Style for bust scores */
+  .bust-score {
+    color: #ffffff;
+    background-color: #dc3545;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 22px;
+  }
+  
+  /* Highlight the current player */
+  .active-player {
+    background-color: rgba(0, 123, 255, 0.7);
+    color: white !important;
+    font-weight: bold;
+  }
+
+  /* Responsive styles for different player counts */
+  .players-1 #scoreTable th, .players-1 #scoreTable td,
+  .players-2 #scoreTable th, .players-2 #scoreTable td {
+    font-size: 32px;  /* Larger text for fewer players */
+  }
+
+  /* Default is 4 players (no change needed) */
+
+  /* 5-6 players - reduce font size */
+  .players-5 #scoreTable th,
+  .players-6 #scoreTable th,
+  .players-5 #scoreTable td,
+  .players-6 #scoreTable td {
+    font-size: 24px;
+  }
+
+  /* 7-8 players - reduce even more */
+  .players-7 #scoreTable th,
+  .players-8 #scoreTable th,
+  .players-7 #scoreTable td,
+  .players-8 #scoreTable td {
+    font-size: 20px;
+    padding: 5px 3px;  /* Smaller padding for more columns */
+  }
+
+  /* Adjust column widths based on player count */
+  .players-5 #scoreTable th,
+  .players-6 #scoreTable th,
+  .players-7 #scoreTable th,
+  .players-8 #scoreTable th {
+    width: auto;  /* Let the browser determine width */
+  }
+
+  .players-6 .player-header,
+  .players-7 .player-header,
+  .players-8 .player-header {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100px; /* Limit width for more players */
+  }
+
+  /* Adjust last throw display for many players */
+  .players-5 .last-throw-card,
+  .players-6 .last-throw-card,
+  .players-7 .last-throw-card,
+  .players-8 .last-throw-card {
+    font-size: 80%;
+  }
+
+/* Make the score table wider without affecting other columns */
+@media (min-width: 768px) {
+  /* Increase width of score table column */
+  .col-md-6 {
+    width: 60%;
+    flex: 0 0 60%;
+    max-width: 60%;
+  }
+  
+  /* Keep dartboard column properly sized */
+  .col-md-4 {
+    width: 28%;
+    flex: 0 0 28%;
+    max-width: 28%;
+  }
+  
+  /* Keep last throw column at same size */
+  .col-md-2 {
+    width: 12%;
+    flex: 0 0 12%;
+    max-width: 12%;
+  }
+}
+/* Add this to game_scripts.html */
+@media (min-width: 1200px) {
+  .col-xl-11, .col-xxl-10 {
+    width: 100%;
+    max-width: 100%;
+    flex: 0 0 100%;
+  }
+}
+
+</style>
