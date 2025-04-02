@@ -505,8 +505,8 @@ class DartProcessor:
             # Save throw details to turn_scores for third throw animation
             self.save_throw_details_to_turn_scores(current_turn, current_player, refreshed_current_throws)
             
-            # Determine animation type based on whether the final throw hit the target
-            animation_type = "target_hit" if hit_target else "third_throw"
+            # KEY FIX: Always use third_throw animation type for third throws, regardless of target hit
+            animation_type = "third_throw"
             print(f"{animation_type.upper()} detected! Processing game logic...")
             
             # Calculate next player and turn
