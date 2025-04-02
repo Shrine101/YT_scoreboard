@@ -430,7 +430,7 @@
               const ratio = (headerWidth * 0.9) / textWidth;
               const computedSize = window.getComputedStyle(header).fontSize;
               const currentSize = parseInt(computedSize);
-              const newSize = Math.max(12, Math.floor(currentSize * ratio)); // Min 12px
+              const newSize = Math.max(16, Math.floor(currentSize * ratio)); // Min 12px
               
               header.style.fontSize = `${newSize}px`;
           }
