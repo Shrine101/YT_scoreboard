@@ -87,14 +87,20 @@ class CVDatabaseWriter:
                 print(f"Recorded throw at {current_time}: Score={score}, Multiplier={multiplier}")
                 print("")
             
-            # After successful processing, set back to ready
+            # Wait 2 seconds before setting system back to ready
+            print("Waiting 2 seconds before accepting next throw...")
+            time.sleep(2)
+            
+            # After successful processing and delay, set back to ready
             self.set_ready_state(True)
         except sqlite3.Error as e:
-            # On error, make sure we're still setting back to ready
+            # On error, still wait 2 seconds then set back to ready
+            time.sleep(2)
             self.set_ready_state(True)
             print(f"Database error: {e}")
         except Exception as e:
-            # On error, make sure we're still setting back to ready
+            # On error, still wait 2 seconds then set back to ready
+            time.sleep(2)
             self.set_ready_state(True)
             print(f"Error recording throw: {e}")
 
