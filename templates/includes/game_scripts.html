@@ -440,15 +440,15 @@
       
       console.log(`Longest name: "${longestName}" with ratio ${maxRatio.toFixed(2)}`);
       
-      // Calculate appropriate font size to make worst case fit at 90%
+      // Calculate appropriate font size to make worst case fit at 75%
       let newFontSize = baseFontSize;
-      if (maxRatio > 0.9) {
+      if (maxRatio > 0.75) {
           // Text is too big, scale it down
-          newFontSize = Math.max(12, Math.floor(baseFontSize * (0.9 / maxRatio)));
+          newFontSize = Math.max(12, Math.floor(baseFontSize * (0.75 / maxRatio)));
           console.log(`Scaling down font from ${baseFontSize}px to ${newFontSize}px`);
-      } else if (maxRatio < 0.85 && maxRatio > 0) {
+      } else if (maxRatio < 0.7 && maxRatio > 0) {
           // Text is too small, scale it up (but not too much)
-          newFontSize = Math.floor(baseFontSize * (0.9 / maxRatio));
+          newFontSize = Math.floor(baseFontSize * (0.75 / maxRatio));
           console.log(`Scaling up font from ${baseFontSize}px to ${newFontSize}px`);
       }
       
@@ -458,11 +458,51 @@
       });
   }
 
+  // Function to set up equal column widths
+  function setupEqualColumnWidths() {
+      // Get scoreTable
+      const scoreTable = document.getElementById('scoreTable');
+      if (!scoreTable) return;
+      
+      // Get number of players 
+      const playerCount = document.querySelectorAll('.player-header').length;
+      if (playerCount === 0) return;
+      
+      // Set table layout to fixed
+      scoreTable.style.tableLayout = 'fixed';
+      
+      // Calculate column widths
+      // First column (turn number) gets 15% of the width
+      // Remaining width is distributed equally among player columns
+      const playerColWidth = (85 / playerCount).toFixed(2);
+      
+      // Get thead row
+      const headerRow = scoreTable.querySelector('thead tr');
+      if (!headerRow) return;
+      
+      // Set the turn header width
+      const turnHeader = headerRow.querySelector('th:first-child');
+      if (turnHeader) {
+          turnHeader.style.width = '15%';
+      }
+      
+      // Set equal width for all player columns
+      const playerHeaders = headerRow.querySelectorAll('.player-header');
+      playerHeaders.forEach(header => {
+          header.style.width = `${playerColWidth}%`;
+      });
+      
+      console.log(`Set up table with ${playerCount} players, each column width: ${playerColWidth}%`);
+  }
+
   // Add window resize handler
   window.addEventListener('resize', function() {
       // Debounce to prevent performance issues
       if (window.resizeTimer) clearTimeout(window.resizeTimer);
-      window.resizeTimer = setTimeout(adjustPlayerNameFontSizes, 250);
+      window.resizeTimer = setTimeout(() => {
+          setupEqualColumnWidths();
+          adjustPlayerNameFontSizes();
+      }, 250);
   });
 
   // Call adjustPlayerNameFontSizes after the DOM is fully loaded
@@ -476,11 +516,20 @@
               text-overflow: ellipsis;
               transition: font-size 0.2s ease;
           }
+          
+          /* Force fixed table layout */
+          #scoreTable, #cricketTable {
+              table-layout: fixed;
+              width: 100%;
+          }
       `;
       document.head.appendChild(styleEl);
       
-      // Initial adjustment
-      setTimeout(adjustPlayerNameFontSizes, 100);
+      // Initial setup
+      setTimeout(() => {
+          setupEqualColumnWidths();
+          adjustPlayerNameFontSizes();
+      }, 100);
   });
 
   // Store reference to the original function
@@ -491,8 +540,11 @@
       // Call the original function
       originalUpdatePlayerCountStyle(game_data);
       
-      // Now adjust font sizes after a short delay
-      setTimeout(adjustPlayerNameFontSizes, 50);
+      // Now set up column widths and adjust font sizes after a short delay
+      setTimeout(() => {
+          setupEqualColumnWidths();
+          adjustPlayerNameFontSizes();
+      }, 50);
   };
 </script>
 
