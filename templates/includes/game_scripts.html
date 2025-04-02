@@ -392,58 +392,72 @@
     }
   });
 
-  // Function to adjust player name font sizes
+  // Function to adjust player name font sizes based on longest name
   function adjustPlayerNameFontSizes() {
       // Get all player name headers
       const playerHeaders = document.querySelectorAll('.player-header');
       
-      console.log("Running font size adjustment for", playerHeaders.length, "headers");
+      if (playerHeaders.length === 0) return;
+      
+      // Reset all font sizes to measure with default size
+      playerHeaders.forEach(header => {
+          header.style.fontSize = '';
+      });
+      
+      // Get base font size
+      const baseFontSize = parseInt(window.getComputedStyle(playerHeaders[0]).fontSize);
+      
+      // Create a temp span for measuring
+      const tempSpan = document.createElement('span');
+      tempSpan.style.visibility = 'hidden';
+      tempSpan.style.position = 'absolute';
+      tempSpan.style.whiteSpace = 'nowrap';
+      tempSpan.style.fontSize = `${baseFontSize}px`;
+      document.body.appendChild(tempSpan);
+      
+      // Find which player name has the worst fit ratio
+      let maxRatio = 0;
+      let longestName = '';
       
       playerHeaders.forEach(header => {
-          // Get the original text
-          const originalText = header.textContent;
-          
-          // Skip if empty
+          const originalText = header.textContent.trim();
           if (!originalText) return;
           
-          // Reset font size to measure with default size
-          header.style.fontSize = '24px';
-          
-          // Calculate available width vs text width
           const headerWidth = header.offsetWidth;
+          if (!headerWidth) return;
           
-          // Create a temp span to measure text width
-          const tempSpan = document.createElement('span');
-          tempSpan.style.visibility = 'hidden';
-          tempSpan.style.position = 'absolute';
-          tempSpan.style.whiteSpace = 'nowrap';
-          tempSpan.style.fontSize = window.getComputedStyle(header).fontSize;
           tempSpan.textContent = originalText;
-          document.body.appendChild(tempSpan);
-          
           const textWidth = tempSpan.offsetWidth;
-          document.body.removeChild(tempSpan);
           
-          console.log(
-              `Header "${originalText}": width=${headerWidth}px, text width=${textWidth}px, ` +
-              `ratio=${(textWidth/headerWidth).toFixed(2)}, ` +
-              `current font size=${window.getComputedStyle(header).fontSize}`
-          );
-          
-          // If text is wider than its container, reduce font size
-          if (textWidth > headerWidth * 0.9) {
-              const ratio = (headerWidth * 0.9) / textWidth;
-              const computedSize = window.getComputedStyle(header).fontSize;
-              const currentSize = parseInt(computedSize);
-              const newSize = Math.max(20, Math.floor(currentSize * ratio)); // Min 20px
-              
-              console.log(`  Resizing "${originalText}" from ${currentSize}px to ${newSize}px`);
-              header.style.fontSize = `${newSize}px`;
-          } else {
-              console.log(`  "${originalText}" fits fine, no resize needed`);
+          const ratio = textWidth / headerWidth;
+          if (ratio > maxRatio) {
+              maxRatio = ratio;
+              longestName = originalText;
           }
       });
-    }
+      
+      document.body.removeChild(tempSpan);
+      
+      console.log(`Longest name: "${longestName}" with ratio ${maxRatio.toFixed(2)}`);
+      
+      // Calculate appropriate font size to make worst case fit at 90%
+      let newFontSize = baseFontSize;
+      if (maxRatio > 0.9) {
+          // Text is too big, scale it down
+          newFontSize = Math.max(12, Math.floor(baseFontSize * (0.9 / maxRatio)));
+          console.log(`Scaling down font from ${baseFontSize}px to ${newFontSize}px`);
+      } else if (maxRatio < 0.85 && maxRatio > 0) {
+          // Text is too small, scale it up (but not too much)
+          newFontSize = Math.floor(baseFontSize * (0.9 / maxRatio));
+          console.log(`Scaling up font from ${baseFontSize}px to ${newFontSize}px`);
+      }
+      
+      // Apply this font size to all player headers
+      playerHeaders.forEach(header => {
+          header.style.fontSize = `${newFontSize}px`;
+      });
+  }
+
   // Add window resize handler
   window.addEventListener('resize', function() {
       // Debounce to prevent performance issues
