@@ -1,7 +1,7 @@
 <!-- Darts scoreboard layout for classic 301/501 mode -->
 <div class="container-fluid" style="margin-top: -50px;">
   <!-- Throw Status Indicator -->
-  <div id="throw-status-indicator" class="position-fixed top-0 end-0 me-3 mt-3" style="z-index: 9999; display: none;">
+  <div id="throw-status-indicator" class="position-fixed top-0 start-0 ms-3 mt-3" style="z-index: 9999; display: none;">
     <div class="alert alert-success py-2 px-4 text-center">
       <h4 class="mb-0" id="throw-status-message">READY - Please throw your dart</h4>
     </div>
@@ -268,4 +268,25 @@
     padding: 10px 20px;
     border-radius: 5px;
   }
+
+  /* Styling for throw status indicator in left corner */
+#throw-status-indicator {
+  transition: all 0.3s ease;
+  width: auto;
+  max-width: 300px;
+}
+
+#throw-status-indicator .alert {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  border: none;
+  border-radius: 6px;
+  padding: 10px 15px;
+  margin: 0;
+}
+
+#throw-status-message {
+  font-weight: bold;
+  font-size: 18px;
+  white-space: nowrap;
+}
 </style>
