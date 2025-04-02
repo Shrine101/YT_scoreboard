@@ -1408,6 +1408,26 @@ def index():
         game_data = game_data
     )
 
+@app.route('/system_state')
+def system_state():
+    """Get the current system state"""
+    try:
+        conn = sqlite3.connect('simulation/cv_data.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute('SELECT ready_for_throw, last_updated FROM system_state WHERE id = 1')
+        state = cursor.fetchone()
+        conn.close()
+        
+        if state:
+            return jsonify({
+                'ready_for_throw': bool(state['ready_for_throw']),
+                'last_updated': state['last_updated']
+            })
+        return jsonify({'ready_for_throw': True, 'error': 'No state found'})
+    except Exception as e:
+        return jsonify({'ready_for_throw': True, 'error': str(e)})
+
 if __name__ == '__main__':
     try:
         # Initialize database before starting the app

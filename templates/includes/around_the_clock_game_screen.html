@@ -1,5 +1,12 @@
 <!-- Darts scoreboard layout for Around the Clock mode with Game Rules button -->
 <div class="container-fluid" style="margin-top: -50px;">
+  <!-- Throw Status Indicator -->
+  <div id="throw-status-indicator" class="position-fixed top-0 start-50 translate-middle-x mt-3" style="z-index: 9999; display: none;">
+    <div class="alert alert-success py-2 px-4 text-center">
+      <h4 class="mb-0" id="throw-status-message">READY - Please throw your dart</h4>
+    </div>
+  </div>
+
   <div class="row justify-content-center">
     <div class="col-xl-11 col-xxl-10">
       <!-- Game mode indicator -->

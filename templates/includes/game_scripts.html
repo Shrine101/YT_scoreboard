@@ -86,12 +86,41 @@
     }, 2000);
   }
 
+  // Function to check system state
+  function checkSystemState() {
+    fetch('/system_state')
+      .then(response => response.json())
+      .then(data => updateThrowStatus(data))
+      .catch(error => console.error('Error checking system state:', error));
+  }
+
+  // Function to update the throw status indicator
+  function updateThrowStatus(data) {
+    const indicator = document.getElementById('throw-status-indicator');
+    const message = document.getElementById('throw-status-message');
+    
+    if (indicator && message) {
+      indicator.style.display = 'block';
+      
+      if (data.ready_for_throw) {
+        indicator.querySelector('.alert').className = 'alert alert-success py-2 px-4 text-center';
+        message.textContent = 'READY - Please throw your dart';
+      } else {
+        indicator.querySelector('.alert').className = 'alert alert-warning py-2 px-4 text-center';
+        message.textContent = 'WAIT - System processing dart';
+      }
+    }
+  }
+
   // Set up polling for updates
   setInterval(function() {
     fetch('/data_json')
       .then(response => response.json())
       .then(data => updateGame(data))
       .catch(error => console.error('Error fetching data:', error));
+      
+    // Also check system state
+    checkSystemState();
   }, 1000);
   
   // Initialize animation state flags
@@ -768,6 +797,32 @@
     max-width: 100%;
     flex: 0 0 100%;
   }
+}
+
+/* Styling for throw status indicator */
+#throw-status-indicator {
+  transition: all 0.3s ease;
+}
+
+#throw-status-indicator .alert {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border: none;
+  transition: all 0.3s ease;
+}
+
+#throw-status-indicator .alert-success {
+  background-color: rgba(40, 167, 69, 0.9);
+  color: white;
+}
+
+#throw-status-indicator .alert-warning {
+  background-color: rgba(255, 193, 7, 0.9);
+  color: #212529;
+}
+
+#throw-status-message {
+  font-weight: bold;
+  letter-spacing: 0.5px;
 }
 
 </style>
