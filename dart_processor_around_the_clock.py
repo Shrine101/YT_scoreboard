@@ -76,11 +76,30 @@ class DartProcessor:
             ''')
             conn.commit()
 
-    def set_animation_state(self, animation_type, turn_number, player_id, throw_number, next_turn=None, next_player=None):
-        """Set the animation state in the database"""
+    def set_animation_state(self, animation_type, turn_number, player_id, throw_number, next_turn=None, next_player=None, target_hit=False):
+        """
+        Set the animation state in the database
+        
+        Args:
+            animation_type: Type of animation ('third_throw', 'win', etc.)
+            turn_number: Current turn number
+            player_id: Current player ID
+            throw_number: Throw number (1-3)
+            next_turn: Next turn number if advancing
+            next_player: Next player ID if advancing
+            target_hit: Whether this throw hit the player's target (for Around the Clock)
+        """
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         with self.get_game_connection() as conn:
             cursor = conn.cursor()
+            
+            # First add a column to the animation_state table if it doesn't exist yet
+            try:
+                cursor.execute("SELECT target_hit FROM animation_state LIMIT 1")
+            except sqlite3.OperationalError:
+                # Column doesn't exist, add it
+                cursor.execute("ALTER TABLE animation_state ADD COLUMN target_hit INTEGER DEFAULT 0")
+            
             cursor.execute('''
                 UPDATE animation_state 
                 SET animating = 1, 
@@ -90,9 +109,10 @@ class DartProcessor:
                     throw_number = ?, 
                     timestamp = ?,
                     next_turn = ?,
-                    next_player = ?
+                    next_player = ?,
+                    target_hit = ?
                 WHERE id = 1
-            ''', (animation_type, turn_number, player_id, throw_number, current_time, next_turn, next_player))
+            ''', (animation_type, turn_number, player_id, throw_number, current_time, next_turn, next_player, 1 if target_hit else 0))
             conn.commit()
 
     def check_and_clear_animations(self):
@@ -489,8 +509,8 @@ class DartProcessor:
                     turn_number=current_turn,
                     player_id=current_player,
                     throw_number=throw_position,
-                    next_turn=None,  # Don't advance turn yet
-                    next_player=None  # Don't advance player yet
+                    next_turn=None,
+                    next_player=None
                 )
         
         # Process game logic when player has used their three throws
@@ -526,13 +546,15 @@ class DartProcessor:
             self.record_player_target(current_turn, current_player, current_target)
             
             # Set animation state BEFORE advancing game state
+            # IMPORTANT: Pass the hit_target flag to allow the frontend to show target hit notification
             self.set_animation_state(
                 animation_type=animation_type,
                 turn_number=current_turn,
                 player_id=current_player,
                 throw_number=throw_position,
                 next_turn=next_turn,
-                next_player=next_player
+                next_player=next_player,
+                target_hit=hit_target
             )
             
             # Advance to next player

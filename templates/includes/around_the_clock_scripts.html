@@ -193,6 +193,14 @@
         updateScoreTable(game_data);
         updateNormalThrows(game_data);
       } else if (game_data.animation_type === 'third_throw') {
+        // IMPORTANT: Check if this third throw also hit a target
+        const targetHit = game_data.target_hit;
+        
+        // If target was hit, show the notification
+        if (targetHit) {
+          showTargetHitNotification();
+        }
+        
         // For third throw animations, only update the throw display initially
         // and delay the scoreboard update - similar to classic mode
         const thirdThrow = game_data.current_throws.find(t => t.throw_number === 3);

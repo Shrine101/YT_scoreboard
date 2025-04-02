@@ -639,6 +639,12 @@ def data_json():
         game_data["animating"] = True
         game_data["animation_type"] = animation_type
         
+        # Pass target_hit flag if it exists in the animation_state table
+        try:
+            game_data["target_hit"] = bool(animation_state['target_hit'])
+        except (KeyError, sqlite3.OperationalError):
+            game_data["target_hit"] = False
+        
         if animation_type in ['bust', 'third_throw', 'win']:
             # For these animations, we want to show the throw but not advance player yet
             anim_turn = animation_state['turn_number']
