@@ -1,4 +1,59 @@
 <script>
+  // Function to resize the NUMBER header text to fill 75% of its container width
+  function adjustNumberHeaderSize() {
+    // Get the NUMBER header element
+    const numberHeader = document.querySelector('#cricketTable thead th:first-child');
+    if (!numberHeader) return;
+    
+    // Get the width of the container
+    const containerWidth = numberHeader.offsetWidth;
+    
+    // Create a temporary span to measure text width at various font sizes
+    const tempSpan = document.createElement('span');
+    tempSpan.textContent = 'NUMBER';
+    tempSpan.style.visibility = 'hidden';
+    tempSpan.style.position = 'absolute';
+    tempSpan.style.whiteSpace = 'nowrap';
+    document.body.appendChild(tempSpan);
+    
+    // Start with current font size or 24px as baseline
+    let currentSize = parseInt(window.getComputedStyle(numberHeader).fontSize) || 24;
+    let targetRatio = 0.75; // Target to fill 75% of container width
+    let minSize = 16; // Don't go smaller than this
+    let maxSize = 60; // Don't go larger than this
+    
+    // Binary search to find the best font size
+    let low = minSize;
+    let high = maxSize;
+    let bestSize = currentSize;
+    
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      tempSpan.style.fontSize = `${mid}px`;
+      const textWidth = tempSpan.offsetWidth;
+      const ratio = textWidth / containerWidth;
+      
+      // If we're within 5% of target, consider it good enough
+      if (Math.abs(ratio - targetRatio) < 0.05) {
+        bestSize = mid;
+        break;
+      }
+      
+      if (ratio < targetRatio) {
+        low = mid + 1;
+        bestSize = mid; // This size still fits, so it's a candidate
+      } else {
+        high = mid - 1;
+      }
+    }
+    
+    // Apply the best size
+    numberHeader.style.fontSize = `${bestSize}px`;
+    
+    // Clean up
+    document.body.removeChild(tempSpan);
+  }
+
   // Helper function to get mark symbol
   function getMarkSymbol(marks) {
     if (marks === 0) return '';
@@ -189,6 +244,9 @@
             }
           }
         }
+        
+        // Apply the NUMBER header font sizing
+        adjustNumberHeaderSize();
       })
       .catch(error => {
         console.error('Error fetching cricket scores:', error);
@@ -351,6 +409,9 @@
         updateNormalThrows(game_data);
       }
     }
+    
+    // Apply the NUMBER header font sizing after all updates
+    setTimeout(adjustNumberHeaderSize, 100);
   }
 
   // Add style for cricket marks
@@ -367,6 +428,12 @@
       }
     `;
     document.head.appendChild(style);
+    
+    // Apply the NUMBER header font sizing on load
+    adjustNumberHeaderSize();
+    
+    // Also apply when window is resized
+    window.addEventListener('resize', adjustNumberHeaderSize);
     
     // Start polling for updates
     updateGame(window.currentGameData || {});
