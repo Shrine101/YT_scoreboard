@@ -345,20 +345,23 @@
       document.getElementById('win-message-overlay').style.visibility = 'hidden';
     }
     
+    // Check for third throw specially
+    const isThirdThrow = game_data.throw_number === 3 || 
+                        (game_data.current_throws && game_data.current_throws.some(t => t.throw_number === 3 && t.points > 0));
+    
     // Handle animation based on type
     if (game_data.animating) {
-      if (game_data.animation_type === 'cricket_closed') {
-        // Show number closed notification
-        showCricketNotification('closed');
+      // FIXED: Special handling for third throw combined with cricket events (closed/marks/points)
+      if (isThirdThrow && (game_data.animation_type === 'cricket_closed' || 
+                          game_data.animation_type === 'cricket_marks' || 
+                          game_data.animation_type === 'cricket_points' ||
+                          game_data.animation_type === 'third_throw')) {
         
-        // Update cricket scoreboard
-        updateCricketScoreboard(game_data);
-        updateNormalThrows(game_data);
-      } else if (game_data.animation_type === 'cricket_marks' || game_data.animation_type === 'cricket_points') {
-        // Update normally for marks or points
-        updateCricketScoreboard(game_data);
-        updateNormalThrows(game_data);
-      } else if (game_data.animation_type === 'third_throw') {
+        // We still want to show the cricket notification if applicable
+        if (game_data.animation_type === 'cricket_closed') {
+          showCricketNotification('closed');
+        }
+        
         // For third throw animations, only update the throw display initially
         // and delay the scoreboard update - similar to classic mode
         const thirdThrow = game_data.current_throws.find(t => t.throw_number === 3);
@@ -400,7 +403,22 @@
             }
           }
         }
-      } else if (game_data.animation_type === 'win') {
+      } 
+      // Non-third throw cricket events
+      else if (game_data.animation_type === 'cricket_closed') {
+        // Show number closed notification
+        showCricketNotification('closed');
+        
+        // Update cricket scoreboard
+        updateCricketScoreboard(game_data);
+        updateNormalThrows(game_data);
+      } 
+      else if (game_data.animation_type === 'cricket_marks' || game_data.animation_type === 'cricket_points') {
+        // Update normally for marks or points (not third throw)
+        updateCricketScoreboard(game_data);
+        updateNormalThrows(game_data);
+      } 
+      else if (game_data.animation_type === 'win') {
         // Show game over banner for win animations
         const winner = game_data.players.find(player => player.id === game_data.current_player);
         if (winner) {
