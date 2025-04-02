@@ -397,6 +397,8 @@
       // Get all player name headers
       const playerHeaders = document.querySelectorAll('.player-header');
       
+      console.log("Running font size adjustment for", playerHeaders.length, "headers");
+      
       playerHeaders.forEach(header => {
           // Get the original text
           const originalText = header.textContent;
@@ -410,9 +412,6 @@
           // Calculate available width vs text width
           const headerWidth = header.offsetWidth;
           
-          // Skip if we can't get the width (e.g., element not visible)
-          if (!headerWidth) return;
-          
           // Create a temp span to measure text width
           const tempSpan = document.createElement('span');
           tempSpan.style.visibility = 'hidden';
@@ -425,18 +424,26 @@
           const textWidth = tempSpan.offsetWidth;
           document.body.removeChild(tempSpan);
           
+          console.log(
+              `Header "${originalText}": width=${headerWidth}px, text width=${textWidth}px, ` +
+              `ratio=${(textWidth/headerWidth).toFixed(2)}, ` +
+              `current font size=${window.getComputedStyle(header).fontSize}`
+          );
+          
           // If text is wider than its container, reduce font size
-          if (textWidth > headerWidth * 0.9) { // 90% of container width for some padding
+          if (textWidth > headerWidth * 0.9) {
               const ratio = (headerWidth * 0.9) / textWidth;
               const computedSize = window.getComputedStyle(header).fontSize;
               const currentSize = parseInt(computedSize);
-              const newSize = Math.max(20, Math.floor(currentSize * ratio)); // Min 12px
+              const newSize = Math.max(20, Math.floor(currentSize * ratio)); // Min 20px
               
+              console.log(`  Resizing "${originalText}" from ${currentSize}px to ${newSize}px`);
               header.style.fontSize = `${newSize}px`;
+          } else {
+              console.log(`  "${originalText}" fits fine, no resize needed`);
           }
       });
-  }
-
+    }
   // Add window resize handler
   window.addEventListener('resize', function() {
       // Debounce to prevent performance issues
