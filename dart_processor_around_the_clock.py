@@ -307,6 +307,81 @@ class DartProcessor:
             
             return None
 
+    def save_throw_details_to_turn_scores(self, turn_number, player_id, current_throws):
+        """Store throw details in the turn_scores table for animation handling"""
+        with self.get_game_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Make sure the turn exists
+            cursor.execute('SELECT 1 FROM turns WHERE turn_number = ?', (turn_number,))
+            if not cursor.fetchone():
+                cursor.execute('INSERT INTO turns (turn_number) VALUES (?)', (turn_number,))
+            
+            # Get player's current target for this turn
+            player_progress = self.get_player_progress(player_id)
+            current_target = player_progress['current_number']
+            
+            # Map throws to their respective columns
+            throw_columns = {}
+            for throw in current_throws:
+                throw_num = throw['throw_number']
+                throw_columns[f'throw{throw_num}'] = throw['score']
+                throw_columns[f'throw{throw_num}_multiplier'] = throw['multiplier']
+                throw_columns[f'throw{throw_num}_points'] = throw['points']
+            
+            # Check if player already has a score for this turn
+            cursor.execute(
+                'SELECT points FROM turn_scores WHERE turn_number = ? AND player_id = ?',
+                (turn_number, player_id)
+            )
+            existing = cursor.fetchone()
+            
+            if existing:
+                # Update existing score with individual throw details
+                update_query = '''
+                UPDATE turn_scores 
+                SET points = ?, 
+                    throw1 = ?, throw1_multiplier = ?, throw1_points = ?,
+                    throw2 = ?, throw2_multiplier = ?, throw2_points = ?,
+                    throw3 = ?, throw3_multiplier = ?, throw3_points = ?,
+                    bust = 0
+                WHERE turn_number = ? AND player_id = ?
+                '''
+                cursor.execute(
+                    update_query,
+                    (
+                        current_target,  # For Around the Clock, points represent the current target
+                        throw_columns.get('throw1', 0), throw_columns.get('throw1_multiplier', 0), throw_columns.get('throw1_points', 0),
+                        throw_columns.get('throw2', 0), throw_columns.get('throw2_multiplier', 0), throw_columns.get('throw2_points', 0),
+                        throw_columns.get('throw3', 0), throw_columns.get('throw3_multiplier', 0), throw_columns.get('throw3_points', 0),
+                        turn_number, player_id
+                    )
+                )
+            else:
+                # Insert new score with individual throw details
+                insert_query = '''
+                INSERT INTO turn_scores (
+                    turn_number, player_id, points,
+                    throw1, throw1_multiplier, throw1_points,
+                    throw2, throw2_multiplier, throw2_points,
+                    throw3, throw3_multiplier, throw3_points,
+                    bust
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                '''
+                cursor.execute(
+                    insert_query,
+                    (
+                        turn_number, player_id, current_target,  # For Around the Clock, points represent the current target
+                        throw_columns.get('throw1', 0), throw_columns.get('throw1_multiplier', 0), throw_columns.get('throw1_points', 0),
+                        throw_columns.get('throw2', 0), throw_columns.get('throw2_multiplier', 0), throw_columns.get('throw2_points', 0),
+                        throw_columns.get('throw3', 0), throw_columns.get('throw3_multiplier', 0), throw_columns.get('throw3_points', 0)
+                    )
+                )
+            
+            conn.commit()
+            
+            print(f"Saved throw details to turn_scores for player {player_id}, turn {turn_number}")
+
     def process_throw(self, throw):
         """Process a single throw for Around the Clock game mode"""
         # Calculate points (score * multiplier)
@@ -420,6 +495,16 @@ class DartProcessor:
         
         # Process game logic when player has used their three throws
         if throw_position == 3:
+            # CRITICAL FIX: Explicitly refresh current_throws to include the latest throw
+            refreshed_current_throws = []
+            with self.get_game_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT throw_number, points, score, multiplier FROM current_throws ORDER BY throw_number')
+                refreshed_current_throws = [dict(t) for t in cursor.fetchall()]
+            
+            # Save throw details to turn_scores for third throw animation
+            self.save_throw_details_to_turn_scores(current_turn, current_player, refreshed_current_throws)
+            
             # Determine animation type based on whether the final throw hit the target
             animation_type = "target_hit" if hit_target else "third_throw"
             print(f"{animation_type.upper()} detected! Processing game logic...")

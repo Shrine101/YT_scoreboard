@@ -110,15 +110,16 @@
   // Function to show a target hit notification
   function showTargetHitNotification(duration = 3000) {
     const targetHitBanner = document.getElementById('target-hit-banner');
+    const targetHitOverlay = document.getElementById('target-hit-overlay');
     
-    if (targetHitBanner) {
-      targetHitBanner.style.visibility = 'visible';
-      
-      // Hide the banner after the duration
-      setTimeout(() => {
-        targetHitBanner.style.visibility = 'hidden';
-      }, duration);
-    }
+    if (targetHitBanner) targetHitBanner.style.visibility = 'visible';
+    if (targetHitOverlay) targetHitOverlay.style.visibility = 'visible';
+    
+    // Hide the banner after the duration
+    setTimeout(() => {
+      if (targetHitBanner) targetHitBanner.style.visibility = 'hidden';
+      if (targetHitOverlay) targetHitOverlay.style.visibility = 'hidden';
+    }, duration);
   }
 
   // Handle Manual Override response for Around the Clock mode
@@ -192,10 +193,50 @@
         updateScoreTable(game_data);
         updateNormalThrows(game_data);
       } else if (game_data.animation_type === 'third_throw') {
-        // For third throw animations, update normally
-        updatePlayerHighlights(game_data);
-        updateScoreTable(game_data);
-        updateNormalThrows(game_data);
+        // For third throw animations, only update the throw display initially
+        // and delay the scoreboard update - similar to classic mode
+        const thirdThrow = game_data.current_throws.find(t => t.throw_number === 3);
+        if (thirdThrow) {
+          const throwElement = document.getElementById(`throw3_points`);
+          if (throwElement) {
+            // Check if we already started this animation
+            if (!window.animatingThirdThrow) {
+              window.animatingThirdThrow = true;
+              
+              // Set the throw immediately to the new value but with green color
+              throwElement.textContent = thirdThrow.points.toString();
+              throwElement.style.color = '#00ff00';
+              
+              // Also update other throws without blinking (but don't update scoreboard yet)
+              for (let i = 1; i <= 2; i++) {
+                const throw_data = game_data.current_throws.find(t => t.throw_number === i);
+                if (throw_data) {
+                  const element = document.getElementById(`throw${i}_points`);
+                  if (element) {
+                    element.textContent = throw_data.points.toString();
+                  }
+                }
+              }
+              
+              // After 2 seconds, reset the color back to black
+              setTimeout(() => {
+                throwElement.style.color = '#000000';
+                
+                // After another brief delay, update the rest of the UI
+                setTimeout(() => {
+                  // Update player highlights
+                  updatePlayerHighlights(game_data);
+                  
+                  // Update the score table
+                  updateScoreTable(game_data);
+                  
+                  // Reset animation flag
+                  window.animatingThirdThrow = false;
+                }, 500); // 500ms after color change (total 2.5s)
+              }, 2000); // 2s for the green highlight
+            }
+          }
+        }
       } else if (game_data.animation_type === 'win') {
         // Show game over banner for win animations
         const winner = game_data.players.find(player => player.id === game_data.current_player);
@@ -239,11 +280,20 @@
       document.getElementById('target-hit-overlay').style.visibility = 'hidden';
       
       // If we're not in an animation, update everything normally
-      if (!window.animatingWin) {
+      if (!window.animatingThirdThrow && !window.animatingWin) {
         updatePlayerHighlights(game_data);
         updateScoreTable(game_data);
         updateNormalThrows(game_data);
       }
     }
   }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    // Initialize animation state flags
+    window.animatingThirdThrow = false;
+    window.animatingWin = false;
+    
+    // Start polling for updates
+    updateGame(window.currentGameData || {});
+  });
 </script>
