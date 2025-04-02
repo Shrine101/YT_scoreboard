@@ -80,11 +80,30 @@ class DartProcessor:
             ''')
             conn.commit()
 
-    def set_animation_state(self, animation_type, turn_number, player_id, throw_number, next_turn=None, next_player=None):
-        """Set the animation state in the database"""
+    def set_animation_state(self, animation_type, turn_number, player_id, throw_number, next_turn=None, next_player=None, cricket_event=None):
+        """
+        Set the animation state in the database
+        
+        Args:
+            animation_type: Type of animation ('third_throw', 'win', etc.)
+            turn_number: Current turn number
+            player_id: Current player ID
+            throw_number: Throw number (1-3)
+            next_turn: Next turn number if advancing
+            next_player: Next player ID if advancing
+            cricket_event: Type of cricket event ('cricket_closed', 'cricket_marks', 'cricket_points')
+        """
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         with self.get_game_connection() as conn:
             cursor = conn.cursor()
+            
+            # First add a column to the animation_state table if it doesn't exist yet
+            try:
+                cursor.execute("SELECT cricket_event FROM animation_state LIMIT 1")
+            except sqlite3.OperationalError:
+                # Column doesn't exist, add it
+                cursor.execute("ALTER TABLE animation_state ADD COLUMN cricket_event TEXT DEFAULT NULL")
+            
             cursor.execute('''
                 UPDATE animation_state 
                 SET animating = 1, 
@@ -94,9 +113,10 @@ class DartProcessor:
                     throw_number = ?, 
                     timestamp = ?,
                     next_turn = ?,
-                    next_player = ?
+                    next_player = ?,
+                    cricket_event = ?
                 WHERE id = 1
-            ''', (animation_type, turn_number, player_id, throw_number, current_time, next_turn, next_player))
+            ''', (animation_type, turn_number, player_id, throw_number, current_time, next_turn, next_player, cricket_event))
             conn.commit()
 
     def check_and_clear_animations(self):
@@ -665,7 +685,8 @@ class DartProcessor:
             next_player = current_player % player_count + 1  # Cycle to next player (1-based)
             next_turn = current_turn + (1 if next_player == 1 else 0)  # Increment turn if we wrapped around
             
-            # KEY FIX: Always use third_throw animation type for third throws, regardless of cricket action
+            # KEY FIX: Always use third_throw animation type for third throws,
+            # but pass the cricket_event_type so the frontend can also show the cricket notification
             animation_type = "third_throw"
             
             # Set animation state BEFORE advancing game state
@@ -675,7 +696,8 @@ class DartProcessor:
                 player_id=current_player,
                 throw_number=throw_position,
                 next_turn=next_turn,
-                next_player=next_player
+                next_player=next_player,
+                cricket_event=cricket_event_type
             )
             
             # Advance to next player

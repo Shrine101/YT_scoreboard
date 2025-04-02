@@ -354,11 +354,21 @@
         // Update cricket scoreboard
         updateCricketScoreboard(game_data);
         updateNormalThrows(game_data);
-      } else if (game_data.animation_type === 'cricket_marks' || game_data.animation_type === 'cricket_points') {
-        // Update normally for marks or points
+      } 
+      else if (game_data.animation_type === 'cricket_marks' || game_data.animation_type === 'cricket_points') {
+        // Update normally for marks or points (not third throw)
         updateCricketScoreboard(game_data);
         updateNormalThrows(game_data);
-      } else if (game_data.animation_type === 'third_throw') {
+      } 
+      else if (game_data.animation_type === 'third_throw') {
+        // IMPORTANT: Check if this third throw also had a cricket event
+        const cricketEvent = game_data.cricket_event;
+        
+        // If this was a cricket closed event, show the notification
+        if (cricketEvent === 'cricket_closed') {
+          showCricketNotification('closed');
+        }
+        
         // For third throw animations, only update the throw display initially
         // and delay the scoreboard update - similar to classic mode
         const thirdThrow = game_data.current_throws.find(t => t.throw_number === 3);
@@ -400,7 +410,8 @@
             }
           }
         }
-      } else if (game_data.animation_type === 'win') {
+      } 
+      else if (game_data.animation_type === 'win') {
         // Show game over banner for win animations
         const winner = game_data.players.find(player => player.id === game_data.current_player);
         if (winner) {

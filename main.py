@@ -639,11 +639,18 @@ def data_json():
         game_data["animating"] = True
         game_data["animation_type"] = animation_type
         
-        # Pass target_hit flag if it exists in the animation_state table
+        # Pass target_hit flag if it exists in the animation_state table (for Around the Clock)
         try:
             game_data["target_hit"] = bool(animation_state['target_hit'])
         except (KeyError, sqlite3.OperationalError):
             game_data["target_hit"] = False
+            
+        # Pass cricket_event if it exists in the animation_state table (for Cricket)
+        try:
+            if animation_state['cricket_event']:
+                game_data["cricket_event"] = animation_state['cricket_event']
+        except (KeyError, sqlite3.OperationalError):
+            pass  # Skip if the column doesn't exist
         
         if animation_type in ['bust', 'third_throw', 'win']:
             # For these animations, we want to show the throw but not advance player yet
