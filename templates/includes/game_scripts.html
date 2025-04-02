@@ -522,23 +522,6 @@
               table-layout: fixed;
               width: 100%;
           }
-
-          /* Ensure consistent row heights for scoreTable only */
-          #scoreTable tbody tr {
-              height: 45px !important; /* Force consistent height with !important */
-              min-height: 45px !important;
-              max-height: 45px !important;
-              line-height: 1.2 !important; /* Consistent line height */
-              overflow: hidden !important; /* Prevent content from expanding row */
-          }
-
-          #scoreTable tbody td {
-              vertical-align: middle !important;
-              padding-top: 0 !important;
-              padding-bottom: 0 !important;
-              height: 45px !important;
-              overflow: hidden !important;
-          }
       `;
       document.head.appendChild(styleEl);
       
@@ -633,9 +616,9 @@
     height: 45px; /* Set a fixed height to make rows more compact */
   }
   
-  /* Make individual turn rows more compact */
+  /* Make individual turn rows more compact - with !important to ensure consistency */
   #scoreTable tbody tr {
-    height: 45px; /* Fixed height for each row */
+    height: 60px !important; /* Fixed height for each row */
   }
 
   #scoreTable {
