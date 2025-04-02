@@ -107,13 +107,13 @@
     }
   }
   
-  // Function to show a target hit notification
-  function showTargetHitNotification(duration = 3000) {
+    // Function to show a target hit notification
+    function showTargetHitNotification(duration = 3000) {
     const targetHitBanner = document.getElementById('target-hit-banner');
     const targetHitOverlay = document.getElementById('target-hit-overlay');
     
     if (targetHitBanner) targetHitBanner.style.visibility = 'visible';
-    if (targetHitOverlay) targetHitOverlay.style.visibility = 'visible';
+    // Only show the green notification, hide the overlay
     
     // Hide the banner after the duration
     setTimeout(() => {
