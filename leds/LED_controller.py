@@ -64,34 +64,31 @@ class LEDController:
             
             if mode_row:
                 mode = mode_row['mode']
-                # Debug output
-                print(f"Read game mode from database: '{mode}'")
                 
                 # Normalize mode string for comparison
+                normalized_mode = None
                 if mode.lower() in ['301', '501', 'classic']:
-                    return 'classic'
+                    normalized_mode = 'classic'
                 elif mode.lower() in ['cricket', 'american_cricket']:
-                    return 'cricket'
+                    normalized_mode = 'cricket'
                 elif mode.lower() in ['around_clock', 'around_the_clock']:
-                    return 'around_clock'
+                    normalized_mode = 'around_clock'
                 else:
-                    print(f"Unrecognized game mode: '{mode}', defaulting to neutral mode")
-                    return 'neutral'
+                    normalized_mode = 'neutral'  # Default to neutral for unrecognized modes
+                
+                # Check if this is the first call or the mode has changed
+                if not hasattr(self, 'previous_mode') or self.previous_mode != normalized_mode:
+                    print(f"Game mode: '{normalized_mode}'")
+                    self.previous_mode = normalized_mode
+                
+                return normalized_mode
             else:
-                print("No game mode found in database, defaulting to neutral mode")
+                # If no game mode is found in the database
+                if not hasattr(self, 'previous_mode') or self.previous_mode != 'neutral':
+                    print("No game mode found in database, defaulting to neutral mode")
+                    self.previous_mode = 'neutral'
+                
                 return 'neutral'  # Default to neutral if no mode is set
-
-    def get_current_player(self):
-        """Get current active player from database."""
-        with self.get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT current_player, player_count FROM player_state WHERE id = 1")
-            state = cursor.fetchone()
-            if state:
-                self.current_player = state['current_player']
-                self.player_count = state['player_count']
-                return state['current_player']
-            return 1  # Default to player 1 if no state is set
 
     def get_cricket_state(self):
         """Get cricket game state from database."""

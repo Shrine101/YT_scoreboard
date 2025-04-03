@@ -63,10 +63,10 @@ def initialize_leds_database():
     )
     ''')
     
-    # Insert default game mode (classic)
+    # Insert default game mode (neutral)
     cursor.execute('''
     INSERT INTO game_mode (id, mode, updated_at)
-    VALUES (1, 'classic', CURRENT_TIMESTAMP)
+    VALUES (1, 'neutrak', CURRENT_TIMESTAMP)
     ''')
     
     # Insert default player state
