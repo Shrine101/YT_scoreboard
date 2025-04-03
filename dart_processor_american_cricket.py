@@ -4,7 +4,7 @@ dart_processor_american_cricket.py
 This is a dart processor for the American Cricket game mode.
 In this game, players aim to hit numbers 15-20 and bullseye,
 marking each three times to "close" it. Points are scored on
-open numbers until everyone has closed them.
+open numbers until at least 2 players have closed them.
 """
 
 import sqlite3
@@ -26,6 +26,9 @@ class DartProcessor:
         
         # Initialize timestamp to current local time
         self.last_throw_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Add pending player change tracking
+        self.pending_player_change = None
         
         print(f"American Cricket dart processor initialized. Only processing throws after: {self.last_throw_timestamp}")
         
@@ -222,15 +225,11 @@ class DartProcessor:
             return False  # Default to closed if number not found
 
     def is_number_closed_by_all(self, number):
-        """Check if a number has been closed by all players"""
+        """Check if a number has been closed by at least 2 players (making it closed for everyone)"""
         with self.get_game_connection() as conn:
             cursor = conn.cursor()
             
-            # First count all active players
-            cursor.execute('SELECT COUNT(*) as player_count FROM players')
-            player_count = cursor.fetchone()['player_count']
-            
-            # Then count players who have closed this number
+            # Count players who have closed this number
             cursor.execute('''
                 SELECT COUNT(*) as closed_count FROM cricket_scores
                 WHERE number = ? AND closed = 1
@@ -238,8 +237,8 @@ class DartProcessor:
             
             closed_count = cursor.fetchone()['closed_count']
             
-            # Number is closed by all if the counts match
-            return closed_count >= player_count
+            # Number is globally closed if at least 2 players have closed it
+            return closed_count >= 2
 
     def update_cricket_score(self, player_id, number, marks_to_add, score_to_add=0):
         """Update a player's cricket score for a specific number"""
@@ -413,6 +412,19 @@ class DartProcessor:
             conn.commit()
             
             print(f"Advanced to Player {next_player}, Turn {next_turn}")
+            
+            # Store this player change as pending for LEDs.db
+            # Check if there's an active animation
+            cursor.execute('SELECT animating FROM animation_state WHERE id = 1')
+            animation_state = cursor.fetchone()
+            if animation_state and animation_state['animating'] == 1:
+                # Store as pending change
+                self.pending_player_change = next_player
+                print(f"Animation in progress - storing pending player change: {next_player}")
+            else:
+                # No animation, apply immediately
+                self.pending_player_change = None
+                
             return next_player, next_turn
 
     def check_for_winner(self):
@@ -528,6 +540,41 @@ class DartProcessor:
             
             print(f"Saved throw details to turn_scores for player {player_id}, turn {turn_number}")
 
+    def apply_pending_player_change(self):
+        """Check if animation has completed and apply any pending player change to LEDs.db."""
+        if self.pending_player_change is None:
+            return
+            
+        # Check if animation is still active
+        is_animating = False
+        with self.get_game_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT animating FROM animation_state WHERE id = 1')
+            animation_state = cursor.fetchone()
+            if animation_state and animation_state['animating'] == 1:
+                is_animating = True
+                
+        # If animation has completed, update the LEDs.db with the pending player change
+        if not is_animating:
+            try:
+                with self.get_leds_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        UPDATE player_state 
+                        SET current_player = ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = 1
+                    """, (self.pending_player_change,))
+                    conn.commit()
+                    
+                print(f"Animation completed - Updated current player in LEDs.db to {self.pending_player_change}")
+                
+                # Clear the pending player change
+                self.pending_player_change = None
+            except sqlite3.Error as e:
+                print(f"Error applying pending player change to LEDs DB: {e}")
+            except Exception as e:
+                print(f"Unexpected error applying pending player change: {e}")
+
     def process_throw(self, throw):
         """Process a single throw for American Cricket game mode"""
         # Calculate points (score * multiplier)
@@ -607,6 +654,9 @@ class DartProcessor:
                     # Update score (marks won't increase since already closed)
                     update_result = self.update_cricket_score(current_player, score, 0, points_to_add)
                     
+                    # Sync cricket state to LEDs database after updating scores
+                    self.sync_cricket_state_to_leds()
+                    
                     if points_to_add > 0:
                         cricket_event_type = "cricket_points"
                 else:
@@ -622,20 +672,45 @@ class DartProcessor:
                         row = cursor.fetchone()
                         current_marks = row['marks'] if row else 0
                         
-                    marks_to_apply = min(marks_to_add, 3 - current_marks)
-                    remaining_marks = marks_to_add - marks_to_apply
+                    # Calculate marks needed to close and excess marks
+                    marks_needed_to_close = 3 - current_marks
+                    marks_to_apply = min(marks_to_add, marks_needed_to_close)
+                    excess_marks = marks_to_add - marks_to_apply
                     
                     # Apply the marks first
                     update_result = self.update_cricket_score(current_player, score, marks_to_apply)
                     
-                    # If there are remaining marks and the number is not closed by all,
+                    # Sync cricket state to LEDs database after updating marks
+                    self.sync_cricket_state_to_leds()
+                    
+                    # Check if the player just became the second player to close
+                    # This is the key fix: Check if we're now at exactly 2 players who have closed the number
+                    newly_globally_closed = False
+                    if update_result and update_result['newly_closed']:
+                        # Count how many players have closed this number AFTER this update
+                        with self.get_game_connection() as conn:
+                            cursor = conn.cursor()
+                            cursor.execute('''
+                                SELECT COUNT(*) as closed_count FROM cricket_scores
+                                WHERE number = ? AND closed = 1
+                            ''', (score,))
+                            
+                            closed_count = cursor.fetchone()['closed_count']
+                            newly_globally_closed = closed_count == 2
+                    
+                    # If there are excess marks and the number is not newly closed by all,
                     # those count as points
-                    if remaining_marks > 0 and not all_closed:
-                        points_to_add = score * remaining_marks
-                        print(f"Player {current_player} scores {points_to_add} points on {score} (extra marks)")
+                    if excess_marks > 0 and not newly_globally_closed:
+                        points_to_add = score * excess_marks
+                        print(f"Player {current_player} scores {points_to_add} points on {score} (excess marks)")
                         
                         # Update again to add points
                         update_result = self.update_cricket_score(current_player, score, 0, points_to_add)
+                        
+                        # Sync cricket state to LEDs database after updating points
+                        self.sync_cricket_state_to_leds()
+                    elif excess_marks > 0 and newly_globally_closed:
+                        print(f"Player {current_player} would have {excess_marks} excess marks, but became the second player to close {score} - no points awarded")
                     
                     if update_result and update_result['newly_closed']:
                         print(f"Player {current_player} closed number {score}!")
@@ -660,6 +735,9 @@ class DartProcessor:
                 next_turn=None,
                 next_player=None
             )
+            
+            # Sync cricket state to LEDs database after winner is determined
+            self.sync_cricket_state_to_leds()
             return
         
         # Process game logic when player has used their three throws
@@ -703,6 +781,9 @@ class DartProcessor:
             # Advance to next player
             self.advance_to_next_player()
             
+            # Sync cricket state to LEDs database after advancing to next player
+            self.sync_cricket_state_to_leds()
+            
             print(f"Game state advanced. Animation state set for: {animation_type}")
         else:
             # If not a third throw, continue with normal play
@@ -720,6 +801,113 @@ class DartProcessor:
             print(f"Processed throw: {score}x{multiplier}={points} points "
                 f"(Player {current_player}, Turn {current_turn}, Throw {throw_position})")
 
+    def sync_cricket_state_to_leds(self):
+        """Sync the cricket state from game.db to LEDs.db for the LED controller."""
+        try:
+            # First check if there's an active animation
+            is_animating = False
+            with self.get_game_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT animating FROM animation_state WHERE id = 1')
+                animation_state = cursor.fetchone()
+                if animation_state and animation_state['animating'] == 1:
+                    is_animating = True
+            
+            # First get the cricket scores from game.db
+            cricket_scores = self.get_cricket_scores()
+            
+            # Get current game state
+            game_state = self.get_current_game_state()
+            
+            # Open connection to LEDs.db
+            leds_conn = sqlite3.connect('leds/LEDs.db')
+            leds_cursor = leds_conn.cursor()
+            
+            # Update player_state - BUT ONLY IF NOT ANIMATING or there's no pending player change
+            if not is_animating or self.pending_player_change is None:
+                leds_cursor.execute("""
+                    UPDATE player_state 
+                    SET current_player = ?, player_count = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = 1
+                """, (game_state['current_player'], len(cricket_scores)))
+            else:
+                # If animating, only update player_count but not current_player
+                leds_cursor.execute("""
+                    UPDATE player_state 
+                    SET player_count = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = 1
+                """, (len(cricket_scores),))
+                print(f"Animation in progress - delaying player update to LEDs.db. Current: {game_state['current_player']}, Pending: {self.pending_player_change}")
+            
+            # Update cricket state for each segment
+            for segment in [15, 16, 17, 18, 19, 20, 25]:  # Cricket segments
+                player_closed_values = {}
+                
+                # Count how many players have closed this segment
+                closed_count = 0
+                
+                # Check for each player if they've closed this segment
+                for player_id, player_data in cricket_scores.items():
+                    player_id = int(player_id)  # Convert from string key
+                    has_closed = False
+                    
+                    # Check segment closed status for this player
+                    if 'scores' in player_data and segment in player_data['scores']:
+                        has_closed = player_data['scores'][segment]['closed']
+                        if has_closed:
+                            closed_count += 1
+                    
+                    # Update player_closed for this segment
+                    player_closed_values[player_id] = has_closed
+                
+                # Number is globally closed if at least 2 players have closed it
+                all_closed = closed_count >= 2
+                
+                # Prepare update query with player values
+                update_query = """
+                    UPDATE cricket_state 
+                    SET all_closed = ?, updated_at = CURRENT_TIMESTAMP
+                """
+                
+                # Add player closed values to the query based on how many exist
+                params = [1 if all_closed else 0]
+                
+                # Add each player's closed status up to player count
+                for i in range(1, 9):  # Support up to 8 players
+                    if i in player_closed_values:
+                        update_query += f", player{i}_closed = ?"
+                        params.append(1 if player_closed_values[i] else 0)
+                    else:
+                        update_query += f", player{i}_closed = 0"  # Set to 0 for non-existent players
+                
+                # Complete the query with WHERE clause
+                update_query += " WHERE segment = ?"
+                params.append(segment)
+                
+                # Execute the update
+                leds_cursor.execute(update_query, params)
+                
+                # Print debug info for segments that just became all_closed
+                if all_closed and closed_count == 2:
+                    print(f"Segment {segment} is now globally closed (2 players have closed it)")
+                
+            # Update the game mode
+            leds_cursor.execute("""
+                UPDATE game_mode 
+                SET mode = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = 1
+            """, ('cricket',))
+            
+            # Commit and close
+            leds_conn.commit()
+            leds_conn.close()
+            
+            print("Cricket state synchronized to LEDs database")
+            
+        except sqlite3.Error as e:
+            print(f"Error syncing cricket state to LEDs DB: {e}")
+        except Exception as e:
+            print(f"Unexpected error syncing cricket state: {e}")
     def run(self):
         """Main processing loop"""
         print("American Cricket dart processor running, press Ctrl+C to stop...")
@@ -727,7 +915,11 @@ class DartProcessor:
         try:
             while True:
                 # Check if we need to clear any expired animations
-                self.check_and_clear_animations()
+                animation_cleared = self.check_and_clear_animations()
+                
+                # If animation was cleared, also check if there are pending player changes to apply
+                if animation_cleared:
+                    self.apply_pending_player_change()
                 
                 # Get new throws from CV database
                 new_throws = self.get_new_throws()
@@ -735,6 +927,11 @@ class DartProcessor:
                 # Process each new throw
                 for throw in new_throws:
                     self.process_throw(throw)
+                
+                # Even if no animation was cleared, periodically check for pending player changes
+                # This handles cases where we might have missed the animation clearing
+                if not animation_cleared:
+                    self.apply_pending_player_change()
                     
                 # Sleep for a bit before next poll
                 time.sleep(self.poll_interval)
