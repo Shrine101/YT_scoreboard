@@ -889,9 +889,9 @@ class DartProcessor:
             print(f"Error syncing cricket state to LEDs DB: {e}")
         except Exception as e:
             print(f"Unexpected error syncing cricket state: {e}")
-        def run(self):
-            """Main processing loop"""
-            print("American Cricket dart processor running, press Ctrl+C to stop...")
+    def run(self):
+        """Main processing loop"""
+        print("American Cricket dart processor running, press Ctrl+C to stop...")
         
         try:
             while True:
