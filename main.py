@@ -7,6 +7,7 @@ import signal
 import atexit
 from initialize_db import initialize_database
 from datetime import datetime
+import importlib.util
 
 # Function to reset the LEDs database when home screen is accessed
 def reset_leds_database():
@@ -15,21 +16,36 @@ def reset_leds_database():
         # Ensure the leds directory exists
         os.makedirs('leds', exist_ok=True)
         
-        # Save current directory
-        current_dir = os.getcwd()
+        # Get absolute path to the LEDs_db_init.py file
+        leds_init_path = os.path.join(os.getcwd(), 'leds', 'LEDs_db_init.py')
         
+        if not os.path.exists(leds_init_path):
+            print(f"Error: LEDs_db_init.py not found at {leds_init_path}")
+            return
+            
+        # Import the module programmatically from its file path
+        spec = importlib.util.spec_from_file_location("LEDs_db_init", leds_init_path)
+        leds_db_init = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(leds_db_init)
+        
+        # Call the initialization function
+        leds_db_init.initialize_leds_database()
+        
+        # After resetting, explicitly update game mode to 'neutral'
         try:
-            # Change to leds directory
-            os.chdir('leds')
+            with sqlite3.connect('leds/LEDs.db') as leds_conn:
+                leds_cursor = leds_conn.cursor()
+                leds_cursor.execute("""
+                    UPDATE game_mode 
+                    SET mode = 'neutral', updated_at = CURRENT_TIMESTAMP
+                    WHERE id = 1
+                """)
+                leds_conn.commit()
+                print("Set LEDs.db game mode to 'neutral'")
+        except Exception as e:
+            print(f"Error updating game mode in LEDs database: {e}")
             
-            # Import and call the initialization function
-            from LEDs_db_init import initialize_leds_database
-            initialize_leds_database()
-            
-            print("LEDs database reset successfully")
-        finally:
-            # Always change back to the original directory
-            os.chdir(current_dir)
+        print("LEDs database reset successfully")
     except Exception as e:
         print(f"Error resetting LEDs database: {e}")
 
