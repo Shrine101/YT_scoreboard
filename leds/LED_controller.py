@@ -60,8 +60,26 @@ class LEDController:
         with self.get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT mode FROM game_mode WHERE id = 1")
-            mode = cursor.fetchone()
-            return mode['mode'] if mode else 'classic'  # Default to classic if no mode is set
+            mode_row = cursor.fetchone()
+            
+            if mode_row:
+                mode = mode_row['mode']
+                # Debug output
+                print(f"Read game mode from database: '{mode}'")
+                
+                # Normalize mode string for comparison
+                if mode.lower() in ['301', '501', 'classic']:
+                    return 'classic'
+                elif mode.lower() in ['cricket', 'american_cricket']:
+                    return 'cricket'
+                elif mode.lower() in ['around_clock', 'around_the_clock']:
+                    return 'around_clock'
+                else:
+                    print(f"Unrecognized game mode: '{mode}', defaulting to neutral mode")
+                    return 'neutral'
+            else:
+                print("No game mode found in database, defaulting to neutral mode")
+                return 'neutral'  # Default to neutral if no mode is set
 
     def get_current_player(self):
         """Get current active player from database."""
@@ -427,20 +445,20 @@ class LEDController:
     def run(self):
         """Main processing loop for the LED controller."""
         try:
-            # Initial setup based on current mode
-            self.current_mode = self.get_current_mode()
-            if self.current_mode == 'classic':
-                self.setup_classic_mode()
-            elif self.current_mode == 'cricket':
-                self.setup_cricket_mode()
+            # Start in neutral waiting state
+            print("Starting LED controller in neutral waiting state")
+            self.setup_neutral_mode()
+            self.current_mode = 'neutral'
             
-            print(f"LED Controller running in {self.current_mode} mode. Press Ctrl+C to stop...")
+            print("LED Controller running. Press Ctrl+C to stop...")
             
             # Main processing loop
             while True:
                 # Check for game mode changes
                 new_mode = self.get_current_mode()
+                
                 if new_mode != self.current_mode:
+                    print(f"Game mode changed from '{self.current_mode}' to '{new_mode}'")
                     self.current_mode = new_mode
                     
                     # Update LED pattern based on new mode
@@ -448,6 +466,11 @@ class LEDController:
                         self.setup_classic_mode()
                     elif self.current_mode == 'cricket':
                         self.setup_cricket_mode()
+                    elif self.current_mode == 'around_clock':
+                        # If you add around the clock mode
+                        pass
+                    elif self.current_mode == 'neutral':
+                        self.setup_neutral_mode()
                 
                 # If in cricket mode, check for player/state changes
                 if self.current_mode == 'cricket':
@@ -456,6 +479,7 @@ class LEDController:
                     
                     # If player changed, update the display
                     if old_player != self.current_player:
+                        print(f"Current player changed from {old_player} to {self.current_player}")
                         self.setup_cricket_mode()
                     else:
                         # Check for cricket state changes
@@ -464,6 +488,7 @@ class LEDController:
                         
                         # If state changed, update the display
                         if old_state != self.cricket_state:
+                            print("Cricket state changed, updating display")
                             self.setup_cricket_mode()
                 
                 # Get new dart events
@@ -471,7 +496,13 @@ class LEDController:
                 
                 # Process each new event
                 for event in events:
+                    print(f"\nProcessing dart event: score={event['score']}, multiplier={event['multiplier']}, segment_type={event['segment_type']}")
+                    print(f"Current game mode: {self.current_mode}")
                     self.process_dart_event(event)
+                    
+                    # Print board state after processing an event if MockLEDs
+                    if hasattr(self.led_control, 'print_board_state'):
+                        self.led_control.print_board_state()
                 
                 # Update blinking segments
                 self.update_blinking_segments()
@@ -483,6 +514,43 @@ class LEDController:
             print("\nLED Controller stopped.")
             # Clean up
             self.led_control.clearAll()
+            
+            # Print final state and summary if MockLEDs
+            if hasattr(self.led_control, 'print_board_state'):
+                self.led_control.print_board_state()
+            if hasattr(self.led_control, 'print_blinking_summary'):
+                self.led_control.print_blinking_summary()
+
+    def setup_neutral_mode(self):
+        """Set up LEDs for neutral waiting state."""
+        print("Setting up neutral waiting state...")
+        
+        # Clear all LEDs first to reset
+        self.led_control.clearAll(wait_ms=1)
+        
+        # Apply neutral waiting state colors to all segments
+        for number in range(1, 21):  # All dartboard numbers 1-20
+            if number not in self.led_control.DARTBOARD_MAPPING:
+                continue
+                
+            # Inner single segments: Blue
+            self.led_control.innerSingleSeg(number, (0, 0, 255))  # Blue
+            
+            # Triple segments: Green
+            self.led_control.tripleSeg(number, (0, 255, 0))  # Green
+            
+            # Outer single segments: Yellow
+            self.led_control.outerSingleSeg(number, (255, 255, 0))  # Yellow
+            
+            # Double segments: Red
+            self.led_control.doubleSeg(number, (255, 0, 0))  # Red
+        
+        # Bullseye: Purple
+        self.led_control.bullseye((255, 0, 255))  # Purple
+        
+        # Display board state if MockLEDs is being used
+        if hasattr(self.led_control, 'print_board_state'):
+            self.led_control.print_board_state()
 
 def main():
     # You can customize the blinking parameters here

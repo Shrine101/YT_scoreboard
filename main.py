@@ -425,6 +425,20 @@ def start_game_301():
         conn.commit()
         conn.close()
     
+    # IMPORTANT: Update LEDs database with the game mode
+    try:
+        with sqlite3.connect('leds/LEDs.db') as leds_conn:
+            leds_cursor = leds_conn.cursor()
+            leds_cursor.execute("""
+                UPDATE game_mode 
+                SET mode = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = 1
+            """, ('classic',))
+            leds_conn.commit()
+            print("Updated LEDs.db game mode to 'classic' for 301 game")
+    except Exception as e:
+        print(f"Error updating LEDs database: {e}")
+    
     # Start the classic dart processor
     start_dart_processor(game_mode='classic')
     
@@ -462,6 +476,20 @@ def start_game_501():
                           
         conn.commit()
         conn.close()
+    
+    # IMPORTANT: Update LEDs database with the game mode
+    try:
+        with sqlite3.connect('leds/LEDs.db') as leds_conn:
+            leds_cursor = leds_conn.cursor()
+            leds_cursor.execute("""
+                UPDATE game_mode 
+                SET mode = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = 1
+            """, ('classic',))
+            leds_conn.commit()
+            print("Updated LEDs.db game mode to 'classic' for 501 game")
+    except Exception as e:
+        print(f"Error updating LEDs database: {e}")
     
     # Start the classic dart processor
     start_dart_processor(game_mode='classic')
@@ -521,6 +549,46 @@ def start_game_cricket():
         conn.commit()
         conn.close()
     
+    # IMPORTANT: Update LEDs database with the game mode
+    try:
+        with sqlite3.connect('leds/LEDs.db') as leds_conn:
+            leds_cursor = leds_conn.cursor()
+            leds_cursor.execute("""
+                UPDATE game_mode 
+                SET mode = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = 1
+            """, ('cricket',))
+            
+            # Also update player state table in LEDs.db
+            leds_cursor.execute("""
+                UPDATE player_state
+                SET current_player = 1, player_count = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = 1
+            """, (player_count,))
+            
+            # Initialize empty cricket state
+            for segment in [15, 16, 17, 18, 19, 20, 25]:
+                # Reset all player closed flags
+                update_query = "UPDATE cricket_state SET all_closed = 0, updated_at = CURRENT_TIMESTAMP"
+                params = []
+                
+                # Add parameters for each player (up to 8)
+                for i in range(1, 9):
+                    if i <= player_count:
+                        update_query += f", player{i}_closed = 0"
+                    else:
+                        update_query += f", player{i}_closed = 0"
+                
+                update_query += " WHERE segment = ?"
+                params.append(segment)
+                
+                leds_cursor.execute(update_query, params)
+            
+            leds_conn.commit()
+            print("Updated LEDs.db game mode to 'cricket'")
+    except Exception as e:
+        print(f"Error updating LEDs database: {e}")
+    
     # Start the cricket dart processor
     start_dart_processor(game_mode='cricket')
     
@@ -567,6 +635,28 @@ def start_game_around_clock():
         
         conn.commit()
         conn.close()
+    
+    # IMPORTANT: Update LEDs database with the game mode
+    try:
+        with sqlite3.connect('leds/LEDs.db') as leds_conn:
+            leds_cursor = leds_conn.cursor()
+            leds_cursor.execute("""
+                UPDATE game_mode 
+                SET mode = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = 1
+            """, ('around_clock',))
+            
+            # Also update player state in LEDs.db
+            leds_cursor.execute("""
+                UPDATE player_state
+                SET current_player = 1, player_count = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = 1
+            """, (player_count,))
+            
+            leds_conn.commit()
+            print("Updated LEDs.db game mode to 'around_clock'")
+    except Exception as e:
+        print(f"Error updating LEDs database: {e}")
     
     # Start the around the clock dart processor
     start_dart_processor(game_mode='around_clock')
