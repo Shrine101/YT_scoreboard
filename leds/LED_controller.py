@@ -17,7 +17,7 @@ class LEDController:
         """
         self.db_path = db_path
         self.poll_interval = poll_interval
-        self.led_control = LEDs()  # Initialize LED control class
+        self.led_control = LEDs()  # Initialize real LED control class
         self.current_mode = None
         self.blinking_segments = {}  # To track segments that should be blinking
         
@@ -434,6 +434,8 @@ class LEDController:
             elif self.current_mode == 'cricket':
                 self.setup_cricket_mode()
             
+            print(f"LED Controller running in {self.current_mode} mode. Press Ctrl+C to stop...")
+            
             # Main processing loop
             while True:
                 # Check for game mode changes
@@ -478,6 +480,7 @@ class LEDController:
                 time.sleep(self.poll_interval)
                 
         except KeyboardInterrupt:
+            print("\nLED Controller stopped.")
             # Clean up
             self.led_control.clearAll()
 
