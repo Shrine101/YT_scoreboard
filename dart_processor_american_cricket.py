@@ -823,7 +823,9 @@ class DartProcessor:
             # Update cricket state for each segment
             for segment in [15, 16, 17, 18, 19, 20, 25]:  # Cricket segments
                 player_closed_values = {}
-                all_closed = True
+                
+                # Count how many players have closed this segment
+                closed_count = 0
                 
                 # Check for each player if they've closed this segment
                 for player_id, player_data in cricket_scores.items():
@@ -833,13 +835,14 @@ class DartProcessor:
                     # Check segment closed status for this player
                     if 'scores' in player_data and segment in player_data['scores']:
                         has_closed = player_data['scores'][segment]['closed']
+                        if has_closed:
+                            closed_count += 1
                     
                     # Update player_closed for this segment
                     player_closed_values[player_id] = has_closed
-                    
-                    # If any player hasn't closed, it's not all closed
-                    if not has_closed:
-                        all_closed = False
+                
+                # Number is globally closed if at least 2 players have closed it
+                all_closed = closed_count >= 2
                 
                 # Prepare update query with player values
                 update_query = """
@@ -864,7 +867,11 @@ class DartProcessor:
                 
                 # Execute the update
                 leds_cursor.execute(update_query, params)
-            
+                
+                # Print debug info for segments that just became all_closed
+                if all_closed and closed_count == 2:
+                    print(f"Segment {segment} is now globally closed (2 players have closed it)")
+                
             # Update the game mode
             leds_cursor.execute("""
                 UPDATE game_mode 
@@ -882,10 +889,9 @@ class DartProcessor:
             print(f"Error syncing cricket state to LEDs DB: {e}")
         except Exception as e:
             print(f"Unexpected error syncing cricket state: {e}")
-
-    def run(self):
-        """Main processing loop"""
-        print("American Cricket dart processor running, press Ctrl+C to stop...")
+        def run(self):
+            """Main processing loop"""
+            print("American Cricket dart processor running, press Ctrl+C to stop...")
         
         try:
             while True:
