@@ -3,6 +3,7 @@ import time
 from contextlib import contextmanager
 from LEDs import LEDs
 from datetime import datetime
+from LEDs_db_init import initialize_leds_database
 
 class LEDController:
     def __init__(self, db_path='LEDs.db', poll_interval=0.5, 
@@ -15,10 +16,15 @@ class LEDController:
             blink_duration (float): How long to blink when a dart hits (seconds)
             blink_count (int): Number of times to blink the LED
         """
+        # Reset the database on startup
+        print("Resetting LEDs database...")
+        initialize_leds_database()
+        
         self.db_path = db_path
         self.poll_interval = poll_interval
         self.led_control = LEDs()  # Initialize real LED control class
         self.current_mode = None
+        self.previous_mode = None  # Track previous mode to detect changes
         self.blinking_segments = {}  # To track segments that should be blinking
         
         # Blinking configuration
@@ -77,18 +83,30 @@ class LEDController:
                     normalized_mode = 'neutral'  # Default to neutral for unrecognized modes
                 
                 # Check if this is the first call or the mode has changed
-                if not hasattr(self, 'previous_mode') or self.previous_mode != normalized_mode:
+                if self.previous_mode is None or self.previous_mode != normalized_mode:
                     print(f"Game mode: '{normalized_mode}'")
                     self.previous_mode = normalized_mode
                 
                 return normalized_mode
             else:
                 # If no game mode is found in the database
-                if not hasattr(self, 'previous_mode') or self.previous_mode != 'neutral':
+                if self.previous_mode is None or self.previous_mode != 'neutral':
                     print("No game mode found in database, defaulting to neutral mode")
                     self.previous_mode = 'neutral'
                 
                 return 'neutral'  # Default to neutral if no mode is set
+
+    def get_current_player(self):
+        """Get current active player from database."""
+        with self.get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT current_player, player_count FROM player_state WHERE id = 1")
+            state = cursor.fetchone()
+            if state:
+                self.current_player = state['current_player']
+                self.player_count = state['player_count']
+                return state['current_player']
+            return 1  # Default to player 1 if no state is set
 
     def get_cricket_state(self):
         """Get cricket game state from database."""
@@ -494,7 +512,6 @@ class LEDController:
                 # Process each new event
                 for event in events:
                     print(f"\nProcessing dart event: score={event['score']}, multiplier={event['multiplier']}, segment_type={event['segment_type']}")
-                    print(f"Current game mode: {self.current_mode}")
                     self.process_dart_event(event)
                     
                     # Print board state after processing an event if MockLEDs
