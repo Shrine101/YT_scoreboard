@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import random
 from datetime import datetime
 from contextlib import contextmanager
 
@@ -95,6 +96,39 @@ def print_menu():
     print("4. Exit")
     return input("Select an option (1-4): ")
 
+def get_valid_score():
+    """Get a valid dartboard score (1-20 or 25)"""
+    while True:
+        try:
+            score = int(input("Enter score (1-20, 25 for bullseye): "))
+            # FIXED: Now correctly validates that score is either 1-20 OR exactly 25
+            if (score >= 1 and score <= 20) or score == 25:
+                return score
+            print("Invalid score. Must be between 1-20 or exactly 25 for bullseye.")
+        except ValueError:
+            print("Please enter a valid number.")
+
+def get_valid_multiplier(score):
+    """Get a valid multiplier based on the score"""
+    if score == 25:  # Bullseye
+        while True:
+            try:
+                multiplier = int(input("Enter multiplier (1-2): "))
+                if multiplier >= 1 and multiplier <= 2:
+                    return multiplier
+                print("Bullseye can only have multiplier 1 (25 points) or 2 (50 points)")
+            except ValueError:
+                print("Please enter a valid number.")
+    else:  # Regular number
+        while True:
+            try:
+                multiplier = int(input("Enter multiplier (1-3): "))
+                if multiplier >= 1 and multiplier <= 3:
+                    return multiplier
+                print("Invalid multiplier. Must be between 1-3.")
+            except ValueError:
+                print("Please enter a valid number.")
+
 def get_valid_input(prompt, min_val, max_val, input_type=int):
     """Get a valid numeric input within a range"""
     while True:
@@ -118,14 +152,10 @@ def main():
         if choice == '1':
             print("\n----- Add a throw -----")
             print("Valid scores: 1-20 for regular segments, 25 for bullseye")
-            score = get_valid_input("Enter score (1-20, 25): ", 1, 25, int)
             
-            # Handle multiplier based on score
-            if score == 25:  # Bullseye can only be single (25) or double (50)
-                print("Bullseye can only have multiplier 1 (25 points) or 2 (50 points)")
-                multiplier = get_valid_input("Enter multiplier (1-2): ", 1, 2, int)
-            else:
-                multiplier = get_valid_input("Enter multiplier (1-3): ", 1, 3, int)
+            # Get a valid score and multiplier
+            score = get_valid_score()
+            multiplier = get_valid_multiplier(score)
             
             # Dartboard position coordinates in polar form
             print("\n--- Enter Position in Polar Coordinates ---")
@@ -191,5 +221,4 @@ def segment_description(score, multiplier, radius):
             return "outer single (between double and edge)"
 
 if __name__ == "__main__":
-    import random
     main()

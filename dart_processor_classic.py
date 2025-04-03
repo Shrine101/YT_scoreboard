@@ -363,7 +363,8 @@ class DartProcessor:
             )
             
             # Reset current throws
-            cursor.execute('UPDATE current_throws SET points = 0, score = 0, multiplier = 0')
+            # MODIFIED: Set score and multiplier to NULL instead of 0
+            cursor.execute('UPDATE current_throws SET points = 0, score = NULL, multiplier = NULL')
             
             conn.commit()
             
@@ -438,9 +439,10 @@ class DartProcessor:
             return
         
         # Find the next empty throw position (or the first if all are used)
+        # MODIFIED: Check for NULL score instead of points == 0
         throw_position = 1
         for t in current_throws:
-            if t['points'] == 0:
+            if t['score'] is None:
                 throw_position = t['throw_number']
                 break
         
@@ -454,7 +456,7 @@ class DartProcessor:
         self.update_last_throw(score, multiplier, points, current_player)
         
         # Calculate total points for current throws
-        total_current_points = sum(t['points'] for t in current_throws if t['throw_number'] != throw_position) + points
+        total_current_points = sum(t['points'] for t in current_throws if t['throw_number'] != throw_position and t['score'] is not None) + points
         
         # Check if this would result in a bust
         player_score_before_turn = self.get_player_score_before_turn(current_player, current_turn)

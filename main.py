@@ -185,11 +185,11 @@ def initialize_game_with_custom_names(player_names, starting_score=301, game_mod
         # Insert game state
         cursor.execute('INSERT OR REPLACE INTO game_state (id, current_turn, current_player, game_over) VALUES (1, 1, 1, 0)')
         
-        # Insert current throws
+        # Insert current throws - MODIFIED to use NULL for score and multiplier
         cursor.executemany('INSERT OR REPLACE INTO current_throws (throw_number, points, score, multiplier) VALUES (?, ?, ?, ?)', [
-            (1, 0, 0, 0),
-            (2, 0, 0, 0),
-            (3, 0, 0, 0)
+            (1, 0, None, None),
+            (2, 0, None, None),
+            (3, 0, None, None)
         ])
         
         # Insert animation state
