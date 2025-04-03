@@ -50,7 +50,12 @@ class ManualDartEntry:
             
             # Get the ID of the inserted throw
             throw_id = cursor.lastrowid
-            print(f"Added throw #{throw_id}: Score: {score}, Multiplier: {multiplier}, Points: {score * multiplier}")
+            
+            if score == 0:
+                print(f"Added throw #{throw_id}: MISSED THROW (Score: 0, Multiplier: 0, Points: 0)")
+            else:
+                print(f"Added throw #{throw_id}: Score: {score}, Multiplier: {multiplier}, Points: {score * multiplier}")
+                
             print(f"Position: r={position_x}, θ={position_y}°, Time: {current_time}")
             
     def list_recent_throws(self, limit=5):
@@ -85,9 +90,10 @@ def print_menu():
     """Print the main menu"""
     print("\n===== MANUAL DART ENTRY =====")
     print("1. Add a throw")
-    print("2. View recent throws")
-    print("3. Exit")
-    return input("Select an option (1-3): ")
+    print("2. Add a missed throw")
+    print("3. View recent throws")
+    print("4. Exit")
+    return input("Select an option (1-4): ")
 
 def get_valid_input(prompt, min_val, max_val, input_type=int):
     """Get a valid numeric input within a range"""
@@ -142,11 +148,24 @@ def main():
             print(f"This corresponds to {segment_description(score, multiplier, position_x)} on the dartboard")
             
         elif choice == '2':
+            print("\n----- Add a missed throw -----")
+            print("This will record a throw that completely missed the dartboard (0 points)")
+            
+            # For missed throws, use positions that are clearly outside the dartboard
+            position_x = 300.0  # Far outside the normal dartboard radius (>225)
+            position_y = float(random.randint(0, 359))  # Random angle
+            
+            # Add the missed throw to the database
+            dart_entry.add_throw(0, 0, position_x, position_y)
+            
+            print("\nMissed throw recorded successfully!")
+            
+        elif choice == '3':
             # View recent throws
             limit = get_valid_input("Number of throws to display: ", 1, 50, int)
             dart_entry.list_recent_throws(limit)
             
-        elif choice == '3':
+        elif choice == '4':
             print("Exiting. Goodbye!")
             break
             
@@ -155,6 +174,8 @@ def main():
 
 def segment_description(score, multiplier, radius):
     """Return a description of which segment this is likely to be"""
+    if score == 0:
+        return "missed throw (outside the dartboard)"
     if score == 25:
         return "bullseye" if multiplier == 1 else "double bullseye"
     
@@ -170,4 +191,5 @@ def segment_description(score, multiplier, radius):
             return "outer single (between double and edge)"
 
 if __name__ == "__main__":
+    import random
     main()

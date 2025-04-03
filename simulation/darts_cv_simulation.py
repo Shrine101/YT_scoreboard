@@ -8,9 +8,19 @@ class DartDetection:
         self.cv_running = False
 
     def generate_random_score(self):
-        """Generate a random dart score"""
+        """Generate a random dart score with possibility of a miss"""
+        # Add a chance to completely miss (0 score)
+        if random.random() < 0.15:  # 15% chance to miss the board
+            # For a miss, use position far from center to indicate it's outside the board
+            # In a real system, this might not be detected at all, but for simulation we'll return it
+            miss_position = (random.randint(300, 400), random.randint(0, 359))
+            print(f"MISS! Dart missed the board completely. Position: {miss_position}")
+            return (0, 0, miss_position)  # Score 0, multiplier 0 for a miss
+            
+        # Original logic for hitting the board
         multiplier = 1
-        position = (0, 0)  # Fixed position for cv sim testing purposes
+        # Generate a more realistic random position
+        position = (random.randint(0, 225), random.randint(0, 359))
 
         dartboard_numbers = list(range(1, 21)) + [25]  # 25 is bullseye
         single_score = random.choice(dartboard_numbers)
@@ -21,7 +31,7 @@ class DartDetection:
             multiplier = random.choices([1, 2, 3], weights=[60, 20, 20])[0]
 
         
-        print(f"single_score = {single_score}, multiplier = {multiplier}, position = {position}")
+        print(f"HIT! single_score = {single_score}, multiplier = {multiplier}, position = {position}")
         return (single_score, multiplier, position)
 
     def initialize(self):
