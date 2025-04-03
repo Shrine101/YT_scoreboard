@@ -672,8 +672,10 @@ class DartProcessor:
                         row = cursor.fetchone()
                         current_marks = row['marks'] if row else 0
                         
-                    marks_to_apply = min(marks_to_add, 3 - current_marks)
-                    remaining_marks = marks_to_add - marks_to_apply
+                    # Calculate marks needed to close and excess marks
+                    marks_needed_to_close = 3 - current_marks
+                    marks_to_apply = min(marks_to_add, marks_needed_to_close)
+                    excess_marks = marks_to_add - marks_to_apply
                     
                     # Apply the marks first
                     update_result = self.update_cricket_score(current_player, score, marks_to_apply)
@@ -681,17 +683,34 @@ class DartProcessor:
                     # Sync cricket state to LEDs database after updating marks
                     self.sync_cricket_state_to_leds()
                     
-                    # If there are remaining marks and the number is not closed by all,
+                    # Check if the player just became the second player to close
+                    # This is the key fix: Check if we're now at exactly 2 players who have closed the number
+                    newly_globally_closed = False
+                    if update_result and update_result['newly_closed']:
+                        # Count how many players have closed this number AFTER this update
+                        with self.get_game_connection() as conn:
+                            cursor = conn.cursor()
+                            cursor.execute('''
+                                SELECT COUNT(*) as closed_count FROM cricket_scores
+                                WHERE number = ? AND closed = 1
+                            ''', (score,))
+                            
+                            closed_count = cursor.fetchone()['closed_count']
+                            newly_globally_closed = closed_count == 2
+                    
+                    # If there are excess marks and the number is not newly closed by all,
                     # those count as points
-                    if remaining_marks > 0 and not all_closed:
-                        points_to_add = score * remaining_marks
-                        print(f"Player {current_player} scores {points_to_add} points on {score} (extra marks)")
+                    if excess_marks > 0 and not newly_globally_closed:
+                        points_to_add = score * excess_marks
+                        print(f"Player {current_player} scores {points_to_add} points on {score} (excess marks)")
                         
                         # Update again to add points
                         update_result = self.update_cricket_score(current_player, score, 0, points_to_add)
                         
                         # Sync cricket state to LEDs database after updating points
                         self.sync_cricket_state_to_leds()
+                    elif excess_marks > 0 and newly_globally_closed:
+                        print(f"Player {current_player} would have {excess_marks} excess marks, but became the second player to close {score} - no points awarded")
                     
                     if update_result and update_result['newly_closed']:
                         print(f"Player {current_player} closed number {score}!")
