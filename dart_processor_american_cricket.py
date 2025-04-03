@@ -27,6 +27,9 @@ class DartProcessor:
         # Initialize timestamp to current local time
         self.last_throw_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
+        # Add pending player change tracking
+        self.pending_player_change = None
+        
         print(f"American Cricket dart processor initialized. Only processing throws after: {self.last_throw_timestamp}")
         
         # Reset any lingering animation state
@@ -413,6 +416,19 @@ class DartProcessor:
             conn.commit()
             
             print(f"Advanced to Player {next_player}, Turn {next_turn}")
+            
+            # Store this player change as pending for LEDs.db
+            # Check if there's an active animation
+            cursor.execute('SELECT animating FROM animation_state WHERE id = 1')
+            animation_state = cursor.fetchone()
+            if animation_state and animation_state['animating'] == 1:
+                # Store as pending change
+                self.pending_player_change = next_player
+                print(f"Animation in progress - storing pending player change: {next_player}")
+            else:
+                # No animation, apply immediately
+                self.pending_player_change = None
+                
             return next_player, next_turn
 
     def check_for_winner(self):
@@ -527,6 +543,41 @@ class DartProcessor:
             conn.commit()
             
             print(f"Saved throw details to turn_scores for player {player_id}, turn {turn_number}")
+
+    def apply_pending_player_change(self):
+        """Check if animation has completed and apply any pending player change to LEDs.db."""
+        if self.pending_player_change is None:
+            return
+            
+        # Check if animation is still active
+        is_animating = False
+        with self.get_game_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT animating FROM animation_state WHERE id = 1')
+            animation_state = cursor.fetchone()
+            if animation_state and animation_state['animating'] == 1:
+                is_animating = True
+                
+        # If animation has completed, update the LEDs.db with the pending player change
+        if not is_animating:
+            try:
+                with self.get_leds_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        UPDATE player_state 
+                        SET current_player = ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = 1
+                    """, (self.pending_player_change,))
+                    conn.commit()
+                    
+                print(f"Animation completed - Updated current player in LEDs.db to {self.pending_player_change}")
+                
+                # Clear the pending player change
+                self.pending_player_change = None
+            except sqlite3.Error as e:
+                print(f"Error applying pending player change to LEDs DB: {e}")
+            except Exception as e:
+                print(f"Unexpected error applying pending player change: {e}")
 
     def process_throw(self, throw):
         """Process a single throw for American Cricket game mode"""
@@ -735,31 +786,18 @@ class DartProcessor:
             print(f"Processed throw: {score}x{multiplier}={points} points "
                 f"(Player {current_player}, Turn {current_turn}, Throw {throw_position})")
 
-    def run(self):
-        """Main processing loop"""
-        print("American Cricket dart processor running, press Ctrl+C to stop...")
-        
-        try:
-            while True:
-                # Check if we need to clear any expired animations
-                self.check_and_clear_animations()
-                
-                # Get new throws from CV database
-                new_throws = self.get_new_throws()
-                
-                # Process each new throw
-                for throw in new_throws:
-                    self.process_throw(throw)
-                    
-                # Sleep for a bit before next poll
-                time.sleep(self.poll_interval)
-                
-        except KeyboardInterrupt:
-            print("\nAmerican Cricket dart processor stopped.")
-    
     def sync_cricket_state_to_leds(self):
         """Sync the cricket state from game.db to LEDs.db for the LED controller."""
         try:
+            # First check if there's an active animation
+            is_animating = False
+            with self.get_game_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT animating FROM animation_state WHERE id = 1')
+                animation_state = cursor.fetchone()
+                if animation_state and animation_state['animating'] == 1:
+                    is_animating = True
+            
             # First get the cricket scores from game.db
             cricket_scores = self.get_cricket_scores()
             
@@ -770,12 +808,21 @@ class DartProcessor:
             leds_conn = sqlite3.connect('leds/LEDs.db')
             leds_cursor = leds_conn.cursor()
             
-            # Update player_state
-            leds_cursor.execute("""
-                UPDATE player_state 
-                SET current_player = ?, player_count = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = 1
-            """, (game_state['current_player'], len(cricket_scores)))
+            # Update player_state - BUT ONLY IF NOT ANIMATING or there's no pending player change
+            if not is_animating or self.pending_player_change is None:
+                leds_cursor.execute("""
+                    UPDATE player_state 
+                    SET current_player = ?, player_count = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = 1
+                """, (game_state['current_player'], len(cricket_scores)))
+            else:
+                # If animating, only update player_count but not current_player
+                leds_cursor.execute("""
+                    UPDATE player_state 
+                    SET player_count = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = 1
+                """, (len(cricket_scores),))
+                print(f"Animation in progress - delaying player update to LEDs.db. Current: {game_state['current_player']}, Pending: {self.pending_player_change}")
             
             # Update cricket state for each segment
             for segment in [15, 16, 17, 18, 19, 20, 25]:  # Cricket segments
@@ -839,6 +886,37 @@ class DartProcessor:
             print(f"Error syncing cricket state to LEDs DB: {e}")
         except Exception as e:
             print(f"Unexpected error syncing cricket state: {e}")
+
+    def run(self):
+        """Main processing loop"""
+        print("American Cricket dart processor running, press Ctrl+C to stop...")
+        
+        try:
+            while True:
+                # Check if we need to clear any expired animations
+                animation_cleared = self.check_and_clear_animations()
+                
+                # If animation was cleared, also check if there are pending player changes to apply
+                if animation_cleared:
+                    self.apply_pending_player_change()
+                
+                # Get new throws from CV database
+                new_throws = self.get_new_throws()
+                
+                # Process each new throw
+                for throw in new_throws:
+                    self.process_throw(throw)
+                
+                # Even if no animation was cleared, periodically check for pending player changes
+                # This handles cases where we might have missed the animation clearing
+                if not animation_cleared:
+                    self.apply_pending_player_change()
+                    
+                # Sleep for a bit before next poll
+                time.sleep(self.poll_interval)
+                
+        except KeyboardInterrupt:
+            print("\nAmerican Cricket dart processor stopped.")
 
 def main():
     processor = DartProcessor()
