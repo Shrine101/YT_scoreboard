@@ -8,6 +8,30 @@ import atexit
 from initialize_db import initialize_database
 from datetime import datetime
 
+# Function to reset the LEDs database when home screen is accessed
+def reset_leds_database():
+    """Reset the LEDs database when returning to the home screen."""
+    try:
+        # Ensure the leds directory exists
+        os.makedirs('leds', exist_ok=True)
+        
+        # Save current directory
+        current_dir = os.getcwd()
+        
+        try:
+            # Change to leds directory
+            os.chdir('leds')
+            
+            # Import and call the initialization function
+            from LEDs_db_init import initialize_leds_database
+            initialize_leds_database()
+            
+            print("LEDs database reset successfully")
+        finally:
+            # Always change back to the original directory
+            os.chdir(current_dir)
+    except Exception as e:
+        print(f"Error resetting LEDs database: {e}")
 
 
 app = Flask(__name__)
@@ -331,6 +355,8 @@ def recalculate_player_scores(conn):
 @app.route('/')
 def home():
     """Display the home page with player name input form"""
+    # Reset the LEDs database when the home screen is accessed
+    reset_leds_database()
     return render_template('home.html')
 
 @app.route('/start_game', methods=['POST'])
