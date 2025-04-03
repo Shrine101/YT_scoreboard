@@ -4,7 +4,7 @@ dart_processor_american_cricket.py
 This is a dart processor for the American Cricket game mode.
 In this game, players aim to hit numbers 15-20 and bullseye,
 marking each three times to "close" it. Points are scored on
-open numbers until everyone has closed them.
+open numbers until at least 2 players have closed them.
 """
 
 import sqlite3
@@ -225,15 +225,11 @@ class DartProcessor:
             return False  # Default to closed if number not found
 
     def is_number_closed_by_all(self, number):
-        """Check if a number has been closed by all players"""
+        """Check if a number has been closed by at least 2 players (making it closed for everyone)"""
         with self.get_game_connection() as conn:
             cursor = conn.cursor()
             
-            # First count all active players
-            cursor.execute('SELECT COUNT(*) as player_count FROM players')
-            player_count = cursor.fetchone()['player_count']
-            
-            # Then count players who have closed this number
+            # Count players who have closed this number
             cursor.execute('''
                 SELECT COUNT(*) as closed_count FROM cricket_scores
                 WHERE number = ? AND closed = 1
@@ -241,8 +237,8 @@ class DartProcessor:
             
             closed_count = cursor.fetchone()['closed_count']
             
-            # Number is closed by all if the counts match
-            return closed_count >= player_count
+            # Number is globally closed if at least 2 players have closed it
+            return closed_count >= 2
 
     def update_cricket_score(self, player_id, number, marks_to_add, score_to_add=0):
         """Update a player's cricket score for a specific number"""
