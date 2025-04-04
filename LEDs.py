@@ -17,7 +17,7 @@ class LEDs:
         # LED strip configuration:
         self.NUM_STRIPS = 20
         self.NUM_LED_PER_STRIP = 18
-        self.LED_COUNT      = self.NUM_STRIPS*self.NUM_LED_PER_STRIP + 3      # Number of LED pixels per strip
+        self.LED_COUNT      = self.NUM_STRIPS*self.NUM_LED_PER_STRIP + 1      # Number of LED pixels per strip
 
         self.LED_PIN        = 18      # GPIO pin connected to the pixels (18 uses PWM!).
         self.LED_FREQ_HZ    = 800000  # LED signal frequency in hertz (usually 800khz)
