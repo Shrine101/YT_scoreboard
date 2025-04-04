@@ -11,6 +11,8 @@ def color_wipe_test():
     for strip_num in range(21):
         leds.colorWipe(strip_num, color, wait_ms=50)  # Run color wipe on each strip
         time.sleep(0.2)  # Small delay between strips
+        leds.colorWipe(strip_num, (0,0,0), wait_ms=50)  # Run color wipe on each strip
+
 
     print("Test complete. Clearing LEDs...")
     leds.clearAll(wait_ms=10)  # Clear all LEDs
