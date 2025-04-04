@@ -18,7 +18,9 @@ def color_wipe_test():
         leds.tripleSeg(i, color)
         leds.doubleSeg(i, color)
     
-    leds.bullseye(color)
+    leds.inner_bullseye(color)
+    leds.outer_bullseye(color)
+
 
     time.sleep(0.5)
 
