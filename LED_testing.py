@@ -17,9 +17,6 @@ def color_wipe_test():
     for i in range(20): 
         leds.tripleSeg(i, color)
         leds.doubleSeg(i, color)
-
-    leds.inner_bullseye(color)
-    leds.outer_bullseye(color)
   
  
 if __name__ == "__main__":
