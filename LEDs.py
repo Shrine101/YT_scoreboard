@@ -17,7 +17,7 @@ class LEDs:
         # LED strip configuration:
         self.NUM_STRIPS = 20
         self.NUM_LED_PER_STRIP = 18
-        self.LED_COUNT      = self.NUM_STRIPS*self.NUM_LED_PER_STRIP + 1      # Number of LED pixels per strip
+        self.LED_COUNT      = self.NUM_STRIPS*self.NUM_LED_PER_STRIP + 3      # Number of LED pixels per strip
 
         self.LED_PIN        = 18      # GPIO pin connected to the pixels (18 uses PWM!).
         self.LED_FREQ_HZ    = 800000  # LED signal frequency in hertz (usually 800khz)
@@ -166,10 +166,19 @@ class LEDs:
             self.strip.show()
             time.sleep(wait_ms/1000.0)
     
-    def bullseye(self, color, wait_ms=5):
+    def inner_bullseye(self, color, wait_ms=5):
         """Lights up the bullseye (centre LED)"""
         bullseye_pixel = self.LED_COUNT - 1  # Assuming the last LED represents the bullseye
         self.strip.setPixelColor(bullseye_pixel, Color(*color))
+        self.strip.show()
+        time.sleep(wait_ms / 1000.0)
+
+    def outer_bullseye(self, color, wait_ms=5):
+        """Lights up the outer bullseye (2 LEDs)"""
+        self.strip.setPixelColor((self.LED_COUNT-2), Color(*color))
+        self.strip.show()
+        time.sleep(wait_ms / 1000.0)
+        self.strip.setPixelColor((self.LED_COUNT-3), Color(*color))
         self.strip.show()
         time.sleep(wait_ms / 1000.0)
 
