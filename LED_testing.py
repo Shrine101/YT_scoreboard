@@ -22,5 +22,5 @@ def color_wipe_test():
     leds.outer_bullseye(color)
   
  
- if __name__ == "__main__":
+if __name__ == "__main__":
      color_wipe_test()
