@@ -175,10 +175,12 @@ class LEDs:
 
     def outer_bullseye(self, color, wait_ms=5):
         """Lights up the outer bullseye (2 LEDs)"""
-        self.strip.setPixelColor((self.LED_COUNT-2), Color(*color))
+        bullseye_pixel1 = self.LED_COUNT-2
+        self.strip.setPixelColor(bullseye_pixel1, Color(*color))
         self.strip.show()
         time.sleep(wait_ms / 1000.0)
-        self.strip.setPixelColor((self.LED_COUNT-3), Color(*color))
+        bullseye_pixel2 = self.LED_COUNT-3
+        self.strip.setPixelColor(bullseye_pixel2, Color(*color))
         self.strip.show()
         time.sleep(wait_ms / 1000.0)
 
