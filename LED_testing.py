@@ -20,6 +20,8 @@ def color_wipe_test():
     
     leds.bullseye(color)
 
+    time.sleep(0.5)
+
     leds.clearAll()
 
 
