@@ -20,12 +20,7 @@ def color_wipe_test():
 
     leds.inner_bullseye(color)
     leds.outer_bullseye(color)
-
-
-    time.sleep(0.5)
- 
-     leds.clearAll()
- 
+  
  
  if __name__ == "__main__":
      color_wipe_test()
