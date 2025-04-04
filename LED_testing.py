@@ -8,17 +8,19 @@ import time
      print("Starting Color Wipe Test...")
  
      # Wipe each strip in sequence
-     for strip_num in range(21):
-         leds.colorWipe(strip_num, color, wait_ms=15)  # Run color wipe on each strip
-         time.sleep(0.1)  # Small delay between strips
-         leds.colorWipe(strip_num, (0,0,0), wait_ms=15)  # Run color wipe on each strip
+     # for strip_num in range(20):
+     #     leds.colorWipe(strip_num, color, wait_ms=15)  # Run color wipe on each strip
+     #     time.sleep(0.1)  # Small delay between strips
+     #     leds.colorWipe(strip_num, (0,0,0), wait_ms=15)  # Run color wipe on each strip
  
      # Check double & triple seg
      for i in range(20): 
          leds.tripleSeg(i, color)
          leds.doubleSeg(i, color)
  
-     leds.bullseye(color)
+     leds.inner_bullseye(color)
+     leds.outer_bullseye(color)
+
  
      time.sleep(0.5)
  
