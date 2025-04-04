@@ -16,7 +16,7 @@ class LEDs:
     def __init__(self):
         # LED strip configuration:
         self.NUM_STRIPS = 20
-        self.NUM_LED_PER_STRIP = 19
+        self.NUM_LED_PER_STRIP = 18
         self.LED_COUNT      = self.NUM_STRIPS*self.NUM_LED_PER_STRIP + 1      # Number of LED pixels per strip
 
         self.LED_PIN        = 18      # GPIO pin connected to the pixels (18 uses PWM!).
@@ -26,9 +26,8 @@ class LEDs:
         self.LED_INVERT     = False   # True to invert the signal (when using NPN transistor level shift)
         self.LED_CHANNEL    = 0       # set to '1' for GPIOs 13, 19, 41, 45 or 53
 
-        self.NUM_RING = 0 
-        self.TRPL_RING = 10
-        self.DBL_RING = 1
+        self.TRPL_RING = 9
+        self.DBL_RING = 0
 
         # Dartboard number-to-strip mapping
         self.DARTBOARD_MAPPING = {
