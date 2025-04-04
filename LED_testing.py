@@ -14,8 +14,6 @@ def color_wipe_test():
         leds.colorWipe(strip_num, (0,0,0), wait_ms=15)  # Run color wipe on each strip
 
 
-    print("Test complete. Clearing LEDs...")
-    leds.clearAll(wait_ms=10)  # Clear all LEDs
 
 if __name__ == "__main__":
     color_wipe_test()
