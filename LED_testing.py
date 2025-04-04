@@ -23,4 +23,4 @@ def color_wipe_test():
   
  
 if __name__ == "__main__":
-     color_wipe_test()
+    color_wipe_test()
