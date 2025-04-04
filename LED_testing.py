@@ -13,6 +13,14 @@ def color_wipe_test():
         time.sleep(0.1)  # Small delay between strips
         leds.colorWipe(strip_num, (0,0,0), wait_ms=15)  # Run color wipe on each strip
 
+    # Check double & triple seg
+    for i in range(20): 
+        leds.tripleSeg(i, color)
+        leds.doubleSeg(i, color)
+    
+    leds.bullseye(color)
+
+    leds.clearAll()
 
 
 if __name__ == "__main__":
