@@ -17,7 +17,7 @@ class LEDs:
         # LED strip configuration:
         self.NUM_STRIPS = 20
         self.NUM_LED_PER_STRIP = 18
-        self.LED_COUNT      = self.NUM_STRIPS*self.NUM_LED_PER_STRIP + 1      # Number of LED pixels per strip
+        self.LED_COUNT      = self.NUM_STRIPS*self.NUM_LED_PER_STRIP      # Number of LED pixels per strip
 
         self.LED_PIN        = 18      # GPIO pin connected to the pixels (18 uses PWM!).
         self.LED_FREQ_HZ    = 800000  # LED signal frequency in hertz (usually 800khz)
@@ -65,24 +65,6 @@ class LEDs:
             self.strip.setPixelColor(i, Color(0,0,0))
             self.strip.show()
             time.sleep(wait_ms/1000.0)
-
-    # Lights up number segment on outer circumference of dartboard 
-    def numSeg(self, dartboard_num, color, wait_ms=5):
-        
-        if dartboard_num not in self.DARTBOARD_MAPPING:
-            print(f"ERROR: Invalid dartboard number: {dartboard_num}")
-            return
-
-        strip_num = self.DARTBOARD_MAPPING[dartboard_num]
-        # light up number segment outside of dartboard
-        if(strip_num % 2 == 0): #even num strip 
-            pixel = self.NUM_RING + self.NUM_LED_PER_STRIP*strip_num
-        else: # odd num strip 
-            pixel = self.NUM_LED_PER_STRIP*strip_num + (self.NUM_LED_PER_STRIP - 1)
-            
-        self.strip.setPixelColor(pixel, Color(*color))
-        self.strip.show()
-        time.sleep(wait_ms/1000.0)
         
     # Lights up triple segment 
     def tripleSeg(self, dartboard_num, color, wait_ms=5):
@@ -166,23 +148,34 @@ class LEDs:
             self.strip.show()
             time.sleep(wait_ms/1000.0)
     
-    def inner_bullseye(self, color, wait_ms=5):
-        """Lights up the bullseye (centre LED)"""
-        bullseye_pixel = self.LED_COUNT - 1  # Assuming the last LED represents the bullseye
-        self.strip.setPixelColor(bullseye_pixel, Color(*color))
-        self.strip.show()
-        time.sleep(wait_ms / 1000.0)
+    def bullseye(self, color=(255, 215, 0), wait_ms=30):
+        """Celebrate a bullseye hit with an outward ripple and gold flash effect."""
+        
+        def light_ring(ring_index, color_val):
+            """Light up one ring across all strips."""
+            for strip_num in range(self.NUM_STRIPS):
+                if strip_num % 2 == 0:
+                    pixel = strip_num * self.NUM_LED_PER_STRIP + ring_index
+                else:
+                    pixel = strip_num * self.NUM_LED_PER_STRIP + (self.NUM_LED_PER_STRIP - ring_index - 1)
+                self.strip.setPixelColor(pixel, Color(*color_val))
+            self.strip.show()
+            time.sleep(wait_ms / 1000.0)
 
-    def outer_bullseye(self, color, wait_ms=5):
-        """Lights up the outer bullseye (2 LEDs)"""
-        bullseye_pixel1 = self.LED_COUNT-2
-        self.strip.setPixelColor(bullseye_pixel1, Color(*color))
+        # Step 1: Ripple out from bullseye twice
+        for _ in range(2):  
+            for ring in range(self.NUM_LED_PER_STRIP // 2):
+                light_ring(ring, color)
+            self.clearAll(wait_ms=5)
+
+        # Step 2: Light up the whole board in gold
+        for i in range(self.strip.numPixels()):
+            self.strip.setPixelColor(i, Color(*color))
         self.strip.show()
-        time.sleep(wait_ms / 1000.0)
-        bullseye_pixel2 = self.LED_COUNT-3
-        self.strip.setPixelColor(bullseye_pixel2, Color(*color))
-        self.strip.show()
-        time.sleep(wait_ms / 1000.0)
+        time.sleep(0.5)
+
+        self.clearAll(wait_ms=5)
+
 
 
                     
