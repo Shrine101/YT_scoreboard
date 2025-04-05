@@ -16,8 +16,8 @@ class LEDs:
     def __init__(self):
         # LED strip configuration:
         self.NUM_STRIPS = 20
-        self.NUM_LED_PER_STRIP = 19
-        self.LED_COUNT      = self.NUM_STRIPS*self.NUM_LED_PER_STRIP + 1      # Number of LED pixels per strip
+        self.NUM_LED_PER_STRIP = 18
+        self.LED_COUNT      = self.NUM_STRIPS*self.NUM_LED_PER_STRIP      # Number of LED pixels per strip
 
         self.LED_PIN        = 18      # GPIO pin connected to the pixels (18 uses PWM!).
         self.LED_FREQ_HZ    = 800000  # LED signal frequency in hertz (usually 800khz)
@@ -26,9 +26,8 @@ class LEDs:
         self.LED_INVERT     = False   # True to invert the signal (when using NPN transistor level shift)
         self.LED_CHANNEL    = 0       # set to '1' for GPIOs 13, 19, 41, 45 or 53
 
-        self.NUM_RING = 0 
-        self.TRPL_RING = 10
-        self.DBL_RING = 1
+        self.TRPL_RING = 9
+        self.DBL_RING = 0
 
         # Dartboard number-to-strip mapping
         self.DARTBOARD_MAPPING = {
@@ -66,24 +65,6 @@ class LEDs:
             self.strip.setPixelColor(i, Color(0,0,0))
             self.strip.show()
             time.sleep(wait_ms/1000.0)
-
-    # Lights up number segment on outer circumference of dartboard 
-    def numSeg(self, dartboard_num, color, wait_ms=5):
-        
-        if dartboard_num not in self.DARTBOARD_MAPPING:
-            print(f"ERROR: Invalid dartboard number: {dartboard_num}")
-            return
-
-        strip_num = self.DARTBOARD_MAPPING[dartboard_num]
-        # light up number segment outside of dartboard
-        if(strip_num % 2 == 0): #even num strip 
-            pixel = self.NUM_RING + self.NUM_LED_PER_STRIP*strip_num
-        else: # odd num strip 
-            pixel = self.NUM_LED_PER_STRIP*strip_num + (self.NUM_LED_PER_STRIP - 1)
-            
-        self.strip.setPixelColor(pixel, Color(*color))
-        self.strip.show()
-        time.sleep(wait_ms/1000.0)
         
     # Lights up triple segment 
     def tripleSeg(self, dartboard_num, color, wait_ms=5):
@@ -167,50 +148,36 @@ class LEDs:
             self.strip.show()
             time.sleep(wait_ms/1000.0)
     
-    def bullseye(self, color, wait_ms=5):
-        """Lights up the bullseye (centre LED)"""
-        bullseye_pixel = self.LED_COUNT - 1  # Assuming the last LED represents the bullseye
-        self.strip.setPixelColor(bullseye_pixel, Color(*color))
-        self.strip.show()
-        time.sleep(wait_ms / 1000.0)
+    def bullseye(self, wait_ms=50):
+        """Gold outward cumulative build, then synchronized inward ring flashes."""
+        gold = (250, 90, 0)
+        num_rings = self.NUM_LED_PER_STRIP
 
+        # Phase 1: Radiate outward (build-up)
+        for ring in range(num_rings):
+            for strip_num in range(self.NUM_STRIPS):
+                if strip_num % 2 == 0:
+                    pixel = strip_num * num_rings + ring
+                else:
+                    pixel = strip_num * num_rings + (num_rings - ring - 1)
+                self.strip.setPixelColor(pixel, Color(*gold))
+            self.strip.show()  # show after setting full ring
+            time.sleep(wait_ms / 1000.0)
 
-                    
-        
-# # Main program testing 
-# if __name__ == '__main__':
-#     # Process arguments
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument('-c', '--clear', action='store_true', help='clear the display on exit')
-#     args = parser.parse_args()
+        # Phase 2: Collapse inward one ring at a time, all at once
+        for ring in reversed(range(num_rings)):
+            self.clearAll(wait_ms=0)  # clear entire board first
+            for strip_num in range(self.NUM_STRIPS):
+                if strip_num % 2 == 0:
+                    pixel = strip_num * num_rings + ring
+                else:
+                    pixel = strip_num * num_rings + (num_rings - ring - 1)
+                self.strip.setPixelColor(pixel, Color(*gold))
+            self.strip.show()  # synchronized flash
+            time.sleep(wait_ms / 1000.0)
 
-#     # Create NeoPixel object with appropriate configuration.
-#     strip = Adafruit_NeoPixel(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL)
-#     # Intialize the library (must be called once before other functions).
-#     strip.begin()
-
-#     print ('Press Ctrl-C to quit.')
-#     if not args.clear:
-#         print('Use "-c" argument to clear LEDs on exit')
-        
-#     try:
-#         while True:
-            
-#             strip_num = int(input("Enter the strip number: \n"))
-#             #colorWipe(strip, strip_num, Color(0,128,0), 5)
-
-#             numSeg(strip, strip_num, Color(0, 0, 255))
-#             tripleSeg(strip, strip_num, Color(0,128, 0))
-#             doubleSeg(strip, strip_num, Color(0,128, 0))
-            
-#             outerSingleSeg(strip, strip_num, Color(0, 0, 255))            
-#             innerSingleSeg(strip, strip_num, Color(255, 0, 0))
-            
-#             strip.setBrightness(120) # test 
-            
+        self.clearAll(wait_ms=10)
 
 
 
-#     except KeyboardInterrupt:
-#         if args.clear:
-#             clearAll(strip)
+    
