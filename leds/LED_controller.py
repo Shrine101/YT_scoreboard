@@ -193,7 +193,7 @@ class LEDController:
             self.led_control.tripleSeg(number, (0, 0, 255))  # Blue
         
         # Bullseye - Red
-        self.led_control.bullseye((255, 0, 0))  # Red
+        self.led_control.bullseye()  
 
     def setup_cricket_mode(self):
         """Set up LEDs for cricket mode."""
