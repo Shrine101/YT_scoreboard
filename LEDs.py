@@ -148,34 +148,36 @@ class LEDs:
             self.strip.show()
             time.sleep(wait_ms/1000.0)
     
-    def bullseye(self, color=(255, 215, 0), wait_ms=30):
-        """Celebrate a bullseye hit with an outward ripple and gold flash effect."""
-        
-        def light_ring(ring_index, color_val):
-            """Light up one ring across all strips."""
+    def bullseye(self, wait_ms=50):
+        """Gold outward cumulative build, then synchronized inward ring flashes."""
+        gold = (250, 90, 0)
+        num_rings = self.NUM_LED_PER_STRIP
+
+        # Phase 1: Radiate outward (build-up)
+        for ring in range(num_rings):
             for strip_num in range(self.NUM_STRIPS):
                 if strip_num % 2 == 0:
-                    pixel = strip_num * self.NUM_LED_PER_STRIP + ring_index
+                    pixel = strip_num * num_rings + ring
                 else:
-                    pixel = strip_num * self.NUM_LED_PER_STRIP + (self.NUM_LED_PER_STRIP - ring_index - 1)
-                self.strip.setPixelColor(pixel, Color(*color_val))
-            self.strip.show()
+                    pixel = strip_num * num_rings + (num_rings - ring - 1)
+                self.strip.setPixelColor(pixel, Color(*gold))
+            self.strip.show()  # show after setting full ring
             time.sleep(wait_ms / 1000.0)
 
-        # Step 1: Ripple out from bullseye twice
-        for _ in range(2):  
-            for ring in range(self.NUM_LED_PER_STRIP // 2):
-                light_ring(ring, color)
-            self.clearAll(wait_ms=5)
+        # Phase 2: Collapse inward one ring at a time, all at once
+        for ring in reversed(range(num_rings)):
+            self.clearAll(wait_ms=0)  # clear entire board first
+            for strip_num in range(self.NUM_STRIPS):
+                if strip_num % 2 == 0:
+                    pixel = strip_num * num_rings + ring
+                else:
+                    pixel = strip_num * num_rings + (num_rings - ring - 1)
+                self.strip.setPixelColor(pixel, Color(*gold))
+            self.strip.show()  # synchronized flash
+            time.sleep(wait_ms / 1000.0)
 
-        # Step 2: Light up the whole board in gold
-        for i in range(self.strip.numPixels()):
-            self.strip.setPixelColor(i, Color(*color))
-        self.strip.show()
-        time.sleep(0.5)
-
-        self.clearAll(wait_ms=5)
+        self.clearAll(wait_ms=10)
 
 
 
-        
+    
