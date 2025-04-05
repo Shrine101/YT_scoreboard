@@ -122,26 +122,20 @@
           <!-- Simple buttons with proper functionality -->
           <div class="row mt-4">
             <div class="col-4">
-              <div class="button-container">
-                <button id="manual-override-btn" class="btn btn-warning w-100 game-btn">
-                  Manual Override
-                </button>
-              </div>
+              <button id="manual-override-btn" class="btn btn-warning w-100 game-btn" style="font-size: 18px;">
+                <span>Manual<br>Override</span>
+              </button>
             </div>
             <div class="col-4">
-              <div class="button-container">
-                <button id="game-rules-btn" class="btn btn-info w-100 game-btn" 
-                        data-bs-toggle="modal" data-bs-target="#gameRulesModal">
-                  Game Rules
-                </button>
-              </div>
+              <button id="game-rules-btn" class="btn btn-info w-100 game-btn" style="font-size: 18px;" 
+                      data-bs-toggle="modal" data-bs-target="#gameRulesModal">
+                <span>Game<br>Rules</span>
+              </button>
             </div>
             <div class="col-4">
-              <div class="button-container">
-                <button id="i-missed-btn" class="btn btn-danger w-100 game-btn">
-                  I Missed
-                </button>
-              </div>
+              <button id="i-missed-btn" class="btn btn-danger w-100 game-btn" style="font-size: 18px;">
+                <span>I Missed</span>
+              </button>
             </div>
           </div>
           
@@ -288,32 +282,23 @@
 
 <!-- Additional CSS to be added to the style section in game_scripts.html -->
 <style>
-  /* Button alignment fixes */
-  .button-container {
-    height: 60px;
-    display: flex;
-    align-items: center;
-  }
-  
+  /* Add this to the existing styles to fix button alignment */
   .game-btn {
-    height: 100%;
+    height: 60px;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 8px;
     line-height: 1.2;
     font-weight: bold;
-    font-size: 18px;
-    white-space: normal;
-    text-align: center;
   }
   
-  /* Keep this for backward compatibility if some buttons still use spans */
   .game-btn span {
     display: inline-block;
     text-align: center;
   }
 </style>
+
 
 {% include 'includes/game_scripts.html' %}
 {% include 'includes/around_the_clock_scripts.html' %}
