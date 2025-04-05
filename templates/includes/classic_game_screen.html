@@ -113,16 +113,16 @@
             {% endfor %}
           </div>
           
-          <!-- Manual Override and I Missed Buttons -->
+          <!-- Simple buttons with proper functionality -->
           <div class="row mt-4">
-            <div class="col-6 text-center">
-              <button id="manual-override-btn" class="btn btn-warning py-3 px-4 w-100" style="font-size: 22px;">
-                <strong>Manual Override</strong>
+            <div class="col-4">
+              <button id="manual-override-btn" class="btn btn-warning w-100 game-btn" style="font-size: 18px;">
+                <span>Manual<br>Override</span>
               </button>
             </div>
-            <div class="col-6 text-center">
-              <button id="i-missed-btn" class="btn btn-danger py-3 px-4 w-100" style="font-size: 22px;">
-                <strong>I Missed</strong>
+            <div class="col-4">
+              <button id="i-missed-btn" class="btn btn-danger w-100 game-btn" style="font-size: 18px; margin-top: 0px;">
+                <span>I Missed</span>
               </button>
             </div>
           </div>
@@ -275,4 +275,22 @@
   }
 
 
+</style>
+
+<style>
+  /* Add this to the existing styles to fix button alignment */
+  .game-btn {
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    line-height: 1.2;
+    font-weight: bold;
+  }
+  
+  .game-btn span {
+    display: inline-block;
+    text-align: center;
+  }
 </style>
