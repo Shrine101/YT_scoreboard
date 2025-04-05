@@ -419,6 +419,54 @@
         });
       });
     }
+
+    // Handle "I Missed" button click
+    const missedBtn = document.getElementById('i-missed-btn');
+    if (missedBtn) {
+      missedBtn.addEventListener('click', function() {
+        // Disable the button to prevent double-clicks
+        missedBtn.disabled = true;
+        
+        // Show confirmation dialog
+        if (confirm('Are you sure you want to record a missed throw?')) {
+          // Send request to record missed throw
+          fetch('/record_miss', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              // Show a brief notification
+              alert('Recorded missed throw. Next player\'s turn.');
+              
+              // Refresh game data
+              fetch('/data_json')
+                .then(response => response.json())
+                .then(gameData => updateGame(gameData))
+                .catch(error => console.error('Error fetching data:', error));
+            } else {
+              alert('Error recording missed throw: ' + (data.error || 'Unknown error'));
+            }
+          })
+          .catch(error => {
+            console.error('Error recording missed throw:', error);
+            alert('Failed to record missed throw. Please try again.');
+          })
+          .finally(() => {
+            // Re-enable the button after processing
+            setTimeout(() => {
+              missedBtn.disabled = false;
+            }, 1000);
+          });
+        } else {
+          // Re-enable the button if user cancelled
+          missedBtn.disabled = false;
+        }
+      });
+    }
   });
 
   // Function to adjust player name font sizes based on longest name
@@ -823,6 +871,12 @@
 #throw-status-message {
   font-weight: bold;
   letter-spacing: 0.5px;
+}
+
+/* Style for I Missed button */
+#i-missed-btn {
+  margin-top: 10px;
+  font-weight: bold;
 }
 
 </style>

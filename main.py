@@ -1559,6 +1559,62 @@ def system_state():
         return jsonify({'ready_for_throw': True, 'error': 'No state found'})
     except Exception as e:
         return jsonify({'ready_for_throw': True, 'error': str(e)})
+    
+
+@app.route('/record_miss', methods=['POST'])
+def record_miss():
+    """Record a missed dart throw (one that went completely off the board)"""
+    try:
+        # Get current game state to determine player
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT current_player FROM game_state WHERE id = 1')
+            current_player = cursor.fetchone()['current_player']
+
+        # Connect to CV database to record the miss
+        cv_db_path = 'simulation/cv_data.db'
+        conn = sqlite3.connect(cv_db_path)
+        cursor = conn.cursor()
+        
+        # Get current local time as a string in the format SQLite expects
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Coordinates for a complete miss (r = 400, theta = 180)
+        position_x = 400  # r value (distance from center)
+        position_y = 180  # theta value (angle)
+        
+        # Insert the missed throw with score 0, multiplier 0
+        cursor.execute('''
+            INSERT INTO throws (timestamp, score, multiplier, position_x, position_y)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (current_time, 0, 0, position_x, position_y))
+        
+        # Commit and close
+        conn.commit()
+        conn.close()
+        
+        # Also set the system as not ready for the next throw (just like a real throw)
+        try:
+            conn = sqlite3.connect(cv_db_path)
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE system_state 
+                SET ready_for_throw = ?, last_updated = CURRENT_TIMESTAMP
+                WHERE id = 1
+            ''', (0,))
+            conn.commit()
+            conn.close()
+        except sqlite3.Error:
+            pass  # If system_state table doesn't exist, that's okay
+        
+        # Return success response
+        return jsonify({
+            'success': True, 
+            'message': f'Recorded missed throw for Player {current_player}'
+        })
+    except Exception as e:
+        print(f"Error recording missed throw: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
     try:
