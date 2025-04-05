@@ -147,6 +147,34 @@
   </div>
 </div>
 
+
+<!-- Game Rules Modal -->
+<div class="modal fade" id="gameRulesModal" tabindex="-1" aria-labelledby="gameRulesModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content bg-dark text-dark">
+      <div class="modal-header bg-success text-white">
+        <h4 class="modal-title" id="gameRulesModalLabel">Classic 301/501: Game Rules</h4>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="card bg-white border-0 mb-3">
+          <div class="card-body">
+            <ul class="fs-3" style="line-height: 1.8;">
+              <li class="mb-3">Score points to reduce your total points</li>
+              <li class="mb-3">Scoring more points in a turn then your total points will cause a bust</li>
+              <li class="mb-3">A bust removes all the points scored that turn and ends your turn</li>
+              <li class="mb-3">Game ends when first player reaches 0 total points exactly</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-lg" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- New Win Message Overlay (added as a completely separate element) -->
 <div id="win-message-overlay" style="position: fixed; top: 0; left: 0; right: 0; visibility: hidden; z-index: 2000; pointer-events: none;">
   <div style="width: 100%; padding-top: 80px; text-align: center;">
