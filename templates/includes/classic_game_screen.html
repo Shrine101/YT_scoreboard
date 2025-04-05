@@ -113,11 +113,22 @@
             {% endfor %}
           </div>
           
-          <!-- Manual Override Button -->
+          <!-- Simple buttons with proper functionality -->
           <div class="row mt-4">
-            <div class="col-12 text-center">
-              <button id="manual-override-btn" class="btn btn-warning py-3 px-4" style="font-size: 22px;">
-                <strong>Manual Override</strong>
+            <div class="col-4">
+              <button id="manual-override-btn" class="btn btn-warning w-100 game-btn" style="font-size: 18px;">
+                <span>Manual<br>Override</span>
+              </button>
+            </div>
+            <div class="col-4">
+              <button id="game-rules-btn" class="btn btn-info w-100 game-btn" style="font-size: 18px;" 
+                      data-bs-toggle="modal" data-bs-target="#gameRulesModal">
+                <span>Game<br>Rules</span>
+              </button>
+            </div>
+            <div class="col-4">
+              <button id="i-missed-btn" class="btn btn-danger w-100 game-btn" style="font-size: 18px; margin-top: 0px;">
+                <span>I Missed</span>
               </button>
             </div>
           </div>
@@ -131,6 +142,34 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Game Rules Modal -->
+<div class="modal fade" id="gameRulesModal" tabindex="-1" aria-labelledby="gameRulesModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content bg-dark text-dark">
+      <div class="modal-header bg-success text-white">
+        <h4 class="modal-title" id="gameRulesModalLabel">Classic 301/501: Game Rules</h4>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="card bg-white border-0 mb-3">
+          <div class="card-body">
+            <ul class="fs-3" style="line-height: 1.8;">
+              <li class="mb-3">Score points to reduce your total points</li>
+              <li class="mb-3">Scoring more points in a turn then your total points will cause a bust</li>
+              <li class="mb-3">A bust removes all the points scored that turn and ends your turn</li>
+              <li class="mb-3">Game ends when first player reaches 0 total points exactly</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-lg" data-bs-dismiss="modal">Close</button>
       </div>
     </div>
   </div>
@@ -270,4 +309,22 @@
   }
 
 
+</style>
+
+<style>
+  /* Add this to the existing styles to fix button alignment */
+  .game-btn {
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    line-height: 1.2;
+    font-weight: bold;
+  }
+  
+  .game-btn span {
+    display: inline-block;
+    text-align: center;
+  }
 </style>

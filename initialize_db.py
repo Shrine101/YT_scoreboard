@@ -86,8 +86,8 @@ def initialize_database():
                 CREATE TABLE current_throws (
                     throw_number INTEGER PRIMARY KEY,
                     points INTEGER NOT NULL,
-                    score INTEGER DEFAULT 0,
-                    multiplier INTEGER DEFAULT 0
+                    score INTEGER DEFAULT NULL,
+                    multiplier INTEGER DEFAULT NULL
                 )
                 ''')
                 
@@ -169,10 +169,11 @@ def initialize_database():
             cursor.execute('INSERT INTO game_state (id, current_turn, current_player, game_over) VALUES (1, 1, 1, 0)')
             
             # Insert current throws
+            # MODIFIED: Initialize with NULL scores and multipliers instead of 0
             cursor.executemany('INSERT INTO current_throws (throw_number, points, score, multiplier) VALUES (?, ?, ?, ?)', [
-                (1, 0, 0, 0),
-                (2, 0, 0, 0),
-                (3, 0, 0, 0)
+                (1, 0, None, None),
+                (2, 0, None, None),
+                (3, 0, None, None)
             ])
             
             # Insert animation state

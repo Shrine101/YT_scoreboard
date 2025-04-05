@@ -407,7 +407,8 @@ class DartProcessor:
             )
             
             # Reset current throws
-            cursor.execute('UPDATE current_throws SET points = 0, score = 0, multiplier = 0')
+            # MODIFIED: Set score and multiplier to NULL instead of 0
+            cursor.execute('UPDATE current_throws SET points = 0, score = NULL, multiplier = NULL')
             
             conn.commit()
             
@@ -609,9 +610,10 @@ class DartProcessor:
             return
         
         # Find the next empty throw position (or the first if all are used)
+        # MODIFIED: Check for NULL score instead of points == 0
         throw_position = 1
         for t in current_throws:
-            if t['points'] == 0:
+            if t['score'] is None:
                 throw_position = t['throw_number']
                 break
         
