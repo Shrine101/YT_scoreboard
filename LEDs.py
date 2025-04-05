@@ -178,42 +178,4 @@ class LEDs:
 
 
 
-                    
         
-# # Main program testing 
-# if __name__ == '__main__':
-#     # Process arguments
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument('-c', '--clear', action='store_true', help='clear the display on exit')
-#     args = parser.parse_args()
-
-#     # Create NeoPixel object with appropriate configuration.
-#     strip = Adafruit_NeoPixel(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL)
-#     # Intialize the library (must be called once before other functions).
-#     strip.begin()
-
-#     print ('Press Ctrl-C to quit.')
-#     if not args.clear:
-#         print('Use "-c" argument to clear LEDs on exit')
-        
-#     try:
-#         while True:
-            
-#             strip_num = int(input("Enter the strip number: \n"))
-#             #colorWipe(strip, strip_num, Color(0,128,0), 5)
-
-#             numSeg(strip, strip_num, Color(0, 0, 255))
-#             tripleSeg(strip, strip_num, Color(0,128, 0))
-#             doubleSeg(strip, strip_num, Color(0,128, 0))
-            
-#             outerSingleSeg(strip, strip_num, Color(0, 0, 255))            
-#             innerSingleSeg(strip, strip_num, Color(255, 0, 0))
-            
-#             strip.setBrightness(120) # test 
-            
-
-
-
-#     except KeyboardInterrupt:
-#         if args.clear:
-#             clearAll(strip)
