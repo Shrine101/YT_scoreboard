@@ -31,6 +31,13 @@ class LEDController:
         self.white_red_segments = {1, 4, 6, 15, 17, 19, 16, 11, 9, 5}
         self.yellow_blue_segments = {20, 18, 13, 10, 2, 3, 7, 8, 14, 12}
 
+        # Set colors for later use 
+        self.dim_white = (100, 100, 100)
+        self.red = (200, 0, 0)
+        self.blue = (0, 0, 200)
+        self.yellow = (200, 100, 0)
+
+
     @contextmanager
     def get_db_connection(self):
         """Get a connection to the LEDs database."""
@@ -88,14 +95,14 @@ class LEDController:
                 continue
                 
             # Single segments - White
-            self.led_control.innerSingleSeg(number, (255, 255, 255))  # White
-            self.led_control.outerSingleSeg(number, (255, 255, 255))  # White
+            self.led_control.innerSingleSeg(number, self.dim_white)  # White
+            self.led_control.outerSingleSeg(number, self.dim_white)  # White
             
             # Double segment - Red
-            self.led_control.doubleSeg(number, (255, 0, 0))  # Red
+            self.led_control.doubleSeg(number, self.red)  # Red
             
             # Triple segment - Red
-            self.led_control.tripleSeg(number, (255, 0, 0))  # Red
+            self.led_control.tripleSeg(number, self.red)  # Red
         
         # Process yellow/blue segments
         for number in self.yellow_blue_segments:
@@ -104,17 +111,17 @@ class LEDController:
                 continue
                 
             # Single segments - Yellow
-            self.led_control.innerSingleSeg(number, (255, 255, 0))  # Yellow
-            self.led_control.outerSingleSeg(number, (255, 255, 0))  # Yellow
+            self.led_control.innerSingleSeg(number, self.yellow)  # Yellow
+            self.led_control.outerSingleSeg(number, self.yellow)  # Yellow
             
             # Double segment - Blue
-            self.led_control.doubleSeg(number, (0, 0, 255))  # Blue
+            self.led_control.doubleSeg(number, self.blue)  # Blue
             
             # Triple segment - Blue
-            self.led_control.tripleSeg(number, (0, 0, 255))  # Blue
+            self.led_control.tripleSeg(number, self.blue)  # Blue
         
         # Bullseye - Red
-        self.led_control.bullseye((255, 0, 0))  # Red
+        self.led_control.bullseye()  # Red
 
     def process_dart_event(self, event):
         """Process a dart event and update LEDs accordingly."""
@@ -131,22 +138,22 @@ class LEDController:
         if segment_type == 'bullseye':  # Bullseye
             # For bullseye, we'll use a special ID
             segment_id = 'bullseye'
-            original_color = (255, 0, 0)  # Red
+            original_color = self.red  # Red
         elif score in self.led_control.DARTBOARD_MAPPING:
             # Determine original color based on segment type and number
             original_color = None
             
             if segment_type == 'double':
-                original_color = (255, 0, 0) if score in self.white_red_segments else (0, 0, 255)
+                original_color = self.red if score in self.white_red_segments else self.blue
                 segment_id = f'double_{score}'
             elif segment_type == 'triple':
-                original_color = (255, 0, 0) if score in self.white_red_segments else (0, 0, 255)
+                original_color = self.red if score in self.white_red_segments else self.blue
                 segment_id = f'triple_{score}'
             elif segment_type == 'inner_single':
-                original_color = (255, 255, 255) if score in self.white_red_segments else (255, 255, 0)
+                original_color = self.dim_white if score in self.white_red_segments else self.yellow
                 segment_id = f'inner_single_{score}'
             elif segment_type == 'outer_single':
-                original_color = (255, 255, 255) if score in self.white_red_segments else (255, 255, 0)
+                original_color = self.dim_white if score in self.white_red_segments else self.yellow
                 segment_id = f'outer_single_{score}'
             else:
                 return
