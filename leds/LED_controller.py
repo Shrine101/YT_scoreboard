@@ -543,6 +543,18 @@ class LEDController:
                 print(f"Target MISS! Blinking hit segment {score} ({base_segment_type}) in red")
                 blink_color = (255, 0, 0)  # Red
                 
+                # First, directly set the segment to red to ensure it shows up immediately
+                if base_segment_type == 'double':
+                    self.led_control.doubleSeg(score, blink_color)
+                elif base_segment_type == 'triple':
+                    self.led_control.tripleSeg(score, blink_color)
+                elif base_segment_type == 'inner_single':
+                    self.led_control.innerSingleSeg(score, blink_color)
+                elif base_segment_type == 'outer_single':
+                    self.led_control.outerSingleSeg(score, blink_color)
+                elif base_segment_type == 'bullseye':
+                    self.led_control.bullseye(blink_color)
+                
                 # Set up blinking for just the hit segment
                 segment_id = f'{base_segment_type}_{score}'
                 self.blinking_segments[segment_id] = {
@@ -554,12 +566,12 @@ class LEDController:
                     'segment_type': base_segment_type,
                     'blink_count': self.blink_count,
                     'blinks_completed': 0,
-                    'current_state': 'off',  # Start in 'off' state
+                    'current_state': 'on',  # Start in 'on' state since we already turned it on
                     'last_toggle': start_time
                 }
                 
-                # Force an immediate update
-                self.update_blinking_segments(True)
+                # Update the last_toggle time to ensure proper timing
+                self.blinking_segments[segment_id]['last_toggle'] = start_time - (1.0 / (self.blink_frequency * 2))
         else:
             # For other game modes, use the existing logic
             return self.process_dart_event_classic(event)
