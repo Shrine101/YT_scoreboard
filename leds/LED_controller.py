@@ -270,40 +270,8 @@ class LEDController:
         # Clear all LEDs first to reset
         self.led_control.clearAll(wait_ms=1)
         
-        # Process white/red segments
-        for number in self.white_red_segments:
-            # Skip if not in mapping
-            if number not in self.led_control.DARTBOARD_MAPPING:
-                continue
-                
-            # Single segments - White
-            self.led_control.innerSingleSeg(number, (255, 255, 255))  # White
-            self.led_control.outerSingleSeg(number, (255, 255, 255))  # White
-            
-            # Double segment - Red
-            self.led_control.doubleSeg(number, (255, 0, 0))  # Red
-            
-            # Triple segment - Red
-            self.led_control.tripleSeg(number, (255, 0, 0))  # Red
-        
-        # Process yellow/blue segments
-        for number in self.yellow_blue_segments:
-            # Skip if not in mapping
-            if number not in self.led_control.DARTBOARD_MAPPING:
-                continue
-                
-            # Single segments - Yellow
-            self.led_control.innerSingleSeg(number, (255, 255, 0))  # Yellow
-            self.led_control.outerSingleSeg(number, (255, 255, 0))  # Yellow
-            
-            # Double segment - Blue
-            self.led_control.doubleSeg(number, (0, 0, 255))  # Blue
-            
-            # Triple segment - Blue
-            self.led_control.tripleSeg(number, (0, 0, 255))  # Blue
-        
-        # Bullseye - Red
-        self.led_control.bullseye((255, 0, 0))  # Red
+        # In classic mode, we now keep all LEDs off until hit by a dart
+        # No LED segments are lit when the game starts
 
     def setup_cricket_mode(self):
         """Set up LEDs for cricket mode."""
@@ -355,45 +323,16 @@ class LEDController:
         
         print(f"Around the Clock: Current player {current_player}, target number {current_target}")
         
-        # Define our color sets for around the clock mode
-        purple_single_white_double_triple = {20, 18, 13, 10, 2, 3, 7, 8, 14, 12}
-        white_single_purple_double_triple = {1, 4, 6, 15, 17, 19, 16, 11, 9, 5}
-        
-        # Set up colors for each segment
-        for number in range(1, 21):
-            # Skip if not in mapping
-            if number not in self.led_control.DARTBOARD_MAPPING:
-                continue
-            
-            # Check if this is the current target number
-            is_target = (number == current_target)
-            
-            # Set colors based on number group and whether it's the target
-            if number in purple_single_white_double_triple:
-                # Single segments - Purple (unless it's the target)
-                single_color = (255, 0, 0) if is_target else (255, 0, 255)  # Red if target, otherwise Purple
-                # Double and triple segments - White (unless it's the target)
-                double_triple_color = (255, 0, 0) if is_target else (255, 255, 255)  # Red if target, otherwise White
-                
-                self.led_control.innerSingleSeg(number, single_color)
-                self.led_control.outerSingleSeg(number, single_color)
-                self.led_control.doubleSeg(number, double_triple_color)
-                self.led_control.tripleSeg(number, double_triple_color)
-            else:  # number in white_single_purple_double_triple
-                # Single segments - White (unless it's the target)
-                single_color = (255, 0, 0) if is_target else (255, 255, 255)  # Red if target, otherwise White
-                # Double and triple segments - Purple (unless it's the target)
-                double_triple_color = (255, 0, 0) if is_target else (255, 0, 255)  # Red if target, otherwise Purple
-                
-                self.led_control.innerSingleSeg(number, single_color)
-                self.led_control.outerSingleSeg(number, single_color)
-                self.led_control.doubleSeg(number, double_triple_color)
-                self.led_control.tripleSeg(number, double_triple_color)
-        
-        # Bullseye - Red if it's the target (for target=21), otherwise Purple
-        is_bullseye_target = (current_target == 21)  # 21 represents bullseye in Around the Clock
-        bullseye_color = (255, 0, 0) if is_bullseye_target else (255, 0, 255)  # Red if target, otherwise Purple
-        self.led_control.bullseye(bullseye_color)
+        # Only light up the current target number, all other LEDs remain off
+        if current_target <= 20:  # Regular numbers 1-20
+            # For the target, light up all its segments in red
+            self.led_control.innerSingleSeg(current_target, (255, 0, 0))  # Red
+            self.led_control.outerSingleSeg(current_target, (255, 0, 0))  # Red
+            self.led_control.doubleSeg(current_target, (255, 0, 0))  # Red
+            self.led_control.tripleSeg(current_target, (255, 0, 0))  # Red
+        elif current_target == 21:  # Bullseye (represented as 21)
+            # Light up only the bullseye in red
+            self.led_control.bullseye((255, 0, 0))  # Red
 
     def setup_moving_target_mode(self, target_number=None):
         """Set up LEDs for moving target mode."""
@@ -435,22 +374,18 @@ class LEDController:
         # Clear all LEDs first to reset
         self.led_control.clearAll(wait_ms=1)
         
-        # Apply neutral waiting state colors to all segments
+        # Apply neutral waiting state colors only to double, triple, and bullseye
         for number in range(1, 21):  # All dartboard numbers 1-20
             if number not in self.led_control.DARTBOARD_MAPPING:
                 continue
                 
-            # Inner single segments: Blue
-            self.led_control.innerSingleSeg(number, (0, 0, 255))  # Blue
-            
-            # Triple segments: Green
+            # Keep triple segments: Green
             self.led_control.tripleSeg(number, (0, 255, 0))  # Green
             
-            # Outer single segments: Yellow
-            self.led_control.outerSingleSeg(number, (255, 255, 0))  # Yellow
-            
-            # Double segments: Red
+            # Keep double segments: Red
             self.led_control.doubleSeg(number, (255, 0, 0))  # Red
+            
+            # Inner and outer single segments are now left off
         
         # Bullseye: Purple
         self.led_control.bullseye((255, 0, 255))  # Purple
