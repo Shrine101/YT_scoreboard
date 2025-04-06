@@ -6,7 +6,7 @@ def initialize_moving_target_database():
     print("Initializing Moving Target database...")
     
     # Define the database path
-    db_path = 'leds/moving_target.db'
+    db_path = 'moving_target.db'
     
     # Check if database file already exists and remove it if it exists
     if os.path.exists(db_path):
