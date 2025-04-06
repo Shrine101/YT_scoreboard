@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from LEDs import LEDs
 from datetime import datetime
 from LEDs_db_init import initialize_leds_database
-from leds.moving_target_db_init import initialize_moving_target_database
+from moving_target_db_init import initialize_moving_target_database
 
 class LEDController:
     def __init__(self, db_path='LEDs.db', poll_interval=0.5, 
