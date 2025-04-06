@@ -129,16 +129,16 @@
     
     // Function to show a target miss notification
     function showTargetMissNotification(duration = 3000) {
-      //const targetMissBanner = document.getElementById('target-miss-banner');
-      const targetMissOverlay = document.getElementById('target-miss-overlay');
+      const targetMissBanner = document.getElementById('target-miss-banner');
+      //const targetMissOverlay = document.getElementById('target-miss-overlay');
       
-      //if (targetMissBanner) targetMissBanner.style.visibility = 'visible';
-      if (targetMissOverlay) targetMissOverlay.style.visibility = 'visible';
+      if (targetMissBanner) targetMissBanner.style.visibility = 'visible';
+      //if (targetMissOverlay) targetMissOverlay.style.visibility = 'visible';
       
       // Hide the banners after the duration
       setTimeout(() => {
-        //if (targetMissBanner) targetMissBanner.style.visibility = 'hidden';
-        if (targetMissOverlay) targetMissOverlay.style.visibility = 'hidden';
+        if (targetMissBanner) targetMissBanner.style.visibility = 'hidden';
+        //if (targetMissOverlay) targetMissOverlay.style.visibility = 'hidden';
       }, duration);
     }
   
