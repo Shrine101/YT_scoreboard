@@ -6,7 +6,7 @@ from datetime import datetime
 from LEDs_db_init import initialize_leds_database
 
 class LEDController:
-    def __init__(self, db_path='leds/LEDs.db', poll_interval=0.5, 
+    def __init__(self, db_path='LEDs.db', poll_interval=0.5, 
                  blink_duration=2.0, blink_count=4):
         """Initialize the LED Controller with configurable blinking parameters.
         
