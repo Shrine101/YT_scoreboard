@@ -201,6 +201,12 @@ class LEDController:
         """Update the moving target by changing which segments are active."""
         current_time = time.time()
         
+        # Don't move the target if there are any blinking segments (animation in progress)
+        if self.blinking_segments:
+            # Reset the timer to prevent immediate movement after animation
+            self.last_target_move_time = current_time
+            return
+        
         # Check if it's time to move the target
         if current_time - self.last_target_move_time >= self.target_move_interval:
             # Move to the next target
@@ -413,18 +419,14 @@ class LEDController:
             print(f"Error: Target number {target_number} not in dartboard mapping")
             return
         
-        # Light up all segments for the target number
-        # Double segment - Red
-        self.led_control.doubleSeg(target_number, (255, 0, 0))  # Red
+        # Make all segments white (as requested)
+        white_color = (255, 255, 255)  # White
         
-        # Triple segment - Blue
-        self.led_control.tripleSeg(target_number, (0, 0, 255))  # Blue
-        
-        # Inner single - Green
-        self.led_control.innerSingleSeg(target_number, (0, 255, 0))  # Green
-        
-        # Outer single - Yellow
-        self.led_control.outerSingleSeg(target_number, (255, 255, 0))  # Yellow
+        # Light up all segments for the target number with white color
+        self.led_control.doubleSeg(target_number, white_color)
+        self.led_control.tripleSeg(target_number, white_color)
+        self.led_control.innerSingleSeg(target_number, white_color)
+        self.led_control.outerSingleSeg(target_number, white_color)
 
     def setup_neutral_mode(self):
         """Set up LEDs for neutral waiting state."""
@@ -476,6 +478,34 @@ class LEDController:
         # Otherwise, return white (open)
         return self.cricket_open_color
 
+    def _setup_target_blinking(self, target_number, blink_color, start_time, end_time):
+        """Helper method to set up blinking for all segments of a target."""
+        if target_number not in self.led_control.DARTBOARD_MAPPING:
+            print(f"Error: Target number {target_number} not in dartboard mapping")
+            return
+        
+        # Set up blinking for all segments of the target
+        segment_types = ['double', 'triple', 'inner_single', 'outer_single']
+        
+        for segment_type in segment_types:
+            segment_id = f'{segment_type}_{target_number}'
+            
+            self.blinking_segments[segment_id] = {
+                'start_time': start_time,
+                'end_time': end_time,
+                'original_color': (255, 255, 255),  # White (original color)
+                'blink_color': blink_color,
+                'score': target_number,
+                'segment_type': segment_type,
+                'blink_count': self.blink_count,
+                'blinks_completed': 0,
+                'current_state': 'off',  # Start in 'off' state
+                'last_toggle': start_time
+            }
+        
+        # Force an immediate update to start blinking
+        self.update_blinking_segments(True)
+
     def process_dart_event(self, event):
         """Process a dart event and update LEDs accordingly."""
         score = event['score']
@@ -486,63 +516,53 @@ class LEDController:
         # Check for hit/miss information in segment_type (for Moving Target mode)
         # Format: "segment_type_target_hit" or "segment_type_target_miss"
         hit_miss_info = segment_type.split('_')
-        if len(hit_miss_info) >= 3 and hit_miss_info[-2] == 'target':
+        
+        # For Moving Target mode with hit/miss info
+        if self.current_mode == 'moving_target' and len(hit_miss_info) >= 3 and hit_miss_info[-2] == 'target':
             base_segment_type = hit_miss_info[0]
             is_hit = hit_miss_info[-1] == 'hit'
             
-            # Set color based on hit/miss
-            blink_color = (0, 255, 0) if is_hit else (255, 0, 0)  # Green for hit, Red for miss
+            # Get current target number
+            with self.get_moving_target_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT current_target FROM target_state WHERE id = 1")
+                state = cursor.fetchone()
+                current_target = state['current_target'] if state else 20
             
-            # Use base segment type for processing
-            segment_type = base_segment_type
-        else:
-            # Default blinking behavior for other game modes
-            return self.process_dart_event_classic(event)
-        
-        # Calculate blink timing
-        start_time = time.time()
-        end_time = start_time + self.blink_duration
-        
-        # Determine segment ID and original color
-        if segment_type == 'bullseye':  # Bullseye
-            # For bullseye, we'll use a special ID
-            segment_id = 'bullseye'
-            original_color = (255, 0, 255)  # Default to purple for bullseye in neutral state
-        elif score in self.led_control.DARTBOARD_MAPPING:
-            # Determine original color based on segment type and number
-            if segment_type == 'double':
-                original_color = (255, 0, 0)  # Red for double
-                segment_id = f'double_{score}'
-            elif segment_type == 'triple':
-                original_color = (0, 0, 255)  # Blue for triple
-                segment_id = f'triple_{score}'
-            elif segment_type == 'inner_single':
-                original_color = (0, 255, 0)  # Green for inner single
-                segment_id = f'inner_single_{score}'
-            elif segment_type == 'outer_single':
-                original_color = (255, 255, 0)  # Yellow for outer single
-                segment_id = f'outer_single_{score}'
+            # Calculate blink timing
+            start_time = time.time()
+            end_time = start_time + self.blink_duration
+            
+            if is_hit:
+                # If it's a hit, blink all segments of the target in green
+                print(f"Target HIT! Blinking target {current_target} in green")
+                blink_color = (0, 255, 0)  # Green
+                self._setup_target_blinking(current_target, blink_color, start_time, end_time)
             else:
-                return
+                # If it's a miss, only blink the hit segment in red
+                print(f"Target MISS! Blinking hit segment {score} ({base_segment_type}) in red")
+                blink_color = (255, 0, 0)  # Red
+                
+                # Set up blinking for just the hit segment
+                segment_id = f'{base_segment_type}_{score}'
+                self.blinking_segments[segment_id] = {
+                    'start_time': start_time,
+                    'end_time': end_time,
+                    'original_color': (255, 255, 255),  # White (original color)
+                    'blink_color': blink_color,
+                    'score': score,
+                    'segment_type': base_segment_type,
+                    'blink_count': self.blink_count,
+                    'blinks_completed': 0,
+                    'current_state': 'off',  # Start in 'off' state
+                    'last_toggle': start_time
+                }
+                
+                # Force an immediate update
+                self.update_blinking_segments(True)
         else:
-            return
-        
-        # Store blinking information with hit/miss color
-        self.blinking_segments[segment_id] = {
-            'start_time': start_time,
-            'end_time': end_time,
-            'original_color': original_color,
-            'blink_color': blink_color,  # Use hit/miss color
-            'score': score,
-            'segment_type': segment_type,
-            'blink_count': self.blink_count,
-            'blinks_completed': 0,
-            'current_state': 'off',  # Start in 'off' state so first update turns it on
-            'last_toggle': start_time
-        }
-        
-        # Immediately light up the hit segment with first update
-        self.update_blinking_segments(True)  # True to force update
+            # For other game modes, use the existing logic
+            return self.process_dart_event_classic(event)
 
     def process_dart_event_classic(self, event):
         """Process a dart event for classic mode."""
