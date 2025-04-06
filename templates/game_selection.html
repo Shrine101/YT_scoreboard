@@ -108,6 +108,24 @@
                 </div>
               </div>
             </div>
+            
+            <!-- Moving Target Game -->
+            <div class="col">
+              <div class="card h-100 game-card shadow">
+                <div class="card-body text-center">
+                  <h3 class="card-title">Moving Target</h3>
+                  <p class="card-text">Hit the moving target as it rotates around the dartboard. First player to 5 hits wins.</p>
+                  <form action="/start_game_moving_target" method="post">
+                    {% for player_id, name in player_names.items() %}
+                    <input type="hidden" name="player{{ player_id }}" value="{{ name }}">
+                    {% endfor %}
+                    <input type="hidden" name="player_count" value="{{ player_count }}">
+                    <input type="hidden" name="reset_scores" value="{{ reset_scores }}">
+                    <button type="submit" class="btn btn-purple btn-lg w-100">Play Moving Target</button>
+                  </form>
+                </div>
+              </div>
+            </div>
           </div>
           
           <!-- Back Button -->
@@ -147,6 +165,17 @@
     .btn-lg {
       padding: 0.75rem 1.5rem;
       font-size: 1.2rem;
+    }
+    
+    .btn-purple {
+      background-color: #6f42c1;
+      border-color: #6f42c1;
+      color: white;
+    }
+    .btn-purple:hover {
+      background-color: #5a32a3;
+      border-color: #5a32a3;
+      color: white;
     }
   </style>
 </html>

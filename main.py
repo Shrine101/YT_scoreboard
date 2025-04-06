@@ -61,7 +61,7 @@ def start_dart_processor(game_mode='classic'):
     """Start the appropriate dart processor as a separate process based on game mode
     
     Args:
-        game_mode (str): The game mode to start processor for ('classic', 'cricket', or 'around_clock')
+        game_mode (str): The game mode to start processor for ('classic', 'cricket', 'around_clock', or 'moving_target')
     """
     global dart_processor
     
@@ -72,7 +72,8 @@ def start_dart_processor(game_mode='classic'):
     processor_scripts = {
         'classic': 'dart_processor_classic.py',
         'cricket': 'dart_processor_american_cricket.py',
-        'around_clock': 'dart_processor_around_the_clock.py'
+        'around_clock': 'dart_processor_around_the_clock.py',
+        'moving_target': 'dart_processor_moving_target.py'
     }
     
     # Get the script for the selected game mode, defaulting to classic if not found
@@ -143,6 +144,8 @@ def initialize_game_with_custom_names(player_names, starting_score=301, game_mod
         processor_mode = 'cricket'
     elif game_mode == 'around_clock':
         processor_mode = 'around_clock'
+    elif game_mode == 'moving_target':
+        processor_mode = 'moving_target'
     
     try:
         # Clear existing data first
@@ -723,6 +726,8 @@ def game():
         template = 'around_the_clock_game_screen.html'
     elif game_mode == 'cricket':
         template = 'american_cricket_game_screen.html'
+    elif game_mode == 'moving_target':
+        template = 'moving_target_game_screen.html'  # Add moving target template
     else:
         # Default to classic if mode is unknown
         template = 'classic_game_screen.html'
@@ -1615,6 +1620,70 @@ def record_miss():
     except Exception as e:
         print(f"Error recording missed throw: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+    
+
+
+@app.route('/start_game_moving_target', methods=['POST'])
+def start_game_moving_target():
+    """Initialize Moving Target game with the provided player names"""
+    player_count = int(request.form.get('player_count', 4))
+    reset_scores = request.form.get('reset_scores') == 'on'
+    
+    # Get player names from the form
+    player_names = {}
+    for i in range(1, player_count + 1):
+        name = request.form.get(f'player{i}', '').strip() or f'Player {i}'
+        player_names[i] = name
+    
+    # If reset_scores is checked, reinitialize the database
+    if reset_scores:
+        # Reinitialize the database with custom player names and starting score 0
+        initialize_game_with_custom_names(player_names, starting_score=0, game_mode='moving_target')
+    else:
+        # Just update the game mode in the config
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Update game mode in config
+        cursor.execute('UPDATE game_config SET game_mode = ?, processor_mode = ? WHERE id = 1', ('moving_target', 'moving_target'))
+        
+        # Reset all player scores to 0 for Moving Target mode
+        for player_id, name in player_names.items():
+            cursor.execute('UPDATE players SET name = ?, total_score = ? WHERE id = ?', 
+                          (name, 0, player_id))
+                          
+        conn.commit()
+        conn.close()
+    
+    # Update LEDs database with the game mode
+    try:
+        with sqlite3.connect('leds/LEDs.db') as leds_conn:
+            leds_cursor = leds_conn.cursor()
+            leds_cursor.execute("""
+                UPDATE game_mode 
+                SET mode = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = 1
+            """, ('moving_target',))
+            
+            # Also update player state table in LEDs.db
+            leds_cursor.execute("""
+                UPDATE player_state
+                SET current_player = 1, player_count = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = 1
+            """, (player_count,))
+            
+            leds_conn.commit()
+            print("Updated LEDs.db game mode to 'moving_target'")
+    except Exception as e:
+        print(f"Error updating LEDs database: {e}")
+    
+    # Start the moving target dart processor
+    start_dart_processor(game_mode='moving_target')
+    
+    flash('Moving Target game has been started!', 'success')
+    return redirect(url_for('game'))
+
+
 
 if __name__ == '__main__':
     try:

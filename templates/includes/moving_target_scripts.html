@@ -1,0 +1,423 @@
+<script>
+    // Function to update player highlights
+    function updatePlayerHighlights(game_data) {
+      // Update player names and highlights
+      for (let i = 0; i < game_data.players.length; i++) {
+        const player = game_data.players[i];
+        const nameElement = document.getElementById(`player${player.id}_name`);
+        
+        if (nameElement) {
+          nameElement.textContent = player.name;
+          
+          // Highlight current player
+          if (player.id === game_data.current_player) {
+            nameElement.classList.add('active-player');
+          } else {
+            nameElement.classList.remove('active-player');
+          }
+        }
+        
+        // Update score display (points are target hits)
+        const totalElement = document.getElementById(`player${player.id}_total`);
+        if (totalElement) {
+          totalElement.textContent = player.total_score;
+          
+          // Highlight players close to winning (4 points)
+          if (player.total_score >= 4) {
+            totalElement.style.color = '#ffc107'; // Yellow warning color
+            totalElement.style.fontWeight = 'bold';
+          } else {
+            totalElement.style.color = '';
+            totalElement.style.fontWeight = '';
+          }
+        }
+      }
+    }
+  
+    // Function to update score table
+    function updateScoreTable(game_data) {
+      // Determine which turns to display (last 10 turns)
+      const maxTurnsToShow = 10;
+      let turnsToDisplay = game_data.turns;
+      
+      if (game_data.turns.length > maxTurnsToShow) {
+        // Show only the last 10 turns
+        turnsToDisplay = game_data.turns.slice(-maxTurnsToShow);
+      }
+      
+      // Rebuild the turns table
+      const tbody = document.getElementById('turns_body');
+      let tableHTML = '';
+      
+      // Add rows for the turns to display
+      for (const turn of turnsToDisplay) {
+        tableHTML += `<tr><td class="text-center">${turn.turn_number}</td>`;
+        
+        for (const player of game_data.players) {
+          tableHTML += `<td class="text-center" id="turn_${turn.turn_number}_player_${player.id}">`;
+          
+          // Find score for this player
+          const score = turn.scores.find(s => s.player_id === player.id);
+          if (score) {
+            // In Moving Target, points represent target hits for that turn
+            if (score.points > 0) {
+              tableHTML += `<span class="target-hit">HIT</span>`;
+            } else {
+              tableHTML += `<span class="target-miss">MISS</span>`;
+            }
+          }
+          
+          tableHTML += `</td>`;
+        }
+        
+        tableHTML += `</tr>`;
+      }
+      
+      // Add empty rows if we have fewer than 10 turns
+      if (turnsToDisplay.length < maxTurnsToShow) {
+        const nextTurnNumber = game_data.turns.length > 0 
+          ? Math.max(...game_data.turns.map(t => t.turn_number)) + 1 
+          : 1;
+        
+        for (let i = 0; i < maxTurnsToShow - turnsToDisplay.length; i++) {
+          const turnNumber = nextTurnNumber + i;
+          
+          tableHTML += `<tr><td class="text-center">${turnNumber}</td>`;
+          
+          for (const player of game_data.players) {
+            tableHTML += `<td class="text-center" id="turn_${turnNumber}_player_${player.id}"></td>`;
+          }
+          
+          tableHTML += `</tr>`;
+        }
+      }
+      
+      // Update the table
+      tbody.innerHTML = tableHTML;
+    }
+  
+    // Function to update throws normally
+    function updateNormalThrows(game_data) {
+      // Update all throws
+      for (let i = 0; i < game_data.current_throws.length; i++) {
+        const throwData = game_data.current_throws[i];
+        const throwElement = document.getElementById(`throw${throwData.throw_number}_points`);
+        
+        // Only blink update if value has changed
+        if (throwElement && throwElement.textContent !== throwData.points.toString()) {
+          // Use a different color for zero values vs non-zero
+          const blinkColor = throwData.points > 0 ? '#00ff00' : '#333333';
+          blinkUpdate(throwElement, throwData.points.toString(), blinkColor);
+        }
+      }
+    }
+    
+    // Function to show a target hit notification
+    function showTargetHitNotification(duration = 3000) {
+      const targetHitBanner = document.getElementById('target-hit-banner');
+      const targetHitOverlay = document.getElementById('target-hit-overlay');
+      
+      if (targetHitBanner) targetHitBanner.style.visibility = 'visible';
+      if (targetHitOverlay) targetHitOverlay.style.visibility = 'visible';
+      
+      // Hide the banners after the duration
+      setTimeout(() => {
+        if (targetHitBanner) targetHitBanner.style.visibility = 'hidden';
+        if (targetHitOverlay) targetHitOverlay.style.visibility = 'hidden';
+      }, duration);
+    }
+    
+    // Function to show a target miss notification
+    function showTargetMissNotification(duration = 3000) {
+      const targetMissBanner = document.getElementById('target-miss-banner');
+      const targetMissOverlay = document.getElementById('target-miss-overlay');
+      
+      if (targetMissBanner) targetMissBanner.style.visibility = 'visible';
+      if (targetMissOverlay) targetMissOverlay.style.visibility = 'visible';
+      
+      // Hide the banners after the duration
+      setTimeout(() => {
+        if (targetMissBanner) targetMissBanner.style.visibility = 'hidden';
+        if (targetMissOverlay) targetMissOverlay.style.visibility = 'hidden';
+      }, duration);
+    }
+  
+    // Handle Manual Override response for Moving Target mode
+    window.handleManualOverrideResponse = function(data, manualOverrideModal) {
+      manualOverrideModal.hide();
+      
+      // Get hit target status from the form
+      const hitTarget = document.getElementById('hitTargetCheck').checked;
+      
+      // Display appropriate message
+      if (hitTarget) {
+        alert(`Throw updated successfully! Target HIT! Player gets a point.`);
+      } else {
+        alert(`Throw updated successfully! Target MISSED.`);
+      }
+      
+      // Refresh the game data
+      fetch('/data_json')
+        .then(response => response.json())
+        .then(gameData => updateGame(gameData))
+        .catch(error => console.error('Error fetching data:', error));
+    };
+    
+    // Function to update the game with new data
+    function updateGame(game_data) {
+      // Apply styling based on player count
+      updatePlayerCountStyle(game_data);
+      
+      // Store current game data globally for delayed updates
+      window.currentGameData = game_data;
+      
+      // Update the last throw display
+      updateLastThrow(game_data.last_throw, game_data.players, game_data);
+      
+      // Check if game is over and update banner
+      if (game_data.game_over) {
+        // Find the player with the highest score (winner)
+        let highestScore = -1;
+        let winner = null;
+        
+        for (const player of game_data.players) {
+          if (player.total_score > highestScore) {
+            highestScore = player.total_score;
+            winner = player;
+          }
+        }
+        
+        if (winner) {
+          // Set the winner's name in both banners
+          document.getElementById('winner-name').textContent = winner.name;
+          document.getElementById('winner-name-overlay').textContent = winner.name;
+          
+          // Show the overlay
+          document.getElementById('win-message-overlay').style.visibility = 'visible';
+          
+          // Highlight the winner's name and score in the table
+          const nameElement = document.getElementById(`player${winner.id}_name`);
+          const totalElement = document.getElementById(`player${winner.id}_total`);
+          
+          if (nameElement) {
+            nameElement.style.backgroundColor = 'rgba(40, 167, 69, 0.7)';
+            nameElement.style.color = 'white';
+            nameElement.style.fontWeight = 'bold';
+          }
+          
+          if (totalElement) {
+            totalElement.style.backgroundColor = 'rgba(40, 167, 69, 0.7)';
+            totalElement.style.color = 'white';
+            totalElement.style.fontWeight = 'bold';
+          }
+        }
+      } else {
+        document.getElementById('win-message-overlay').style.visibility = 'hidden';
+      }
+      
+      // Handle animation based on type
+      if (game_data.animating) {
+        if (game_data.animation_type === 'target_hit') {
+          // Show target hit notification
+          showTargetHitNotification();
+          
+          // Continue with normal updates
+          updatePlayerHighlights(game_data);
+          updateScoreTable(game_data);
+          updateNormalThrows(game_data);
+        } else if (game_data.animation_type === 'target_miss') {
+          // Show target miss notification
+          showTargetMissNotification();
+          
+          // Continue with normal updates
+          updatePlayerHighlights(game_data);
+          updateScoreTable(game_data);
+          updateNormalThrows(game_data);
+        } else if (game_data.animation_type === 'third_throw') {
+          // For third throw animations, also check if target was hit
+          if (game_data.target_hit) {
+            showTargetHitNotification();
+          } else {
+            showTargetMissNotification();
+          }
+          
+          // Only update the throw display initially
+          // and delay the scoreboard update - similar to classic mode
+          const thirdThrow = game_data.current_throws.find(t => t.throw_number === 3);
+          if (thirdThrow) {
+            const throwElement = document.getElementById(`throw3_points`);
+            if (throwElement) {
+              // Check if we already started this animation
+              if (!window.animatingThirdThrow) {
+                window.animatingThirdThrow = true;
+                
+                // Set the throw immediately to the new value but with green color
+                throwElement.textContent = thirdThrow.points.toString();
+                throwElement.style.color = '#00ff00';
+                
+                // Also update other throws without blinking (but don't update scoreboard yet)
+                for (let i = 1; i <= 2; i++) {
+                  const throw_data = game_data.current_throws.find(t => t.throw_number === i);
+                  if (throw_data) {
+                    const element = document.getElementById(`throw${i}_points`);
+                    if (element) {
+                      element.textContent = throw_data.points.toString();
+                    }
+                  }
+                }
+                
+                // After 2 seconds, reset the color back to black
+                setTimeout(() => {
+                  throwElement.style.color = '#000000';
+                  
+                  // After another brief delay, update the rest of the UI
+                  setTimeout(() => {
+                    // Update player highlights
+                    updatePlayerHighlights(game_data);
+                    
+                    // Update the score table
+                    updateScoreTable(game_data);
+                    
+                    // Reset animation flag
+                    window.animatingThirdThrow = false;
+                  }, 500); // 500ms after color change (total 2.5s)
+                }, 2000); // 2s for the green highlight
+              }
+            }
+          }
+        } else if (game_data.animation_type === 'win') {
+          // Show game over banner for win animations
+          const winner = game_data.players.find(player => player.id === game_data.current_player);
+          if (winner) {
+            // Update both winner displays
+            document.getElementById('winner-name').textContent = winner.name;
+            document.getElementById('winner-name-overlay').textContent = winner.name;
+            document.getElementById('win-message-overlay').style.visibility = 'visible';
+          }
+          
+          // Find the winning throw
+          const throwNumber = game_data.throw_number;
+          const throwElement = document.getElementById(`throw${throwNumber}_points`);
+          
+          if (throwElement) {
+            // Check if we already started this animation
+            if (!window.animatingWin) {
+              window.animatingWin = true;
+              
+              // Set the throw to a gold color to indicate it's the winning throw
+              const winThrow = game_data.current_throws.find(t => t.throw_number === parseInt(throwNumber));
+              if (winThrow) {
+                throwElement.textContent = winThrow.points.toString();
+                throwElement.style.color = '#ffd700'; // Gold color
+              }
+              
+              // Update the rest of the UI
+              updatePlayerHighlights(game_data);
+              updateScoreTable(game_data);
+              
+              // Highlight the winner
+              const winnerElement = document.getElementById(`player${game_data.current_player}_name`);
+              const winnerScoreElement = document.getElementById(`player${game_data.current_player}_total`);
+              
+              if (winnerElement) {
+                winnerElement.style.backgroundColor = 'rgba(40, 167, 69, 0.7)';
+                winnerElement.style.color = 'white';
+              }
+              
+              if (winnerScoreElement) {
+                winnerScoreElement.style.backgroundColor = 'rgba(40, 167, 69, 0.7)';
+                winnerScoreElement.style.color = 'white';
+              }
+              
+              // Reset animation flag after a delay
+              setTimeout(() => {
+                window.animatingWin = false;
+              }, 3000);
+            }
+          }
+        }
+      } else {
+        // Standard non-animation updates
+        document.getElementById('target-hit-banner').style.visibility = 'hidden';
+        document.getElementById('target-hit-overlay').style.visibility = 'hidden';
+        document.getElementById('target-miss-banner').style.visibility = 'hidden';
+        document.getElementById('target-miss-overlay').style.visibility = 'hidden';
+        
+        // If we're not in an animation, update everything normally
+        if (!window.animatingThirdThrow && !window.animatingWin) {
+          updatePlayerHighlights(game_data);
+          updateScoreTable(game_data);
+          updateNormalThrows(game_data);
+        }
+      }
+    }
+  
+    document.addEventListener('DOMContentLoaded', function() {
+      // Initialize animation state flags
+      window.animatingThirdThrow = false;
+      window.animatingWin = false;
+      
+      // Initialize manual override form - need to add hit target handling
+      const manualOverrideModal = document.getElementById('manualOverrideModal');
+      if (manualOverrideModal) {
+        const hitTargetCheck = document.getElementById('hitTargetCheck');
+        const saveOverrideBtn = document.getElementById('saveOverrideBtn');
+        
+        if (saveOverrideBtn && hitTargetCheck) {
+          // Modify the save button click handler to include hit target info
+          saveOverrideBtn.addEventListener('click', function(e) {
+            // Capture the original click event
+            const originalEvent = e;
+            
+            // Get form data
+            const turnNumber = document.getElementById('turnSelect').value;
+            const playerId = document.getElementById('playerSelect').value;
+            const throwNumber = document.getElementById('throwSelect').value;
+            const score = document.getElementById('scoreInput').value;
+            const multiplier = document.getElementById('multiplierInput').value;
+            const hitTarget = hitTargetCheck.checked;
+            
+            // Use the original data but add hit_target flag
+            const data = {
+              turn_number: parseInt(turnNumber),
+              player_id: parseInt(playerId),
+              throw_number: parseInt(throwNumber),
+              score: parseInt(score),
+              multiplier: parseInt(multiplier),
+              hit_target: hitTarget
+            };
+            
+            // Send the request
+            fetch('/update_throw', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(data),
+            })
+            .then(response => {
+              if (!response.ok) {
+                return response.json().then(err => { throw new Error(err.error || 'Unknown error'); });
+              }
+              return response.json();
+            })
+            .then(responseData => {
+              // Use our custom handler that includes hit_target info
+              window.handleManualOverrideResponse(responseData, new bootstrap.Modal(manualOverrideModal));
+            })
+            .catch(error => {
+              console.error('Error updating throw:', error);
+              alert(`Failed to update throw: ${error.message}`);
+            });
+            
+            // Prevent default handler
+            originalEvent.stopPropagation();
+            return false;
+          });
+        }
+      }
+      
+      // Start polling for updates
+      updateGame(window.currentGameData || {});
+    });
+  </script>

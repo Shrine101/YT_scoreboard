@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from LEDs import LEDs
 from datetime import datetime
 from LEDs_db_init import initialize_leds_database
+from leds.moving_target_db_init import initialize_moving_target_database
 
 class LEDController:
     def __init__(self, db_path='LEDs.db', poll_interval=0.5, 
@@ -19,6 +20,9 @@ class LEDController:
         # Reset the database on startup
         print("Resetting LEDs database...")
         initialize_leds_database()
+        
+        # Initialize moving target database
+        initialize_moving_target_database()
         
         self.db_path = db_path
         self.poll_interval = poll_interval
@@ -56,6 +60,13 @@ class LEDController:
         self.white_single_segments = {1, 4, 6, 15, 17, 19, 16, 11, 9, 5}    # Numbers with white singles
         self.current_around_clock_target = 1
         
+        # Moving target related attributes
+        self.moving_target_db_path = 'leds/moving_target.db'
+        self.target_move_interval = 3.0  # seconds
+        self.last_target_move_time = time.time()
+        self.moving_target_sequence = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5]
+        self.current_target_index = 0
+        
         # Track cricket game state
         self.cricket_state = {}
         self.current_player = 1
@@ -65,6 +76,16 @@ class LEDController:
     def get_db_connection(self):
         """Get a connection to the LEDs database."""
         conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+        finally:
+            conn.close()
+
+    @contextmanager
+    def get_moving_target_connection(self):
+        """Get a connection to the Moving Target database."""
+        conn = sqlite3.connect(self.moving_target_db_path)
         conn.row_factory = sqlite3.Row
         try:
             yield conn
@@ -89,6 +110,8 @@ class LEDController:
                     normalized_mode = 'cricket'
                 elif mode.lower() in ['around_clock', 'around_the_clock']:
                     normalized_mode = 'around_clock'
+                elif mode.lower() in ['moving_target']:
+                    normalized_mode = 'moving_target'
                 else:
                     normalized_mode = 'neutral'  # Default to neutral for unrecognized modes
                 
@@ -173,6 +196,48 @@ class LEDController:
         except Exception as e:
             print(f"Error getting Around the Clock target: {e}")
             return 1  # Default to target 1
+
+    def update_moving_target(self):
+        """Update the moving target by changing which segments are active."""
+        current_time = time.time()
+        
+        # Check if it's time to move the target
+        if current_time - self.last_target_move_time >= self.target_move_interval:
+            # Move to the next target
+            self.current_target_index = (self.current_target_index + 1) % len(self.moving_target_sequence)
+            new_target = self.moving_target_sequence[self.current_target_index]
+            
+            # Update the database
+            with self.get_moving_target_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Update the target state
+                cursor.execute('''
+                    UPDATE target_state 
+                    SET current_target = ?, last_moved_at = CURRENT_TIMESTAMP
+                    WHERE id = 1
+                ''', (new_target,))
+                
+                # Clear existing active segments
+                cursor.execute("DELETE FROM active_segments")
+                
+                # Add new active segments for the current target number
+                # Add all segments (double, triple, inner and outer singles)
+                segment_types = ['double', 'triple', 'inner_single', 'outer_single']
+                for segment_type in segment_types:
+                    cursor.execute('''
+                        INSERT INTO active_segments (segment_number, segment_type)
+                        VALUES (?, ?)
+                    ''', (new_target, segment_type))
+                
+                conn.commit()
+            
+            # Update the LED display to show the new target
+            self.setup_moving_target_mode(new_target)
+            
+            # Update the last move time
+            self.last_target_move_time = current_time
+            print(f"Moved target to number {new_target}")
 
     def get_new_dart_events(self):
         """Get new unprocessed dart events from database."""
@@ -324,6 +389,74 @@ class LEDController:
         bullseye_color = (255, 0, 0) if is_bullseye_target else (255, 0, 255)  # Red if target, otherwise Purple
         self.led_control.bullseye(bullseye_color)
 
+    def setup_moving_target_mode(self, target_number=None):
+        """Set up LEDs for moving target mode."""
+        # Clear all LEDs first to reset
+        self.led_control.clearAll(wait_ms=1)
+        
+        # If no target number specified, get it from the database
+        if target_number is None:
+            with self.get_moving_target_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT current_target FROM target_state WHERE id = 1")
+                state = cursor.fetchone()
+                if state:
+                    target_number = state['current_target']
+                else:
+                    # Default to 20 if no state found
+                    target_number = 20
+    
+        print(f"Setting up Moving Target mode with target number {target_number}")
+        
+        # Make sure target number is in the mapping
+        if target_number not in self.led_control.DARTBOARD_MAPPING:
+            print(f"Error: Target number {target_number} not in dartboard mapping")
+            return
+        
+        # Light up all segments for the target number
+        # Double segment - Red
+        self.led_control.doubleSeg(target_number, (255, 0, 0))  # Red
+        
+        # Triple segment - Blue
+        self.led_control.tripleSeg(target_number, (0, 0, 255))  # Blue
+        
+        # Inner single - Green
+        self.led_control.innerSingleSeg(target_number, (0, 255, 0))  # Green
+        
+        # Outer single - Yellow
+        self.led_control.outerSingleSeg(target_number, (255, 255, 0))  # Yellow
+
+    def setup_neutral_mode(self):
+        """Set up LEDs for neutral waiting state."""
+        print("Setting up neutral waiting state...")
+        
+        # Clear all LEDs first to reset
+        self.led_control.clearAll(wait_ms=1)
+        
+        # Apply neutral waiting state colors to all segments
+        for number in range(1, 21):  # All dartboard numbers 1-20
+            if number not in self.led_control.DARTBOARD_MAPPING:
+                continue
+                
+            # Inner single segments: Blue
+            self.led_control.innerSingleSeg(number, (0, 0, 255))  # Blue
+            
+            # Triple segments: Green
+            self.led_control.tripleSeg(number, (0, 255, 0))  # Green
+            
+            # Outer single segments: Yellow
+            self.led_control.outerSingleSeg(number, (255, 255, 0))  # Yellow
+            
+            # Double segments: Red
+            self.led_control.doubleSeg(number, (255, 0, 0))  # Red
+        
+        # Bullseye: Purple
+        self.led_control.bullseye((255, 0, 255))  # Purple
+        
+        # Display board state if MockLEDs is being used
+        if hasattr(self.led_control, 'print_board_state'):
+            self.led_control.print_board_state()
+
     def get_segment_color_for_cricket(self, segment_state):
         """Determine the color for a cricket segment based on its state."""
         # If closed by all players, return red
@@ -350,52 +483,56 @@ class LEDController:
         segment_type = event['segment_type']
         event_id = event['id']
         
+        # Check for hit/miss information in segment_type (for Moving Target mode)
+        # Format: "segment_type_target_hit" or "segment_type_target_miss"
+        hit_miss_info = segment_type.split('_')
+        if len(hit_miss_info) >= 3 and hit_miss_info[-2] == 'target':
+            base_segment_type = hit_miss_info[0]
+            is_hit = hit_miss_info[-1] == 'hit'
+            
+            # Set color based on hit/miss
+            blink_color = (0, 255, 0) if is_hit else (255, 0, 0)  # Green for hit, Red for miss
+            
+            # Use base segment type for processing
+            segment_type = base_segment_type
+        else:
+            # Default blinking behavior for other game modes
+            return self.process_dart_event_classic(event)
+        
         # Calculate blink timing
         start_time = time.time()
         end_time = start_time + self.blink_duration
         
-        # Determine segment ID and original color based on game mode
-        if self.current_mode == 'cricket':
-            # For cricket mode, we need to check the segment state
-            if segment_type == 'bullseye':  # Bullseye
-                # For bullseye, we'll use a special ID
-                segment_id = 'bullseye'
-                segment_state = self.cricket_state.get(25, {
-                    'player_closed': {self.current_player: False},
-                    'all_closed': False
-                })
-                original_color = self.get_segment_color_for_cricket(segment_state)
-            elif score in self.cricket_segments and score in self.led_control.DARTBOARD_MAPPING:
-                # Determine original color based on cricket state
-                segment_state = self.cricket_state.get(score, {
-                    'player_closed': {self.current_player: False},
-                    'all_closed': False
-                })
-                original_color = self.get_segment_color_for_cricket(segment_state)
-                
-                # Set segment ID
-                if segment_type == 'double':
-                    segment_id = f'double_{score}'
-                elif segment_type == 'triple':
-                    segment_id = f'triple_{score}'
-                elif segment_type == 'inner_single':
-                    segment_id = f'inner_single_{score}'
-                elif segment_type == 'outer_single':
-                    segment_id = f'outer_single_{score}'
-                else:
-                    return
+        # Determine segment ID and original color
+        if segment_type == 'bullseye':  # Bullseye
+            # For bullseye, we'll use a special ID
+            segment_id = 'bullseye'
+            original_color = (255, 0, 255)  # Default to purple for bullseye in neutral state
+        elif score in self.led_control.DARTBOARD_MAPPING:
+            # Determine original color based on segment type and number
+            if segment_type == 'double':
+                original_color = (255, 0, 0)  # Red for double
+                segment_id = f'double_{score}'
+            elif segment_type == 'triple':
+                original_color = (0, 0, 255)  # Blue for triple
+                segment_id = f'triple_{score}'
+            elif segment_type == 'inner_single':
+                original_color = (0, 255, 0)  # Green for inner single
+                segment_id = f'inner_single_{score}'
+            elif segment_type == 'outer_single':
+                original_color = (255, 255, 0)  # Yellow for outer single
+                segment_id = f'outer_single_{score}'
             else:
-                # Non-cricket segment, just use normal blinking
-                return self.process_dart_event_classic(event)
+                return
         else:
-            # For classic mode or around the clock, use the original classic logic
-            return self.process_dart_event_classic(event)
+            return
         
-        # Store blinking information
+        # Store blinking information with hit/miss color
         self.blinking_segments[segment_id] = {
             'start_time': start_time,
             'end_time': end_time,
             'original_color': original_color,
+            'blink_color': blink_color,  # Use hit/miss color
             'score': score,
             'segment_type': segment_type,
             'blink_count': self.blink_count,
@@ -551,23 +688,23 @@ class LEDController:
                     
                     # Toggle the color based on the new state
                     if new_state == 'on':
-                        # Set to green (on state)
-                        green_color = (0, 255, 0)  # Bright green
+                        # Set to hit/miss color or default green (on state)
+                        blink_color = info.get('blink_color', (0, 255, 0))  # Use custom blink color if set, otherwise green
                         
                         if segment_id == 'bullseye':
-                            self.led_control.bullseye(green_color)
+                            self.led_control.bullseye(blink_color)
                         elif 'segment_type' in info:
                             score = info['score']
                             segment_type = info['segment_type']
                             
                             if segment_type == 'double':
-                                self.led_control.doubleSeg(score, green_color)
+                                self.led_control.doubleSeg(score, blink_color)
                             elif segment_type == 'triple':
-                                self.led_control.tripleSeg(score, green_color)
+                                self.led_control.tripleSeg(score, blink_color)
                             elif segment_type == 'inner_single':
-                                self.led_control.innerSingleSeg(score, green_color)
+                                self.led_control.innerSingleSeg(score, blink_color)
                             elif segment_type == 'outer_single':
-                                self.led_control.outerSingleSeg(score, green_color)
+                                self.led_control.outerSingleSeg(score, blink_color)
                     else:
                         # Set to original color (off state)
                         if segment_id == 'bullseye':
@@ -619,8 +756,14 @@ class LEDController:
                         self.setup_cricket_mode()
                     elif self.current_mode == 'around_clock':
                         self.setup_around_clock_mode()
+                    elif self.current_mode == 'moving_target':
+                        self.setup_moving_target_mode()
                     elif self.current_mode == 'neutral':
                         self.setup_neutral_mode()
+                
+                # Handle moving target mode updates
+                if self.current_mode == 'moving_target':
+                    self.update_moving_target()
                 
                 # If in cricket mode, check for player/state changes
                 if self.current_mode == 'cricket':
@@ -690,37 +833,6 @@ class LEDController:
                 self.led_control.print_board_state()
             if hasattr(self.led_control, 'print_blinking_summary'):
                 self.led_control.print_blinking_summary()
-
-    def setup_neutral_mode(self):
-        """Set up LEDs for neutral waiting state."""
-        print("Setting up neutral waiting state...")
-        
-        # Clear all LEDs first to reset
-        self.led_control.clearAll(wait_ms=1)
-        
-        # Apply neutral waiting state colors to all segments
-        for number in range(1, 21):  # All dartboard numbers 1-20
-            if number not in self.led_control.DARTBOARD_MAPPING:
-                continue
-                
-            # Inner single segments: Blue
-            self.led_control.innerSingleSeg(number, (0, 0, 255))  # Blue
-            
-            # Triple segments: Green
-            self.led_control.tripleSeg(number, (0, 255, 0))  # Green
-            
-            # Outer single segments: Yellow
-            self.led_control.outerSingleSeg(number, (255, 255, 0))  # Yellow
-            
-            # Double segments: Red
-            self.led_control.doubleSeg(number, (255, 0, 0))  # Red
-        
-        # Bullseye: Purple
-        self.led_control.bullseye((255, 0, 255))  # Purple
-        
-        # Display board state if MockLEDs is being used
-        if hasattr(self.led_control, 'print_board_state'):
-            self.led_control.print_board_state()
 
 def main():
     # You can customize the blinking parameters here
