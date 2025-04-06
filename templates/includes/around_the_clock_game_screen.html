@@ -112,7 +112,11 @@
                   <strong style="font-size: 20px;">THROW {{ throw.throw_number }}<br>POINTS</strong>
                 </div>
                 <div class="card-body py-3" id="throw{{ throw.throw_number }}_points" style="font-size: 32px;">
-                  {{ throw.points }}
+                  {% if throw.score is not none %}
+                    {{ throw.points }}
+                  {% else %}
+                    &nbsp;
+                  {% endif %}
                 </div>
               </div>
             </div>
