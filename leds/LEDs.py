@@ -152,10 +152,12 @@ class LEDs:
         """Gold outward cumulative build, then synchronized inward ring flashes."""
         gold = (250, 90, 0)
         num_rings = self.NUM_LED_PER_STRIP
+        active_strips = [0, 5, 10, 15]  # 4 strips equally spaced out of 20
+
 
         # Phase 1: Radiate outward (build-up)
         for ring in range(num_rings):
-            for strip_num in range(self.NUM_STRIPS):
+            for strip_num in active_strips:
                 if strip_num % 2 == 0:
                     pixel = strip_num * num_rings + ring
                 else:
@@ -167,7 +169,7 @@ class LEDs:
         # Phase 2: Collapse inward one ring at a time, all at once
         for ring in reversed(range(num_rings)):
             self.clearAll(wait_ms=0)  # clear entire board first
-            for strip_num in range(self.NUM_STRIPS):
+            for strip_num in active_strips:
                 if strip_num % 2 == 0:
                     pixel = strip_num * num_rings + ring
                 else:
