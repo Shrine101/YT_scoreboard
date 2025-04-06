@@ -1,4 +1,7 @@
 YT_boardvenv/
 game.db
 /simulation/cv_data.db
+scores.yaml
+venv/
+rpi_ws281x/
 __pycache__/
