@@ -50,6 +50,9 @@ class LEDController:
         self.cricket_state = {}
         self.current_player = 1
         self.player_count = 4
+        
+        # Around the Clock specific settings
+        self.current_around_clock_target = 1
 
     @contextmanager
     def get_db_connection(self):
@@ -231,6 +234,80 @@ class LEDController:
                 self.led_control.doubleSeg(segment, segment_color)
                 self.led_control.tripleSeg(segment, segment_color)
 
+    def setup_around_clock_mode(self):
+        """Set up LEDs for Around the Clock mode."""
+        # Clear all LEDs first to reset
+        self.led_control.clearAll(wait_ms=1)
+        
+        # Get current player's target number
+        current_player = self.get_current_player()
+        
+        # For Around the Clock mode, we need to determine the current target number
+        with self.get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                'SELECT current_number FROM around_clock_progress WHERE player_id = ?',
+                (current_player,)
+            )
+            row = cursor.fetchone()
+            current_target = row['current_number'] if row else 1
+        
+        # Define segment sets for color styling
+        purple_single_white_double_triple = {20, 18, 13, 10, 2, 3, 7, 8, 14, 12}
+        white_single_purple_double_triple = {1, 4, 6, 15, 17, 19, 16, 11, 9, 5}
+        
+        # Store the current target for reference
+        self.current_around_clock_target = current_target
+        
+        print(f"Around the Clock: Current player {current_player}, target number {current_target}")
+        
+        # Set up colors for each segment
+        for number in range(1, 21):
+            # Skip if not in mapping
+            if number not in self.led_control.DARTBOARD_MAPPING:
+                continue
+            
+            # Check if this is the current target number
+            is_target = (number == current_target)
+            
+            # Set colors based on number group and whether it's the target
+            if number in purple_single_white_double_triple:
+                # Single segments - Purple (unless it's the target)
+                single_color = (255, 0, 0) if is_target else (255, 0, 255)  # Red if target, otherwise Purple
+                # Double and triple segments - White (unless it's the target)
+                double_triple_color = (255, 0, 0) if is_target else (255, 255, 255)  # Red if target, otherwise White
+                
+                self.led_control.innerSingleSeg(number, single_color)
+                self.led_control.outerSingleSeg(number, single_color)
+                self.led_control.doubleSeg(number, double_triple_color)
+                self.led_control.tripleSeg(number, double_triple_color)
+            else:  # number in white_single_purple_double_triple
+                # Single segments - White (unless it's the target)
+                single_color = (255, 0, 0) if is_target else (255, 255, 255)  # Red if target, otherwise White
+                # Double and triple segments - Purple (unless it's the target)
+                double_triple_color = (255, 0, 0) if is_target else (255, 0, 255)  # Red if target, otherwise Purple
+                
+                self.led_control.innerSingleSeg(number, single_color)
+                self.led_control.outerSingleSeg(number, single_color)
+                self.led_control.doubleSeg(number, double_triple_color)
+                self.led_control.tripleSeg(number, double_triple_color)
+        
+        # Bullseye - Red if it's the target (for target=21), otherwise Purple
+        is_bullseye_target = (current_target == 21)  # 21 represents bullseye in Around the Clock
+        bullseye_color = (255, 0, 0) if is_bullseye_target else (255, 0, 255)  # Red if target, otherwise Purple
+        self.led_control.bullseye(bullseye_color)
+
+    def get_around_clock_target(self, player_id):
+        """Get the current target number for a player in Around the Clock mode."""
+        with self.get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                'SELECT current_number FROM around_clock_progress WHERE player_id = ?',
+                (player_id,)
+            )
+            row = cursor.fetchone()
+            return row['current_number'] if row else 1
+
     def get_segment_color_for_cricket(self, segment_state):
         """Determine the color for a cricket segment based on its state."""
         # If closed by all players, return red
@@ -329,25 +406,68 @@ class LEDController:
         if segment_type == 'bullseye':  # Bullseye
             # For bullseye, we'll use a special ID
             segment_id = 'bullseye'
-            original_color = (255, 0, 0)  # Red
+            
+            # Determine original color based on game mode
+            if self.current_mode == 'around_clock':
+                # Check if bullseye is the target (21)
+                original_color = (255, 0, 0) if self.current_around_clock_target == 21 else (255, 0, 255)
+            else:
+                # Classic mode - bullseye is red
+                original_color = (255, 0, 0)  # Red
+                
         elif score in self.led_control.DARTBOARD_MAPPING:
-            # Determine original color based on segment type and number
+            # Determine original color based on segment type, number, and game mode
             original_color = None
             
-            if segment_type == 'double':
-                original_color = (255, 0, 0) if score in self.white_red_segments else (0, 0, 255)
-                segment_id = f'double_{score}'
-            elif segment_type == 'triple':
-                original_color = (255, 0, 0) if score in self.white_red_segments else (0, 0, 255)
-                segment_id = f'triple_{score}'
-            elif segment_type == 'inner_single':
-                original_color = (255, 255, 255) if score in self.white_red_segments else (255, 255, 0)
-                segment_id = f'inner_single_{score}'
-            elif segment_type == 'outer_single':
-                original_color = (255, 255, 255) if score in self.white_red_segments else (255, 255, 0)
-                segment_id = f'outer_single_{score}'
+            if self.current_mode == 'around_clock':
+                # For around the clock, check if this is the target number
+                is_target = (score == self.current_around_clock_target)
+                
+                # Check if score is in the specific number groups
+                in_purple_single = score in {20, 18, 13, 10, 2, 3, 7, 8, 14, 12}
+                
+                if segment_type == 'double':
+                    # Double segments: White for purple singles, Purple for white singles
+                    # But if it's the target, then Red
+                    if is_target:
+                        original_color = (255, 0, 0)  # Red for target
+                    else:
+                        original_color = (255, 255, 255) if in_purple_single else (255, 0, 255)  # White/Purple
+                    segment_id = f'double_{score}'
+                elif segment_type == 'triple':
+                    # Triple segments: White for purple singles, Purple for white singles
+                    # But if it's the target, then Red
+                    if is_target:
+                        original_color = (255, 0, 0)  # Red for target
+                    else:
+                        original_color = (255, 255, 255) if in_purple_single else (255, 0, 255)  # White/Purple
+                    segment_id = f'triple_{score}'
+                elif segment_type == 'inner_single' or segment_type == 'outer_single':
+                    # Single segments: Purple for purple singles, White for white singles
+                    # But if it's the target, then Red
+                    if is_target:
+                        original_color = (255, 0, 0)  # Red for target
+                    else:
+                        original_color = (255, 0, 255) if in_purple_single else (255, 255, 255)  # Purple/White
+                    segment_id = f'{segment_type}_{score}'
+                else:
+                    return
             else:
-                return
+                # Classic mode - original classic colors
+                if segment_type == 'double':
+                    original_color = (255, 0, 0) if score in self.white_red_segments else (0, 0, 255)
+                    segment_id = f'double_{score}'
+                elif segment_type == 'triple':
+                    original_color = (255, 0, 0) if score in self.white_red_segments else (0, 0, 255)
+                    segment_id = f'triple_{score}'
+                elif segment_type == 'inner_single':
+                    original_color = (255, 255, 255) if score in self.white_red_segments else (255, 255, 0)
+                    segment_id = f'inner_single_{score}'
+                elif segment_type == 'outer_single':
+                    original_color = (255, 255, 255) if score in self.white_red_segments else (255, 255, 0)
+                    segment_id = f'outer_single_{score}'
+                else:
+                    return
         else:
             return
         
@@ -482,8 +602,7 @@ class LEDController:
                     elif self.current_mode == 'cricket':
                         self.setup_cricket_mode()
                     elif self.current_mode == 'around_clock':
-                        # If you add around the clock mode
-                        pass
+                        self.setup_around_clock_mode()
                     elif self.current_mode == 'neutral':
                         self.setup_neutral_mode()
                 
@@ -505,6 +624,23 @@ class LEDController:
                         if old_state != self.cricket_state:
                             print("Cricket state changed, updating display")
                             self.setup_cricket_mode()
+                # If in around_clock mode, check for player/target changes
+                elif self.current_mode == 'around_clock':
+                    old_player = self.current_player
+                    old_target = self.current_around_clock_target
+                    self.get_current_player()
+                    
+                    # If player changed, update the display
+                    if old_player != self.current_player:
+                        print(f"Current player changed from {old_player} to {self.current_player}")
+                        self.setup_around_clock_mode()
+                    else:
+                        # Check for target changes
+                        current_target = self.get_around_clock_target(self.current_player)
+                        if old_target != current_target:
+                            print(f"Target changed from {old_target} to {current_target}")
+                            self.current_around_clock_target = current_target
+                            self.setup_around_clock_mode()
                 
                 # Get new dart events
                 events = self.get_new_dart_events()
