@@ -61,7 +61,7 @@ class LEDController:
         self.current_around_clock_target = 1
         
         # Moving target related attributes
-        self.moving_target_db_path = 'leds/moving_target.db'
+        self.moving_target_db_path = 'moving_target.db'
         self.target_move_interval = 3.0  # seconds
         self.last_target_move_time = time.time()
         self.moving_target_sequence = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5]
