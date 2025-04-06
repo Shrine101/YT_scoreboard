@@ -204,6 +204,9 @@ class DartProcessor:
             
             conn.commit()
     
+    # Also update the LEDs database
+    self.update_around_clock_led_state(player_id, current_number, completed)
+    
     def update_current_throw(self, throw_number, score, multiplier, points):
         """Update a specific throw in the current_throws table with score, multiplier and points"""
         with self.get_game_connection() as conn:
@@ -623,6 +626,41 @@ class DartProcessor:
                 )
             
             conn.commit()
+
+    def update_around_clock_led_state(self, player_id, current_number, completed=False):
+        """Update the LEDs database with the player's Around the Clock state."""
+        try:
+            with self.get_leds_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Check if the around_clock_state table exists
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='around_clock_state'")
+                if cursor.fetchone() is None:
+                    # Create the table if it doesn't exist
+                    cursor.execute('''
+                    CREATE TABLE around_clock_state (
+                        player_id INTEGER PRIMARY KEY,
+                        current_target INTEGER DEFAULT 1,
+                        completed BOOLEAN DEFAULT 0,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                    ''')
+                
+                # Update or insert the player's state
+                cursor.execute('''
+                    INSERT OR REPLACE INTO around_clock_state 
+                    (player_id, current_target, completed, updated_at)
+                    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                ''', (player_id, current_number, 1 if completed else 0))
+                
+                conn.commit()
+                print(f"Updated LEDs.db around_clock_state for player {player_id}: target={current_number}, completed={completed}")
+        except sqlite3.Error as e:
+            print(f"SQLite error updating around_clock_led_state: {e}")
+        except Exception as e:
+            print(f"Unexpected error updating around_clock_led_state: {e}")    
+
+
 
 def main():
     processor = DartProcessor()

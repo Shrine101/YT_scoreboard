@@ -63,6 +63,16 @@ def initialize_leds_database():
     )
     ''')
     
+    # Create around_clock_state table to track current target for each player
+    cursor.execute('''
+    CREATE TABLE around_clock_state (
+        player_id INTEGER PRIMARY KEY,
+        current_target INTEGER DEFAULT 1,
+        completed BOOLEAN DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+    
     # Insert default game mode (neutral)
     cursor.execute('''
     INSERT INTO game_mode (id, mode, updated_at)
@@ -81,6 +91,13 @@ def initialize_leds_database():
         INSERT INTO cricket_state (segment, all_closed, updated_at)
         VALUES (?, 0, CURRENT_TIMESTAMP)
         ''', (segment,))
+    
+    # Initialize around_clock_state with defaults for 4 players
+    for player_id in range(1, 5):
+        cursor.execute('''
+        INSERT INTO around_clock_state (player_id, current_target, completed)
+        VALUES (?, 1, 0)
+        ''', (player_id,))
     
     # Commit changes and close connection
     conn.commit()

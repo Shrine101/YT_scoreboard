@@ -6,7 +6,7 @@ from datetime import datetime
 from LEDs_db_init import initialize_leds_database
 
 class LEDController:
-    def __init__(self, db_path='LEDs.db', poll_interval=0.5, 
+    def __init__(self, db_path='leds/LEDs.db', poll_interval=0.5, 
                  blink_duration=2.0, blink_count=4):
         """Initialize the LED Controller with configurable blinking parameters.
         
@@ -46,13 +46,20 @@ class LEDController:
         self.cricket_other_closed_color = (0, 0, 255)  # Blue - segments closed by other players
         self.cricket_all_closed_color = (255, 0, 0)  # Red - segments closed by all players
         
+        # Around the Clock configuration
+        self.around_clock_colors = {
+            'target': (255, 0, 0),       # Red for target number
+            'purple': (255, 0, 255),     # Purple
+            'white': (255, 255, 255),    # White
+        }
+        self.purple_single_segments = {20, 18, 13, 10, 2, 3, 7, 8, 14, 12}  # Numbers with purple singles
+        self.white_single_segments = {1, 4, 6, 15, 17, 19, 16, 11, 9, 5}    # Numbers with white singles
+        self.current_around_clock_target = 1
+        
         # Track cricket game state
         self.cricket_state = {}
         self.current_player = 1
         self.player_count = 4
-        
-        # Around the Clock specific settings
-        self.current_around_clock_target = 1
 
     @contextmanager
     def get_db_connection(self):
@@ -137,6 +144,35 @@ class LEDController:
             
             self.cricket_state = cricket_state
             return cricket_state
+
+    def get_around_clock_target(self, player_id):
+        """Get the current target number for a player in Around the Clock mode."""
+        try:
+            with self.get_db_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Check if the table exists
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='around_clock_state'")
+                if cursor.fetchone() is None:
+                    # Table doesn't exist yet - return default
+                    print("Warning: around_clock_state table not found in LEDs database")
+                    return 1  # Default to target 1
+                
+                # Query the table for player's current target
+                cursor.execute(
+                    'SELECT current_target FROM around_clock_state WHERE player_id = ?',
+                    (player_id,)
+                )
+                row = cursor.fetchone()
+                
+                if row is None:
+                    print(f"No entry for player {player_id} in around_clock_state table, using default target 1")
+                    return 1  # Default to target 1
+                    
+                return row['current_target']
+        except Exception as e:
+            print(f"Error getting Around the Clock target: {e}")
+            return 1  # Default to target 1
 
     def get_new_dart_events(self):
         """Get new unprocessed dart events from database."""
@@ -241,25 +277,16 @@ class LEDController:
         
         # Get current player's target number
         current_player = self.get_current_player()
-        
-        # For Around the Clock mode, we need to determine the current target number
-        with self.get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                'SELECT current_number FROM around_clock_progress WHERE player_id = ?',
-                (current_player,)
-            )
-            row = cursor.fetchone()
-            current_target = row['current_number'] if row else 1
-        
-        # Define segment sets for color styling
-        purple_single_white_double_triple = {20, 18, 13, 10, 2, 3, 7, 8, 14, 12}
-        white_single_purple_double_triple = {1, 4, 6, 15, 17, 19, 16, 11, 9, 5}
+        current_target = self.get_around_clock_target(current_player)
         
         # Store the current target for reference
         self.current_around_clock_target = current_target
         
         print(f"Around the Clock: Current player {current_player}, target number {current_target}")
+        
+        # Define our color sets for around the clock mode
+        purple_single_white_double_triple = {20, 18, 13, 10, 2, 3, 7, 8, 14, 12}
+        white_single_purple_double_triple = {1, 4, 6, 15, 17, 19, 16, 11, 9, 5}
         
         # Set up colors for each segment
         for number in range(1, 21):
@@ -296,17 +323,6 @@ class LEDController:
         is_bullseye_target = (current_target == 21)  # 21 represents bullseye in Around the Clock
         bullseye_color = (255, 0, 0) if is_bullseye_target else (255, 0, 255)  # Red if target, otherwise Purple
         self.led_control.bullseye(bullseye_color)
-
-    def get_around_clock_target(self, player_id):
-        """Get the current target number for a player in Around the Clock mode."""
-        with self.get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                'SELECT current_number FROM around_clock_progress WHERE player_id = ?',
-                (player_id,)
-            )
-            row = cursor.fetchone()
-            return row['current_number'] if row else 1
 
     def get_segment_color_for_cricket(self, segment_state):
         """Determine the color for a cricket segment based on its state."""
@@ -372,7 +388,7 @@ class LEDController:
                 # Non-cricket segment, just use normal blinking
                 return self.process_dart_event_classic(event)
         else:
-            # For classic mode, use the original logic
+            # For classic mode or around the clock, use the original classic logic
             return self.process_dart_event_classic(event)
         
         # Store blinking information
@@ -424,7 +440,7 @@ class LEDController:
                 is_target = (score == self.current_around_clock_target)
                 
                 # Check if score is in the specific number groups
-                in_purple_single = score in {20, 18, 13, 10, 2, 3, 7, 8, 14, 12}
+                in_purple_single = score in self.purple_single_segments
                 
                 if segment_type == 'double':
                     # Double segments: White for purple singles, Purple for white singles
@@ -627,7 +643,7 @@ class LEDController:
                 # If in around_clock mode, check for player/target changes
                 elif self.current_mode == 'around_clock':
                     old_player = self.current_player
-                    old_target = self.current_around_clock_target
+                    old_target = getattr(self, 'current_around_clock_target', 1)
                     self.get_current_player()
                     
                     # If player changed, update the display
@@ -635,12 +651,16 @@ class LEDController:
                         print(f"Current player changed from {old_player} to {self.current_player}")
                         self.setup_around_clock_mode()
                     else:
-                        # Check for target changes
-                        current_target = self.get_around_clock_target(self.current_player)
-                        if old_target != current_target:
-                            print(f"Target changed from {old_target} to {current_target}")
-                            self.current_around_clock_target = current_target
-                            self.setup_around_clock_mode()
+                        try:
+                            # Check for target changes
+                            current_target = self.get_around_clock_target(self.current_player)
+                            if old_target != current_target:
+                                print(f"Target changed from {old_target} to {current_target}")
+                                self.current_around_clock_target = current_target
+                                self.setup_around_clock_mode()
+                        except Exception as e:
+                            print(f"Error checking target: {e}")
+                            # Continue with current state if there's an error
                 
                 # Get new dart events
                 events = self.get_new_dart_events()
