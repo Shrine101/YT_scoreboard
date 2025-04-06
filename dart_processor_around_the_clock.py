@@ -261,6 +261,21 @@ class DartProcessor:
         else:
             print(f"WARNING: Could not determine segment type for throw: Score={score}, Multiplier={multiplier}")
 
+    def update_leds_player_state(self, player_id, player_count):
+        """Update the LEDs database player_state table with current player information."""
+        try:
+            with self.get_leds_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE player_state 
+                    SET current_player = ?, player_count = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = 1
+                """, (player_id, player_count))
+                conn.commit()
+                print(f"Updated LEDs.db player_state: current_player={player_id}, player_count={player_count}")
+        except Exception as e:
+            print(f"Error updating LEDs.db player_state: {e}")
+
     def advance_to_next_player(self):
         """Move to the next player, and possibly next turn"""
         with self.get_game_connection() as conn:
@@ -563,7 +578,11 @@ class DartProcessor:
             )
             
             # Advance to next player
-            self.advance_to_next_player()
+            next_player, next_turn = self.advance_to_next_player()
+            
+            # Update LEDs database with new player state
+            if next_player is not None:
+                self.update_leds_player_state(next_player, player_count)
             
             print(f"Game state advanced. Animation state set for: {animation_type}")
         else:
