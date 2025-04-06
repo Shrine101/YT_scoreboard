@@ -1,0 +1,3 @@
+[submodule "darts_cv"]
+	path = darts_cv
+	url = git@github.com:garceling/cv_darts.git
