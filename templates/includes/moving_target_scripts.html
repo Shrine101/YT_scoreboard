@@ -1,21 +1,34 @@
 <script>
     // Function to update player highlights
     function updatePlayerHighlights(game_data) {
-      // Update player names, totals, and highlights
+      // Update player names and highlights
       for (let i = 0; i < game_data.players.length; i++) {
         const player = game_data.players[i];
         const nameElement = document.getElementById(`player${player.id}_name`);
-        const totalElement = document.getElementById(`player${player.id}_total`);
         
-        if (nameElement) nameElement.textContent = player.name;
-        if (totalElement) totalElement.textContent = player.total_score;
-        
-        // Highlight current player
         if (nameElement) {
+          nameElement.textContent = player.name;
+          
+          // Highlight current player
           if (player.id === game_data.current_player) {
             nameElement.classList.add('active-player');
           } else {
             nameElement.classList.remove('active-player');
+          }
+        }
+        
+        // Update score display (points are target hits)
+        const totalElement = document.getElementById(`player${player.id}_total`);
+        if (totalElement) {
+          totalElement.textContent = player.total_score;
+          
+          // Highlight players close to winning (4 points)
+          if (player.total_score >= 4) {
+            totalElement.style.color = '#ffc107'; // Yellow warning color
+            totalElement.style.fontWeight = 'bold';
+          } else {
+            totalElement.style.color = '';
+            totalElement.style.fontWeight = '';
           }
         }
       }
@@ -46,11 +59,11 @@
           // Find score for this player
           const score = turn.scores.find(s => s.player_id === player.id);
           if (score) {
-            // Add bust styling if needed
-            if (score.bust) {
-              tableHTML += `<span class="bust-score">BUST</span>`;
+            // In Moving Target, points represent target hits for that turn
+            if (score.points > 0) {
+              tableHTML += `<span class="target-hit">HIT</span>`;
             } else {
-              tableHTML += score.points;
+              tableHTML += `<span class="target-miss">MISS</span>`;
             }
           }
           
@@ -85,125 +98,62 @@
   
     // Function to update throws normally
     function updateNormalThrows(game_data) {
-    // Update all throws
-    for (let i = 0; i < game_data.current_throws.length; i++) {
-      const throwData = game_data.current_throws[i];
-      const throwElement = document.getElementById(`throw${throwData.throw_number}_points`);
-      
-      if (throwElement) {
-        if (throwData.score === null) {
-          // If score is null, display nothing (non-breaking space for layout)
-          throwElement.textContent = '\u00A0';  // Non-breaking space
-        } else {
-          // Only blink update if value has changed
-          if (throwElement.textContent !== throwData.points.toString()) {
-            // Use a different color for zero values vs non-zero
-            const blinkColor = throwData.points > 0 ? '#00ff00' : '#333333';
-            blinkUpdate(throwElement, throwData.points.toString(), blinkColor);
-          }
+      // Update all throws
+      for (let i = 0; i < game_data.current_throws.length; i++) {
+        const throwData = game_data.current_throws[i];
+        const throwElement = document.getElementById(`throw${throwData.throw_number}_points`);
+        
+        // Only blink update if value has changed
+        if (throwElement && throwElement.textContent !== throwData.points.toString()) {
+          // Use a different color for zero values vs non-zero
+          const blinkColor = throwData.points > 0 ? '#00ff00' : '#333333';
+          blinkUpdate(throwElement, throwData.points.toString(), blinkColor);
         }
       }
     }
-  }
     
-    // Function to show a bust notification
-    function showBustNotification(duration = 3000) {
-      const bustBanner = document.getElementById('bust-banner');
-      bustBanner.style.visibility = 'visible';
+    // Function to show a target hit notification
+    function showTargetHitNotification(duration = 3000) {
+      const targetHitBanner = document.getElementById('target-hit-banner');
+      const targetHitOverlay = document.getElementById('target-hit-overlay');
       
-      // Hide the banner after the duration
+      if (targetHitBanner) targetHitBanner.style.visibility = 'visible';
+      if (targetHitOverlay) targetHitOverlay.style.visibility = 'visible';
+      
+      // Hide the banners after the duration
       setTimeout(() => {
-        bustBanner.style.visibility = 'hidden';
+        if (targetHitBanner) targetHitBanner.style.visibility = 'hidden';
+        if (targetHitOverlay) targetHitOverlay.style.visibility = 'hidden';
+      }, duration);
+    }
+    
+    // Function to show a target miss notification
+    function showTargetMissNotification(duration = 3000) {
+      const targetMissBanner = document.getElementById('target-miss-banner');
+      //const targetMissOverlay = document.getElementById('target-miss-overlay');
+      
+      if (targetMissBanner) targetMissBanner.style.visibility = 'visible';
+      //if (targetMissOverlay) targetMissOverlay.style.visibility = 'visible';
+      
+      // Hide the banners after the duration
+      setTimeout(() => {
+        if (targetMissBanner) targetMissBanner.style.visibility = 'hidden';
+        //if (targetMissOverlay) targetMissOverlay.style.visibility = 'hidden';
       }, duration);
     }
   
-    // Handle Manual Override response for Classic mode
+    // Handle Manual Override response for Moving Target mode
     window.handleManualOverrideResponse = function(data, manualOverrideModal) {
-      // Special case: Bust was corrected and player can continue their turn
-      if (data.bust_status_changed && data.was_previously_bust && !data.is_bust && data.continue_turn) {
-        manualOverrideModal.hide();
-        alert(`Bust corrected! Player can continue their turn. Points: ${data.points}`);
-        return;
-      }
+      manualOverrideModal.hide();
       
-      // Special case: Previous player's bust was corrected - game state has been rewound
-      if (data.rewound_turn) {
-        manualOverrideModal.hide();
-        alert(`Bust corrected for player ${data.current_player}, turn ${data.current_turn}. The player can now continue their turn.`);
-        
-        // Refresh the game data to show updated state
-        fetch('/data_json')
-          .then(response => response.json())
-          .then(gameData => updateGame(gameData))
-          .catch(error => console.error('Error fetching data:', error));
-        
-        return;
-      }
+      // Get hit target status from the form
+      const hitTarget = document.getElementById('hitTargetCheck').checked;
       
-      // Handle win notification
-      if (data.game_over) {
-        manualOverrideModal.hide();
-        alert(`GAME OVER! Player ${data.winner} wins with a score of 0!`);
-        
-        // Refresh the game data to show updated state
-        fetch('/data_json')
-          .then(response => response.json())
-          .then(gameData => updateGame(gameData))
-          .catch(error => console.error('Error fetching data:', error));
-        
-        return;
-      }
-      
-      // Handle bust notification if needed
-      if (data.is_bust) {
-        showBustNotification();
-      }
-      
-      // Determine if we should close the modal based on turn advancement
-      let closeModal = true;
-      
-      // Check if the game advanced to next player (either due to bust or third throw)
-      if (data.advanced_turn || data.is_bust) {
-        // If the game advanced turns, close the modal as we're done with this player
-        manualOverrideModal.hide();
-        if (data.is_bust) {
-          alert(`BUST! No points scored. Advanced to next player.`);
-        } else {
-          alert(`Throw updated successfully! Points: ${data.points}. Advanced to next player.`);
-        }
+      // Display appropriate message
+      if (hitTarget) {
+        alert(`Throw updated successfully! Target HIT! Player gets a point.`);
       } else {
-        // If we didn't advance turns and it's not a bust, we might want to set up for the next throw
-        const currentThrowNum = parseInt(document.getElementById('throwSelect').value);
-        if (currentThrowNum < 3 && !data.is_bust) {
-          // If this wasn't the third throw and wasn't a bust, ask if they want to enter the next throw
-          if (confirm(`Throw ${currentThrowNum} updated successfully! Points: ${data.points}. Would you like to enter Throw ${currentThrowNum + 1}?`)) {
-            // Set the throw selector to the next throw
-            document.getElementById('throwSelect').value = (currentThrowNum + 1).toString();
-            
-            // Reset the form for the next throw
-            document.getElementById('scoreInput').value = '';
-            document.getElementById('multiplierInput').value = '1';
-            document.getElementById('totalPoints').textContent = '0';
-            
-            // Update the throw display to show the current throw values
-            fetch(`/get_throw_details?turn_number=${document.getElementById('turnSelect').value}&player_id=${document.getElementById('playerSelect').value}`)
-              .then(response => response.json())
-              .then(throwData => {
-                updateThrowDisplay(throwData);
-              });
-            
-            // Don't close the modal
-            closeModal = false;
-          }
-        } else {
-          // This was the third throw but didn't advance (maybe updating past data)
-          alert(`Throw updated successfully! Points: ${data.points}.`);
-        }
-      }
-      
-      // Close the modal if needed
-      if (closeModal) {
-        manualOverrideModal.hide();
+        alert(`Throw updated successfully! Target MISSED.`);
       }
       
       // Refresh the game data
@@ -225,10 +175,18 @@
       updateLastThrow(game_data.last_throw, game_data.players, game_data);
       
       // Check if game is over and update banner
-      const gameOverBanner = document.getElementById('game-over-banner');
       if (game_data.game_over) {
-        // Find player with score 0 (the winner)
-        const winner = game_data.players.find(player => player.total_score === 0);
+        // Find the player with the highest score (winner)
+        let highestScore = -1;
+        let winner = null;
+        
+        for (const player of game_data.players) {
+          if (player.total_score > highestScore) {
+            highestScore = player.total_score;
+            winner = player;
+          }
+        }
+        
         if (winner) {
           // Set the winner's name in both banners
           document.getElementById('winner-name').textContent = winner.name;
@@ -254,26 +212,37 @@
           }
         }
       } else {
-        gameOverBanner.style.visibility = 'hidden';
         document.getElementById('win-message-overlay').style.visibility = 'hidden';
       }
       
       // Handle animation based on type
       if (game_data.animating) {
-        if (game_data.animation_type === 'bust') {
-          // Show bust banner for bust animations
-          document.getElementById('bust-banner').style.visibility = 'visible';
+        if (game_data.animation_type === 'target_hit') {
+          // Show target hit notification
+          showTargetHitNotification();
           
-          // Continue with normal updates for bust animations
+          // Continue with normal updates
+          updatePlayerHighlights(game_data);
+          updateScoreTable(game_data);
+          updateNormalThrows(game_data);
+        } else if (game_data.animation_type === 'target_miss') {
+          // Show target miss notification
+          showTargetMissNotification();
+          
+          // Continue with normal updates
           updatePlayerHighlights(game_data);
           updateScoreTable(game_data);
           updateNormalThrows(game_data);
         } else if (game_data.animation_type === 'third_throw') {
-          // Hide bust banner for third throw animations
-          document.getElementById('bust-banner').style.visibility = 'hidden';
+          // For third throw animations, also check if target was hit
+          if (game_data.target_hit) {
+            showTargetHitNotification();
+          } else {
+            showTargetMissNotification();
+          }
           
-          // For third throw animations, only update the throw display initially
-          // and delay the scoreboard update
+          // Only update the throw display initially
+          // and delay the scoreboard update - similar to classic mode
           const thirdThrow = game_data.current_throws.find(t => t.throw_number === 3);
           if (thirdThrow) {
             const throwElement = document.getElementById(`throw3_points`);
@@ -342,28 +311,23 @@
                 throwElement.style.color = '#ffd700'; // Gold color
               }
               
-              // Find the winning player and highlight their name and score
-              const winner = game_data.players.find(player => player.id === game_data.current_player);
-              if (winner) {
-                const nameElement = document.getElementById(`player${winner.id}_name`);
-                const totalElement = document.getElementById(`player${winner.id}_total`);
-                
-                if (nameElement) {
-                  nameElement.style.backgroundColor = 'rgba(40, 167, 69, 0.7)';
-                  nameElement.style.color = 'white';
-                  nameElement.style.fontWeight = 'bold';
-                }
-                
-                if (totalElement) {
-                  totalElement.style.backgroundColor = 'rgba(40, 167, 69, 0.7)';
-                  totalElement.style.color = 'white';
-                  totalElement.style.fontWeight = 'bold';
-                }
-              }
-              
               // Update the rest of the UI
               updatePlayerHighlights(game_data);
               updateScoreTable(game_data);
+              
+              // Highlight the winner
+              const winnerElement = document.getElementById(`player${game_data.current_player}_name`);
+              const winnerScoreElement = document.getElementById(`player${game_data.current_player}_total`);
+              
+              if (winnerElement) {
+                winnerElement.style.backgroundColor = 'rgba(40, 167, 69, 0.7)';
+                winnerElement.style.color = 'white';
+              }
+              
+              if (winnerScoreElement) {
+                winnerScoreElement.style.backgroundColor = 'rgba(40, 167, 69, 0.7)';
+                winnerScoreElement.style.color = 'white';
+              }
               
               // Reset animation flag after a delay
               setTimeout(() => {
@@ -374,7 +338,10 @@
         }
       } else {
         // Standard non-animation updates
-        document.getElementById('bust-banner').style.visibility = 'hidden';
+        document.getElementById('target-hit-banner').style.visibility = 'hidden';
+        document.getElementById('target-hit-overlay').style.visibility = 'hidden';
+        document.getElementById('target-miss-banner').style.visibility = 'hidden';
+        document.getElementById('target-miss-overlay').style.visibility = 'hidden';
         
         // If we're not in an animation, update everything normally
         if (!window.animatingThirdThrow && !window.animatingWin) {
@@ -384,4 +351,73 @@
         }
       }
     }
+  
+    document.addEventListener('DOMContentLoaded', function() {
+      // Initialize animation state flags
+      window.animatingThirdThrow = false;
+      window.animatingWin = false;
+      
+      // Initialize manual override form - need to add hit target handling
+      const manualOverrideModal = document.getElementById('manualOverrideModal');
+      if (manualOverrideModal) {
+        const hitTargetCheck = document.getElementById('hitTargetCheck');
+        const saveOverrideBtn = document.getElementById('saveOverrideBtn');
+        
+        if (saveOverrideBtn && hitTargetCheck) {
+          // Modify the save button click handler to include hit target info
+          saveOverrideBtn.addEventListener('click', function(e) {
+            // Capture the original click event
+            const originalEvent = e;
+            
+            // Get form data
+            const turnNumber = document.getElementById('turnSelect').value;
+            const playerId = document.getElementById('playerSelect').value;
+            const throwNumber = document.getElementById('throwSelect').value;
+            const score = document.getElementById('scoreInput').value;
+            const multiplier = document.getElementById('multiplierInput').value;
+            const hitTarget = hitTargetCheck.checked;
+            
+            // Use the original data but add hit_target flag
+            const data = {
+              turn_number: parseInt(turnNumber),
+              player_id: parseInt(playerId),
+              throw_number: parseInt(throwNumber),
+              score: parseInt(score),
+              multiplier: parseInt(multiplier),
+              hit_target: hitTarget
+            };
+            
+            // Send the request
+            fetch('/update_throw', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(data),
+            })
+            .then(response => {
+              if (!response.ok) {
+                return response.json().then(err => { throw new Error(err.error || 'Unknown error'); });
+              }
+              return response.json();
+            })
+            .then(responseData => {
+              // Use our custom handler that includes hit_target info
+              window.handleManualOverrideResponse(responseData, new bootstrap.Modal(manualOverrideModal));
+            })
+            .catch(error => {
+              console.error('Error updating throw:', error);
+              alert(`Failed to update throw: ${error.message}`);
+            });
+            
+            // Prevent default handler
+            originalEvent.stopPropagation();
+            return false;
+          });
+        }
+      }
+      
+      // Start polling for updates
+      updateGame(window.currentGameData || {});
+    });
   </script>

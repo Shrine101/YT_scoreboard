@@ -94,7 +94,7 @@
         <!-- Right side: Dartboard and current throws -->
         <div class="col-md-4 text-center">
           <div class="dartboard-container mb-4">
-            <img src="{{ url_for('static', filename='images/dartboard.jpg') }}" 
+            <img src="{{ url_for('static', filename='images/dartboard.png') }}" 
               alt="Dartboard" class="img-fluid" style="max-height: 500px; width: auto;">
           </div>
           
@@ -106,7 +106,11 @@
                   <strong style="font-size: 20px;">THROW {{ throw.throw_number }}<br>POINTS</strong>
                 </div>
                 <div class="card-body py-3" id="throw{{ throw.throw_number }}_points" style="font-size: 32px;">
-                  {{ throw.points }}
+                  {% if throw.score is not none %}
+                    {{ throw.points }}
+                  {% else %}
+                    &nbsp;
+                  {% endif %}
                 </div>
               </div>
             </div>

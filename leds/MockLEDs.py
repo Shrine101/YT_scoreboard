@@ -97,22 +97,25 @@ class MockLEDs:
         """Track segment changes for blinking detection."""
         current_time = time.time()
         segment_key = self.get_segment_key(dartboard_num, segment_type)
+        color_name = self.color_name(color)
         
         # Check if we're tracking this segment
         if segment_key in self.blinking_segments:
             last_info = self.blinking_segments[segment_key]
             last_color = last_info['color']
             last_time = last_info['time']
+            last_color_name = self.color_name(last_color)
             
-            # Detect if we're starting a GREEN blink
-            if self.color_name(color) == "GREEN" and self.color_name(last_color) != "GREEN":
+            # Detect if we're starting a GREEN or RED blink (added RED detection)
+            if (color_name == "GREEN" and last_color_name != "GREEN") or (color_name == "RED" and last_color_name != "RED"):
                 # Starting a blink
+                blink_count = last_info.get('blink_count', 0) + 1
                 self.blinking_segments[segment_key] = {
                     'color': color,
                     'time': current_time,
                     'original_color': last_color,
                     'blink_start_time': current_time,
-                    'blink_count': last_info.get('blink_count', 0) + 1
+                    'blink_count': blink_count
                 }
                 
                 if last_info.get('blink_count', 0) == 0:
@@ -120,10 +123,10 @@ class MockLEDs:
                     print(f"{Fore.CYAN}[BLINK START] {segment_type.upper()} {dartboard_num} starting to blink at {self.format_time(current_time)}{Style.RESET_ALL}")
                 
                 # Print progress update
-                print(f"{Fore.CYAN}[BLINK ON] {segment_type.upper()} {dartboard_num} turned GREEN (Blink #{last_info.get('blink_count', 0) + 1}){Style.RESET_ALL}")
+                print(f"{Fore.CYAN}[BLINK ON] {segment_type.upper()} {dartboard_num} turned {color_name} (Blink #{blink_count}){Style.RESET_ALL}")
                 
-            # Detect if we're ending a GREEN blink
-            elif self.color_name(color) != "GREEN" and self.color_name(last_color) == "GREEN":
+            # Detect if we're ending a GREEN or RED blink (added RED detection)
+            elif (last_color_name == "GREEN" and color_name != "GREEN") or (last_color_name == "RED" and color_name != "RED"):
                 # Ending a blink
                 blink_duration = current_time - last_info.get('blink_start_time', last_time)
                 
@@ -137,10 +140,10 @@ class MockLEDs:
                 }
                 
                 # Print update
-                print(f"{Fore.CYAN}[BLINK OFF] {segment_type.upper()} {dartboard_num} returned to {self.color_name(color)}{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}[BLINK OFF] {segment_type.upper()} {dartboard_num} returned to {color_name}{Style.RESET_ALL}")
                 
                 # Check if we've restored to original color
-                if self.color_name(color) == self.color_name(last_info.get('original_color', color)) and color != (0, 255, 0):
+                if self.color_name(color) == self.color_name(last_info.get('original_color', color)) and color != (0, 255, 0) and color != (255, 0, 0):
                     # Calculate total blinking time
                     total_time = current_time - last_info.get('blink_start_time', last_time)
                     print(f"{Fore.CYAN}[BLINK END] {segment_type.upper()} {dartboard_num} finished blinking after {total_time:.2f} seconds and {last_info.get('blink_count', 0)} blinks{Style.RESET_ALL}")
