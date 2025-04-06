@@ -204,8 +204,8 @@ class DartProcessor:
             
             conn.commit()
     
-    # Also update the LEDs database
-    self.update_around_clock_led_state(player_id, current_number, completed)
+        # Also update the LEDs database
+        self.update_around_clock_led_state(player_id, current_number, completed)
     
     def update_current_throw(self, throw_number, score, multiplier, points):
         """Update a specific throw in the current_throws table with score, multiplier and points"""
