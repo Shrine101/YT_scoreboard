@@ -85,19 +85,26 @@
   
     // Function to update throws normally
     function updateNormalThrows(game_data) {
-      // Update all throws
-      for (let i = 0; i < game_data.current_throws.length; i++) {
-        const throwData = game_data.current_throws[i];
-        const throwElement = document.getElementById(`throw${throwData.throw_number}_points`);
-        
-        // Only blink update if value has changed
-        if (throwElement && throwElement.textContent !== throwData.points.toString()) {
-          // Use a different color for zero values vs non-zero
-          const blinkColor = throwData.points > 0 ? '#00ff00' : '#333333';
-          blinkUpdate(throwElement, throwData.points.toString(), blinkColor);
+    // Update all throws
+    for (let i = 0; i < game_data.current_throws.length; i++) {
+      const throwData = game_data.current_throws[i];
+      const throwElement = document.getElementById(`throw${throwData.throw_number}_points`);
+      
+      if (throwElement) {
+        if (throwData.score === null) {
+          // If score is null, display nothing (non-breaking space for layout)
+          throwElement.textContent = '\u00A0';  // Non-breaking space
+        } else {
+          // Only blink update if value has changed
+          if (throwElement.textContent !== throwData.points.toString()) {
+            // Use a different color for zero values vs non-zero
+            const blinkColor = throwData.points > 0 ? '#00ff00' : '#333333';
+            blinkUpdate(throwElement, throwData.points.toString(), blinkColor);
+          }
         }
       }
     }
+  }
     
     // Function to show a bust notification
     function showBustNotification(duration = 3000) {
