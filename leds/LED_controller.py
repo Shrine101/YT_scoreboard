@@ -909,10 +909,10 @@ class LEDController:
                     # If hit segment is the target, restore it to blue
                     # If hit segment is not the target, turn it off
                     if segment_id.startswith(('double_', 'triple_', 'inner_single_', 'outer_single_')):
-                        segment_parts = segment_id.split('_')
+                        segment_parts = segment_id.rsplit('_', 1)
                         segment_type = segment_parts[0]
                         score = int(segment_parts[1])
-                        
+
                         if score == self.current_target_number:
                             # This is the target - set back to blue
                             blue_color = self.BLUE_TARGET  # (0, 0, 100)

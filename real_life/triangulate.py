@@ -440,18 +440,15 @@ class DartPositionFinder:
         intersections = self.find_dart_positions_good(self.cam_lines) # get intersections of all lines and corresponding predicted dart positions from all globabl lines
          
         intersections = self.correct_radius(dart_num, intersections)
-
         print(intersections)
         print("-------------------------------------------------------------------------------")
-
+      
         # DART MISS
         if len(intersections[-1-self.miss_count]) == 0:
             self.miss_count+=1
             print(f"[MISS] No valid intersection for dart {dart_num}. Marking as miss.")
             self.get_updated_lines(['N','N','N','N'])
-            return 0, 0, 250,0,250,0  # Score = 0, multiplier = 0, rest all 0
-
-
+            return 0, 0, 250, 0, 250,0  # Score = 0, multiplier = 0, rest all 0
       
         self.get_updated_lines(intersections)
         x, y = intersections[-1-self.miss_count]
