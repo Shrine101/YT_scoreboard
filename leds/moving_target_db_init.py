@@ -1,5 +1,7 @@
 import sqlite3
 import os
+import pwd
+import grp
 
 def initialize_moving_target_database():
     """Initialize the Moving Target database by creating necessary tables."""
@@ -13,9 +15,18 @@ def initialize_moving_target_database():
         os.remove(db_path)
         print(f"Deleted existing {db_path} file")
     
+    
     # Connect to the database (creates it if it doesn't exist)
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
+
+    db_path = "/home/grace/Desktop/YT_scoreboard/leds/moving_target.db"
+
+    # Change ownership to 'grace' if script is run as root
+    if os.geteuid() == 0:  # running as root
+        uid = pwd.getpwnam("grace").pw_uid
+        gid = grp.getgrnam("grace").gr_gid
+        os.chown(db_path, uid, gid)
     
     print("Creating tables...")
     

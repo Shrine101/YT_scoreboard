@@ -1,5 +1,8 @@
 import sqlite3
 import os
+import pwd
+import grp
+
 
 def initialize_leds_database():
     """Initialize the LEDs database by creating necessary tables."""
@@ -7,12 +10,20 @@ def initialize_leds_database():
     
     # Check if database file already exists and remove it if it exists
     if os.path.exists('LEDs.db'):
-        os.remove('LEDs.db')
-        print("Deleted existing LEDs.db file")
+       os.remove('LEDs.db')
+       print("Deleted existing LEDs.db file")
     
     # Connect to the database (creates it if it doesn't exist)
     conn = sqlite3.connect('LEDs.db')
     cursor = conn.cursor()
+
+    db_path = "/home/grace/Desktop/YT_scoreboard/leds/LEDs.db"
+
+    # Change ownership to 'grace' if script is run as root
+    if os.geteuid() == 0:  # running as root
+        uid = pwd.getpwnam("grace").pw_uid
+        gid = grp.getgrnam("grace").gr_gid
+        os.chown(db_path, uid, gid)
     
     print("Creating tables...")
     # Create game_mode table

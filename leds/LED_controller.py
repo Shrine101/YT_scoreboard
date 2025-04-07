@@ -388,7 +388,6 @@ class LEDController:
             # Inner and outer single segments are now left off
         
         # Bullseye: Purple
-        self.led_control.bullseye((255, 0, 255))  # Purple
         
         # Display board state if MockLEDs is being used
         if hasattr(self.led_control, 'print_board_state'):
