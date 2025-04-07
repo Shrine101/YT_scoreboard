@@ -530,7 +530,8 @@ class LEDController:
         
         # For Moving Target mode with hit/miss info
         if self.current_mode == 'moving_target' and len(hit_miss_info) >= 3 and hit_miss_info[-2] == 'target':
-            base_segment_type = hit_miss_info[0]
+            target_index = hit_miss_info.index('target')
+            base_segment_type = '_'.join(hit_miss_info[:target_index])
             is_hit = hit_miss_info[-1] == 'hit'
             
             # Calculate blink timing
