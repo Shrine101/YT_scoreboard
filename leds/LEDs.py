@@ -41,7 +41,7 @@ class LEDs:
             4: 5, 18: 6, 1: 7, 20: 8, 5: 9,
             12: 10, 9: 11, 14: 12, 11: 13, 8: 14,
             16: 15, 7: 16, 19: 17, 3: 18, 17: 19
-        }
+        }c
 
         # Initialize the LED strip
         self.strip = PixelStrip(

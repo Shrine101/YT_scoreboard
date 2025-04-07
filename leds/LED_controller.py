@@ -7,7 +7,7 @@ from LEDs_db_init import initialize_leds_database
 from moving_target_db_init import initialize_moving_target_database
 
 class LEDController:
-    def __init__(self, db_path='LEDs.db', poll_interval=0.5, 
+    def __init__(self, db_path='LEDs.db', poll_interval=0.1, 
                  blink_duration=2, blink_count=4):
         """Initialize the LED Controller with configurable blinking parameters.
         
