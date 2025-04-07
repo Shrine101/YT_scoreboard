@@ -1,6 +1,6 @@
 import threading
 import time
-from darts_cv.dart_detection.final_detection import DartDetectionLive
+from final_detection import DartDetectionLive
 
 class DartDetection:
     def __init__(self, debug=False, intersect=True):
@@ -28,7 +28,7 @@ class DartDetection:
         self.cv_thread.join(timeout=1)
         self.detector.update_state(self.cv_running)
 
-    def is_takeout(self):
+    def return_takeout_state(self):
         return self.detector.is_takeout  
 
     def _cv_background_loop(self):

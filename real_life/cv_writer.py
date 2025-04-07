@@ -124,7 +124,7 @@ def main():
             if throw:
                 db_writer.record_throw(throw)
 
-            is_takeout = db_writer.dart_detector.return_takeout()
+            is_takeout = db_writer.dart_detector.return_takeout_state()
             db_writer.set_ready_state(is_takeout) 
             
     except KeyboardInterrupt:

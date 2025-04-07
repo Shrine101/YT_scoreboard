@@ -37,10 +37,10 @@ class LEDs:
 
         # Dartboard number-to-strip mapping
         self.DARTBOARD_MAPPING = {
-            20: 0, 1: 1, 18: 2, 4: 3, 13: 4,
-            6: 5, 10: 6, 15: 7, 2: 8, 17: 9,
-            3: 10, 19: 11, 7: 12, 16: 13, 8: 14,
-            11: 15, 14: 16, 9: 17, 12: 18, 5: 19
+            2: 0, 15: 1, 10: 2, 6: 3, 13: 4,
+            4: 5, 18: 6, 1: 7, 20: 8, 5: 9,
+            12: 10, 9: 11, 14: 12, 11: 13, 8: 14,
+            16: 15, 7: 16, 19: 17, 3: 18, 17: 19
         }
 
         # Initialize the LED strip
@@ -207,7 +207,7 @@ class LEDs:
         print(f"{self.get_fore_color(color)}Color Wipe: Strip {strip_num} (Dartboard {dartboard_num}) - {self.color_name(color)}{Style.RESET_ALL}")
 
     # Turn off all LEDs
-    def clearAll(self, wait_ms=1): 
+    def clearAll(self, wait_ms=0.5): 
         """Clear all LEDs by turning them off."""
         # Control the real LEDs
         for i in range(self.strip.numPixels()):
@@ -220,7 +220,7 @@ class LEDs:
         self.clear_board_state()
         
     # Lights up triple segment 
-    def tripleSeg(self, dartboard_num, color, wait_ms=5):
+    def tripleSeg(self, dartboard_num, color, wait_ms=0.5):
         """Light up the triple segment for a number."""
         if dartboard_num not in self.DARTBOARD_MAPPING:
             print(f"{Fore.RED}ERROR: Invalid dartboard number: {dartboard_num}{Style.RESET_ALL}")
@@ -251,7 +251,7 @@ class LEDs:
         print(f"{self.get_fore_color(color)}Triple Segment: Dartboard {dartboard_num} - {self.color_name(color)}{Style.RESET_ALL}")
         
     # Lights up double segment 
-    def doubleSeg(self, dartboard_num, color, wait_ms=5):
+    def doubleSeg(self, dartboard_num, color, wait_ms=0.5):
         """Light up the double segment for a number."""
         if dartboard_num not in self.DARTBOARD_MAPPING:
             print(f"{Fore.RED}ERROR: Invalid dartboard number: {dartboard_num}{Style.RESET_ALL}")
@@ -282,7 +282,7 @@ class LEDs:
         print(f"{self.get_fore_color(color)}Double Segment: Dartboard {dartboard_num} - {self.color_name(color)}{Style.RESET_ALL}")
 
     # Lights up outer single segment (closest to circumference)
-    def outerSingleSeg(self, dartboard_num, color, wait_ms=5):
+    def outerSingleSeg(self, dartboard_num, color, wait_ms=0.5):
         """Light up the outer single segment for a number."""
         if dartboard_num not in self.DARTBOARD_MAPPING:
             print(f"{Fore.RED}ERROR: Invalid dartboard number: {dartboard_num}{Style.RESET_ALL}")
@@ -318,7 +318,7 @@ class LEDs:
         print(f"{self.get_fore_color(color)}Outer Single Segment: Dartboard {dartboard_num} - {self.color_name(color)}{Style.RESET_ALL}")
 
     # Lights up inner single segment (furthest from circumference)
-    def innerSingleSeg(self, dartboard_num, color, wait_ms=5):
+    def innerSingleSeg(self, dartboard_num, color, wait_ms=0.5):
         """Light up the inner single segment for a number."""
         if dartboard_num not in self.DARTBOARD_MAPPING:
             print(f"{Fore.RED}ERROR: Invalid dartboard number: {dartboard_num}{Style.RESET_ALL}")
@@ -353,47 +353,48 @@ class LEDs:
         # Print console status
         print(f"{self.get_fore_color(color)}Inner Single Segment: Dartboard {dartboard_num} - {self.color_name(color)}{Style.RESET_ALL}")
     
-    def bullseye(self, wait_ms=50):
-        """Gold outward cumulative build, then synchronized inward ring flashes."""
-        gold = (250, 90, 0)
+    def bullseye(self, wait_ms=1):
+        pass 
+        # """Gold outward cumulative build, then synchronized inward ring flashes."""
+        # gold = (250, 90, 0)
         
-        # Track for console output
-        self.track_segment_change(25, "bullseye", gold)
+        # # Track for console output
+        # self.track_segment_change(25, "bullseye", gold)
         
-        # Update board state
-        self.board_state['bullseye'] = gold
+        # # Update board state
+        # self.board_state['bullseye'] = gold
         
-        # Print console status
-        print(f"{self.get_fore_color(gold)}Bullseye: {self.color_name(gold)}{Style.RESET_ALL}")
+        # # Print console status
+        # print(f"{self.get_fore_color(gold)}Bullseye: {self.color_name(gold)}{Style.RESET_ALL}")
         
-        # Control real LEDs
-        num_rings = self.NUM_LED_PER_STRIP
-        active_strips = [0, 5, 10, 15]  # 4 strips equally spaced out of 20
+        # # Control real LEDs
+        # num_rings = self.NUM_LED_PER_STRIP
+        # active_strips = [0, 5, 10, 15]  # 4 strips equally spaced out of 20
 
-        # Phase 1: Radiate outward (build-up)
-        for ring in range(num_rings):
-            for strip_num in active_strips:
-                if strip_num % 2 == 0:
-                    pixel = strip_num * num_rings + ring
-                else:
-                    pixel = strip_num * num_rings + (num_rings - ring - 1)
-                self.strip.setPixelColor(pixel, Color(*gold))
-            self.strip.show()  # show after setting full ring
-            time.sleep(wait_ms / 1000.0)
+        # # Phase 1: Radiate outward (build-up)
+        # for ring in range(num_rings):
+            # for strip_num in active_strips:
+                # if strip_num % 2 == 0:
+                    # pixel = strip_num * num_rings + ring
+                # else:
+                    # pixel = strip_num * num_rings + (num_rings - ring - 1)
+                # self.strip.setPixelColor(pixel, Color(*gold))
+            # self.strip.show()  # show after setting full ring
+            # time.sleep(wait_ms / 1000.0)
 
-        # Phase 2: Collapse inward one ring at a time, all at once
-        for ring in reversed(range(num_rings)):
-            self.clearAll(wait_ms=0)  # clear entire board first
-            for strip_num in active_strips:
-                if strip_num % 2 == 0:
-                    pixel = strip_num * num_rings + ring
-                else:
-                    pixel = strip_num * num_rings + (num_rings - ring - 1)
-                self.strip.setPixelColor(pixel, Color(*gold))
-            self.strip.show()  # synchronized flash
-            time.sleep(wait_ms / 1000.0)
+        # # Phase 2: Collapse inward one ring at a time, all at once
+        # for ring in reversed(range(num_rings)):
+            # self.clearAll(wait_ms=0)  # clear entire board first
+            # for strip_num in active_strips:
+                # if strip_num % 2 == 0:
+                    # pixel = strip_num * num_rings + ring
+                # else:
+                    # pixel = strip_num * num_rings + (num_rings - ring - 1)
+                # self.strip.setPixelColor(pixel, Color(*gold))
+            # self.strip.show()  # synchronized flash
+            # time.sleep(wait_ms / 1000.0)
 
-        self.clearAll(wait_ms=10)
+        # self.clearAll(wait_ms=10)
     
     def print_board_state(self):
         """Print a representation of the current board state to the console."""

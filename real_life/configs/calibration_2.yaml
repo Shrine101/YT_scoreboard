@@ -1,0 +1,5 @@
+roi_height: 40
+roi_y: 189
+surface_center: 320
+surface_y: 252
+threshold: 70
