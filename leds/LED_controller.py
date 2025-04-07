@@ -45,16 +45,16 @@ class LEDController:
         self.cricket_segments = {15, 16, 17, 18, 19, 20, 25}
         
         # Cricket colors
-        self.cricket_open_color = (255, 255, 255)  # White - open segments
-        self.cricket_player_closed_color = (0, 255, 0)  # Green - segments closed by current player
-        self.cricket_other_closed_color = (0, 0, 255)  # Blue - segments closed by other players
-        self.cricket_all_closed_color = (255, 0, 0)  # Red - segments closed by all players
+        self.cricket_open_color = (100, 100, 100)  # White - open segments
+        self.cricket_player_closed_color = (0, 100, 0)  # Green - segments closed by current player
+        self.cricket_other_closed_color = (0, 0, 100)  # Blue - segments closed by other players
+        self.cricket_all_closed_color = (100, 0, 0)  # Red - segments closed by all players
         
         # Around the Clock configuration
         self.around_clock_colors = {
-            'target': (255, 0, 0),       # Red for target number
-            'purple': (255, 0, 255),     # Purple
-            'white': (255, 255, 255),    # White
+            'target': (100, 0, 0),       # Red for target number
+            'purple': (100, 0, 100),     # Purple
+            'white': (100, 100, 100),    # White
         }
         self.purple_single_segments = {20, 18, 13, 10, 2, 3, 7, 8, 14, 12}  # Numbers with purple singles
         self.white_single_segments = {1, 4, 6, 15, 17, 19, 16, 11, 9, 5}    # Numbers with white singles
@@ -271,8 +271,8 @@ class LEDController:
         self.led_control.clearAll(wait_ms=1)
         
         # Define colors
-        RED = (255, 0, 0)
-        BLUE = (0, 0, 255)
+        RED = (100, 0, 0)
+        BLUE = (0, 0, 100)
         
         # Set up LEDs for all numbers 1-20
         for number in range(1, 21):
@@ -353,13 +353,13 @@ class LEDController:
         # Only light up the current target number, all other LEDs remain off
         if current_target <= 20:  # Regular numbers 1-20
             # For the target, light up all its segments in red
-            self.led_control.innerSingleSeg(current_target, (255, 0, 0))  # Red
-            self.led_control.outerSingleSeg(current_target, (255, 0, 0))  # Red
-            self.led_control.doubleSeg(current_target, (255, 0, 0))  # Red
-            self.led_control.tripleSeg(current_target, (255, 0, 0))  # Red
+            self.led_control.innerSingleSeg(current_target, (100, 0, 0))  # Red
+            self.led_control.outerSingleSeg(current_target, (100, 0, 0))  # Red
+            self.led_control.doubleSeg(current_target, (100, 0, 0))  # Red
+            self.led_control.tripleSeg(current_target, (100, 0, 0))  # Red
         elif current_target == 21:  # Bullseye (represented as 21)
             # Light up only the bullseye in red
-            self.led_control.bullseye((255, 0, 0))  # Red
+            self.led_control.bullseye((100, 0, 0))  # Red
 
     def setup_moving_target_mode(self, target_number=None):
         """Set up LEDs for moving target mode."""
@@ -386,7 +386,7 @@ class LEDController:
             return
         
         # Make all segments white (as requested)
-        white_color = (255, 255, 255)  # White
+        white_color = (100, 100, 100)  # White
         
         # Light up all segments for the target number with white color
         self.led_control.doubleSeg(target_number, white_color)
@@ -407,15 +407,15 @@ class LEDController:
                 continue
                 
             # Keep triple segments: Green
-            self.led_control.tripleSeg(number, (0, 255, 0))  # Green
+            self.led_control.tripleSeg(number, (0, 100, 0))  # Green
             
             # Keep double segments: Red
-            self.led_control.doubleSeg(number, (255, 0, 0))  # Red
+            self.led_control.doubleSeg(number, (100, 0, 0))  # Red
             
             # Inner and outer single segments are now left off
         
         # Bullseye: Purple
-        self.led_control.bullseye((255, 0, 255))  # Purple
+        self.led_control.bullseye((100, 0, 100))  # Purple
         
         # Display board state if MockLEDs is being used
         if hasattr(self.led_control, 'print_board_state'):
@@ -455,7 +455,7 @@ class LEDController:
             self.blinking_segments[segment_id] = {
                 'start_time': start_time,
                 'end_time': end_time,
-                'original_color': (255, 255, 255),  # White (original color)
+                'original_color': (100, 100, 100),  # White (original color)
                 'blink_color': blink_color,
                 'score': target_number,
                 'segment_type': segment_type,
@@ -494,7 +494,7 @@ class LEDController:
         self.blinking_segments[segment_id] = {
             'start_time': start_time,
             'end_time': end_time,
-            'original_color': (255, 255, 255),  # White (original color)
+            'original_color': (100, 100, 100),  # White (original color)
             'blink_color': blink_color,
             'score': score,
             'segment_type': segment_type,
@@ -540,12 +540,12 @@ class LEDController:
             if is_hit:
                 # If it's a hit, blink all segments of the target in green
                 print(f"Target HIT! Blinking target {current_target} in green")
-                blink_color = (0, 255, 0)  # Green
+                blink_color = (0, 100, 0)  # Green
                 self._setup_target_blinking(current_target, blink_color, start_time, end_time)
             else:
                 # If it's a miss, only blink the hit segment in red
                 print(f"Target MISS! Blinking hit segment {score} ({base_segment_type}) in red")
-                blink_color = (255, 0, 0)  # Red
+                blink_color = (100, 0, 0)  # Red
                 
                 # Use the segment helper method to properly set up blinking for the hit segment
                 self._setup_segment_blinking(score, base_segment_type, blink_color, start_time, end_time)
@@ -574,11 +574,11 @@ class LEDController:
                     
                 # Get the original colors for this number
                 if number in [20, 18, 13, 10, 2, 3, 7, 8, 14, 12]:
-                    single_color = (255, 0, 0)  # RED
-                    ring_color = (0, 0, 255)    # BLUE
+                    single_color = (100, 0, 0)  # RED
+                    ring_color = (0, 0, 100)    # BLUE
                 else:  # numbers 1, 4, 6, 15, 17, 19, 16, 11, 9, 5
-                    single_color = (0, 0, 255)  # BLUE
-                    ring_color = (255, 0, 0)    # RED
+                    single_color = (0, 0, 100)  # BLUE
+                    ring_color = (100, 0, 0)    # RED
                 
                 # Set up blinking for inner single segment
                 self.blinking_segments[f'inner_single_{number}'] = {
@@ -591,7 +591,7 @@ class LEDController:
                     'blinks_completed': 0,
                     'current_state': 'off',  # Start in 'off' state
                     'last_toggle': start_time,
-                    'blink_color': (0, 255, 0)  # Green for blinking
+                    'blink_color': (0, 100, 0)  # Green for blinking
                 }
                 
                 # Set up blinking for outer single segment
@@ -605,7 +605,7 @@ class LEDController:
                     'blinks_completed': 0,
                     'current_state': 'off',  # Start in 'off' state
                     'last_toggle': start_time,
-                    'blink_color': (0, 255, 0)  # Green for blinking
+                    'blink_color': (0, 100, 0)  # Green for blinking
                 }
                 
                 # Set up blinking for double segment
@@ -619,7 +619,7 @@ class LEDController:
                     'blinks_completed': 0,
                     'current_state': 'off',  # Start in 'off' state
                     'last_toggle': start_time,
-                    'blink_color': (0, 255, 0)  # Green for blinking
+                    'blink_color': (0, 100, 0)  # Green for blinking
                 }
                 
                 # Set up blinking for triple segment
@@ -633,7 +633,7 @@ class LEDController:
                     'blinks_completed': 0,
                     'current_state': 'off',  # Start in 'off' state
                     'last_toggle': start_time,
-                    'blink_color': (0, 255, 0)  # Green for blinking
+                    'blink_color': (0, 100, 0)  # Green for blinking
                 }
             
             # Immediately start blinking
@@ -658,14 +658,14 @@ class LEDController:
             # Determine original color based on number and segment type
             if score in [20, 18, 13, 10, 2, 3, 7, 8, 14, 12]:
                 if segment_type in ['double', 'triple']:
-                    original_color = (0, 0, 255)  # BLUE
+                    original_color = (0, 0, 100)  # BLUE
                 else:  # inner or outer single
-                    original_color = (255, 0, 0)  # RED
+                    original_color = (100, 0, 0)  # RED
             else:  # numbers 1, 4, 6, 15, 17, 19, 16, 11, 9, 5
                 if segment_type in ['double', 'triple']:
-                    original_color = (255, 0, 0)  # RED
+                    original_color = (100, 0, 0)  # RED
                 else:  # inner or outer single
-                    original_color = (0, 0, 255)  # BLUE
+                    original_color = (0, 0, 100)  # BLUE
         else:
             return
         
@@ -680,7 +680,7 @@ class LEDController:
             'blinks_completed': 0,
             'current_state': 'off',  # Start in 'off' state
             'last_toggle': start_time,
-            'blink_color': (0, 255, 0)  # Always use green for blinking
+            'blink_color': (0, 100, 0)  # Always use green for blinking
         }
         
         # Immediately light up the hit segment with first update
@@ -756,10 +756,10 @@ class LEDController:
                     if new_state == 'on':
                         # In classic mode, always use green for blinking ON state
                         if self.current_mode == 'classic':
-                            blink_color = (0, 255, 0)  # Green
+                            blink_color = (0, 100, 0)  # Green
                         else:
                             # For other modes, use custom blink color if set, otherwise green
-                            blink_color = info.get('blink_color', (0, 255, 0))
+                            blink_color = info.get('blink_color', (0, 100, 0))
                         
                         if segment_id == 'bullseye':
                             if self.current_mode == 'classic':
