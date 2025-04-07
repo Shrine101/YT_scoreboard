@@ -62,7 +62,7 @@ class LEDController:
         
         # Moving target related attributes - Updated with clockwise sequence
         self.moving_target_db_path = 'moving_target.db'
-        self.target_move_interval = 3.0  # seconds
+        self.target_move_interval = 5.0  # seconds
         self.last_target_move_time = time.time()
         # Clockwise sequence around dartboard
         self.moving_target_sequence = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5]
@@ -218,7 +218,7 @@ class LEDController:
         # Check if it's time to move the target
         if current_time - self.last_target_move_time >= self.target_move_interval:
             # Move to the next target
-            self.current_target_index = (self.current_target_index + 1) % len(self.moving_target_sequence)
+            self.current_target_index = (self.current_target_index + 3) % len(self.moving_target_sequence)
             new_target = self.moving_target_sequence[self.current_target_index]
             
             # Store previous target for transition
