@@ -266,12 +266,39 @@ class LEDController:
             return events
 
     def setup_classic_mode(self):
-        """Set up LEDs for classic mode."""
+        """Set up LEDs for classic mode with red and blue segments."""
         # Clear all LEDs first to reset
         self.led_control.clearAll(wait_ms=1)
         
-        # In classic mode, we now keep all LEDs off until hit by a dart
-        # No LED segments are lit when the game starts
+        # Define colors
+        RED = (255, 0, 0)
+        BLUE = (0, 0, 255)
+        
+        # Set up LEDs for all numbers 1-20
+        for number in range(1, 21):
+            if number not in self.led_control.DARTBOARD_MAPPING:
+                continue
+                
+            # Determine the colors based on the number
+            if number in [20, 18, 13, 10, 2, 3, 7, 8, 14, 12]:
+                # These numbers have RED singles and BLUE doubles/triples
+                single_color = RED
+                ring_color = BLUE
+            else:  # numbers 1, 4, 6, 15, 17, 19, 16, 11, 9, 5
+                # These numbers have BLUE singles and RED doubles/triples
+                single_color = BLUE
+                ring_color = RED
+                
+            # Set single segments
+            self.led_control.innerSingleSeg(number, single_color)
+            self.led_control.outerSingleSeg(number, single_color)
+            
+            # Set double and triple segments
+            self.led_control.doubleSeg(number, ring_color)
+            self.led_control.tripleSeg(number, ring_color)
+        
+        # Bullseye remains off (no LEDs)
+        print("Classic mode set up with custom red and blue segments")
 
     def setup_cricket_mode(self):
         """Set up LEDs for cricket mode."""
@@ -537,10 +564,86 @@ class LEDController:
         start_time = time.time()
         end_time = start_time + self.blink_duration
         
-        # Determine segment ID
+        # Special case for bullseye
         if segment_type == 'bullseye':
-            segment_id = 'bullseye'
-        elif score in self.led_control.DARTBOARD_MAPPING:
+            print("Bullseye hit! All segments will blink green.")
+            # Make all segments blink green
+            for number in range(1, 21):
+                if number not in self.led_control.DARTBOARD_MAPPING:
+                    continue
+                    
+                # Get the original colors for this number
+                if number in [20, 18, 13, 10, 2, 3, 7, 8, 14, 12]:
+                    single_color = (255, 0, 0)  # RED
+                    ring_color = (0, 0, 255)    # BLUE
+                else:  # numbers 1, 4, 6, 15, 17, 19, 16, 11, 9, 5
+                    single_color = (0, 0, 255)  # BLUE
+                    ring_color = (255, 0, 0)    # RED
+                
+                # Set up blinking for inner single segment
+                self.blinking_segments[f'inner_single_{number}'] = {
+                    'start_time': start_time,
+                    'end_time': end_time,
+                    'original_color': single_color,
+                    'score': number,
+                    'segment_type': 'inner_single',
+                    'blink_count': self.blink_count,
+                    'blinks_completed': 0,
+                    'current_state': 'off',  # Start in 'off' state
+                    'last_toggle': start_time,
+                    'blink_color': (0, 255, 0)  # Green for blinking
+                }
+                
+                # Set up blinking for outer single segment
+                self.blinking_segments[f'outer_single_{number}'] = {
+                    'start_time': start_time,
+                    'end_time': end_time,
+                    'original_color': single_color,
+                    'score': number,
+                    'segment_type': 'outer_single',
+                    'blink_count': self.blink_count,
+                    'blinks_completed': 0,
+                    'current_state': 'off',  # Start in 'off' state
+                    'last_toggle': start_time,
+                    'blink_color': (0, 255, 0)  # Green for blinking
+                }
+                
+                # Set up blinking for double segment
+                self.blinking_segments[f'double_{number}'] = {
+                    'start_time': start_time,
+                    'end_time': end_time,
+                    'original_color': ring_color,
+                    'score': number,
+                    'segment_type': 'double',
+                    'blink_count': self.blink_count,
+                    'blinks_completed': 0,
+                    'current_state': 'off',  # Start in 'off' state
+                    'last_toggle': start_time,
+                    'blink_color': (0, 255, 0)  # Green for blinking
+                }
+                
+                # Set up blinking for triple segment
+                self.blinking_segments[f'triple_{number}'] = {
+                    'start_time': start_time,
+                    'end_time': end_time,
+                    'original_color': ring_color,
+                    'score': number,
+                    'segment_type': 'triple',
+                    'blink_count': self.blink_count,
+                    'blinks_completed': 0,
+                    'current_state': 'off',  # Start in 'off' state
+                    'last_toggle': start_time,
+                    'blink_color': (0, 255, 0)  # Green for blinking
+                }
+            
+            # Immediately start blinking
+            self.update_blinking_segments(True)  # Force update
+            return
+        
+        # Normal case (not bullseye)
+        # Determine segment ID and original color
+        if score in self.led_control.DARTBOARD_MAPPING:
+            # Determine segment ID
             if segment_type == 'double':
                 segment_id = f'double_{score}'
             elif segment_type == 'triple':
@@ -551,11 +654,20 @@ class LEDController:
                 segment_id = f'outer_single_{score}'
             else:
                 return
+            
+            # Determine original color based on number and segment type
+            if score in [20, 18, 13, 10, 2, 3, 7, 8, 14, 12]:
+                if segment_type in ['double', 'triple']:
+                    original_color = (0, 0, 255)  # BLUE
+                else:  # inner or outer single
+                    original_color = (255, 0, 0)  # RED
+            else:  # numbers 1, 4, 6, 15, 17, 19, 16, 11, 9, 5
+                if segment_type in ['double', 'triple']:
+                    original_color = (255, 0, 0)  # RED
+                else:  # inner or outer single
+                    original_color = (0, 0, 255)  # BLUE
         else:
             return
-        
-        # In classic mode, original color should always be OFF (0,0,0)
-        original_color = (0, 0, 0)  # Black/OFF
         
         # Store blinking information
         self.blinking_segments[segment_id] = {
@@ -573,6 +685,7 @@ class LEDController:
         
         # Immediately light up the hit segment with first update
         self.update_blinking_segments(True)  # Force update
+        print(f"Segment hit: {score} {segment_type} - will blink green and return to original color")
 
     def update_blinking_segments(self, force_update=False):
         """Update any segments that should be blinking."""
@@ -585,23 +698,23 @@ class LEDController:
             # Check if this segment's blinking period has expired
             if current_time > info['end_time']:
                 if self.current_mode == 'classic':
-                    # In classic mode, always turn segments OFF when done blinking
-                    off_color = (0, 0, 0)  # Black/OFF
-                    
+                    # In classic mode, restore to original color (red or blue) when done blinking
                     if segment_id == 'bullseye':
-                        self.led_control.bullseye(off_color)
+                        # Bullseye has no LEDs in classic mode, so do nothing
+                        pass
                     elif 'segment_type' in info:
                         score = info['score']
                         segment_type = info['segment_type']
+                        original_color = info['original_color']
                         
                         if segment_type == 'double':
-                            self.led_control.doubleSeg(score, off_color)
+                            self.led_control.doubleSeg(score, original_color)
                         elif segment_type == 'triple':
-                            self.led_control.tripleSeg(score, off_color)
+                            self.led_control.tripleSeg(score, original_color)
                         elif segment_type == 'inner_single':
-                            self.led_control.innerSingleSeg(score, off_color)
+                            self.led_control.innerSingleSeg(score, original_color)
                         elif segment_type == 'outer_single':
-                            self.led_control.outerSingleSeg(score, off_color)
+                            self.led_control.outerSingleSeg(score, original_color)
                 else:
                     # For other modes, restore original color
                     if segment_id == 'bullseye':
@@ -649,7 +762,12 @@ class LEDController:
                             blink_color = info.get('blink_color', (0, 255, 0))
                         
                         if segment_id == 'bullseye':
-                            self.led_control.bullseye(blink_color)
+                            if self.current_mode == 'classic':
+                                # Bullseye has no LEDs in classic mode, so do nothing for bullseye itself
+                                # But this is still triggered for the "all segments blink" case
+                                pass
+                            else:
+                                self.led_control.bullseye(blink_color)
                         elif 'segment_type' in info:
                             score = info['score']
                             segment_type = info['segment_type']
@@ -663,24 +781,24 @@ class LEDController:
                             elif segment_type == 'outer_single':
                                 self.led_control.outerSingleSeg(score, blink_color)
                     else:
-                        # For OFF state in classic mode, always use black/off
+                        # For OFF state in classic mode, use original color for the off state of the blink
                         if self.current_mode == 'classic':
-                            off_color = (0, 0, 0)  # Black/OFF
-                            
                             if segment_id == 'bullseye':
-                                self.led_control.bullseye(off_color)
+                                # Bullseye has no LEDs in classic mode, so do nothing
+                                pass
                             elif 'segment_type' in info:
                                 score = info['score']
                                 segment_type = info['segment_type']
+                                original_color = info['original_color']
                                 
                                 if segment_type == 'double':
-                                    self.led_control.doubleSeg(score, off_color)
+                                    self.led_control.doubleSeg(score, original_color)
                                 elif segment_type == 'triple':
-                                    self.led_control.tripleSeg(score, off_color)
+                                    self.led_control.tripleSeg(score, original_color)
                                 elif segment_type == 'inner_single':
-                                    self.led_control.innerSingleSeg(score, off_color)
+                                    self.led_control.innerSingleSeg(score, original_color)
                                 elif segment_type == 'outer_single':
-                                    self.led_control.outerSingleSeg(score, off_color)
+                                    self.led_control.outerSingleSeg(score, original_color)
                         else:
                             # For other modes, use original color for OFF state
                             if segment_id == 'bullseye':
