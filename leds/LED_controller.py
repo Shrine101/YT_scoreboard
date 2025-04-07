@@ -575,7 +575,7 @@ class LEDController:
                 'blinks_completed': 0,
                 'current_state': 'off',  # Start in 'off' state
                 'last_toggle': start_time,
-                'blink_color': (0, 255, 0),  # Green for blinking
+                'blink_color': (0, 100, 0),  # Green for blinking
                 'is_bullseye_master': True  # Mark this as the master record
             }
             
@@ -588,11 +588,11 @@ class LEDController:
                     
                 # Get the original colors for this number
                 if number in [20, 18, 13, 10, 2, 3, 7, 8, 14, 12]:
-                    single_color = (255, 0, 0)  # RED
-                    ring_color = (0, 0, 255)    # BLUE
+                    single_color = (100, 0, 0)  # RED
+                    ring_color = (0, 0, 100)    # BLUE
                 else:  # numbers 1, 4, 6, 15, 17, 19, 16, 11, 9, 5
-                    single_color = (0, 0, 255)  # BLUE
-                    ring_color = (255, 0, 0)    # RED
+                    single_color = (0, 0, 100)  # BLUE
+                    ring_color = (100, 0, 0)    # RED
                 
                 # Apply original colors
                 self.led_control.innerSingleSeg(number, single_color)
@@ -606,7 +606,7 @@ class LEDController:
                     'original_color': single_color,
                     'score': number,
                     'segment_type': 'inner_single',
-                    'blink_color': (0, 255, 0)  # Green for blinking
+                    'blink_color': (0, 100, 0)  # Green for blinking
                 }
                 
                 self.blinking_segments[f'outer_single_{number}_bull'] = {
@@ -614,7 +614,7 @@ class LEDController:
                     'original_color': single_color,
                     'score': number,
                     'segment_type': 'outer_single',
-                    'blink_color': (0, 255, 0)  # Green for blinking
+                    'blink_color': (0, 100, 0)  # Green for blinking
                 }
                 
                 self.blinking_segments[f'double_{number}_bull'] = {
@@ -622,7 +622,7 @@ class LEDController:
                     'original_color': ring_color,
                     'score': number,
                     'segment_type': 'double',
-                    'blink_color': (0, 255, 0)  # Green for blinking
+                    'blink_color': (0, 100, 0)  # Green for blinking
                 }
                 
                 self.blinking_segments[f'triple_{number}_bull'] = {
@@ -630,7 +630,7 @@ class LEDController:
                     'original_color': ring_color,
                     'score': number,
                     'segment_type': 'triple',
-                    'blink_color': (0, 255, 0)  # Green for blinking
+                    'blink_color': (0, 100, 0)  # Green for blinking
                 }
             
             # Now, turn all LEDs green for the first "on" state
@@ -639,10 +639,10 @@ class LEDController:
                     continue
                 
                 # Turn all segments to green for the first blink
-                self.led_control.innerSingleSeg(number, (0, 255, 0))
-                self.led_control.outerSingleSeg(number, (0, 255, 0))
-                self.led_control.doubleSeg(number, (0, 255, 0))
-                self.led_control.tripleSeg(number, (0, 255, 0))
+                self.led_control.innerSingleSeg(number, (0, 100, 0))
+                self.led_control.outerSingleSeg(number, (0, 100, 0))
+                self.led_control.doubleSeg(number, (0, 100, 0))
+                self.led_control.tripleSeg(number, (0, 100, 0))
             
             # Update master record to "on" state since we just turned everything green
             master_record['current_state'] = 'on'
@@ -670,14 +670,14 @@ class LEDController:
             # Determine original color based on number and segment type
             if score in [20, 18, 13, 10, 2, 3, 7, 8, 14, 12]:
                 if segment_type in ['double', 'triple']:
-                    original_color = (0, 0, 255)  # BLUE
+                    original_color = (0, 0, 100)  # BLUE
                 else:  # inner or outer single
-                    original_color = (255, 0, 0)  # RED
+                    original_color = (100, 0, 0)  # RED
             else:  # numbers 1, 4, 6, 15, 17, 19, 16, 11, 9, 5
                 if segment_type in ['double', 'triple']:
-                    original_color = (255, 0, 0)  # RED
+                    original_color = (100, 0, 0)  # RED
                 else:  # inner or outer single
-                    original_color = (0, 0, 255)  # BLUE
+                    original_color = (0, 0, 100)  # BLUE
         else:
             return
         
@@ -692,7 +692,7 @@ class LEDController:
             'blinks_completed': 0,
             'current_state': 'off',  # Start in 'off' state
             'last_toggle': start_time,
-            'blink_color': (0, 255, 0)  # Always use green for blinking
+            'blink_color': (0, 100, 0)  # Always use green for blinking
         }
         
         # Immediately light up the hit segment with first update
@@ -764,19 +764,19 @@ class LEDController:
                             
                         if new_state == 'on':
                             # Turn all segments green
-                            self.led_control.innerSingleSeg(number, (0, 255, 0))
-                            self.led_control.outerSingleSeg(number, (0, 255, 0))
-                            self.led_control.doubleSeg(number, (0, 255, 0))
-                            self.led_control.tripleSeg(number, (0, 255, 0))
+                            self.led_control.innerSingleSeg(number, (0, 100, 0))
+                            self.led_control.outerSingleSeg(number, (0, 100, 0))
+                            self.led_control.doubleSeg(number, (0, 100, 0))
+                            self.led_control.tripleSeg(number, (0, 100, 0))
                         else:
                             # Restore original colors during "off" part of the blink
                             # Get the original colors for this number
                             if number in [20, 18, 13, 10, 2, 3, 7, 8, 14, 12]:
-                                single_color = (255, 0, 0)  # RED
-                                ring_color = (0, 0, 255)    # BLUE
+                                single_color = (100, 0, 0)  # RED
+                                ring_color = (0, 0, 100)    # BLUE
                             else:  # numbers 1, 4, 6, 15, 17, 19, 16, 11, 9, 5
-                                single_color = (0, 0, 255)  # BLUE
-                                ring_color = (255, 0, 0)    # RED
+                                single_color = (0, 0, 100)  # BLUE
+                                ring_color = (100, 0, 0)    # RED
                                 
                             # Apply original colors
                             self.led_control.innerSingleSeg(number, single_color)
@@ -868,10 +868,10 @@ class LEDController:
                     if new_state == 'on':
                         # In classic mode, always use green for blinking ON state
                         if self.current_mode == 'classic':
-                            blink_color = (0, 255, 0)  # Green
+                            blink_color = (0, 100, 0)  # Green
                         else:
                             # For other modes, use custom blink color if set, otherwise green
-                            blink_color = info.get('blink_color', (0, 255, 0))
+                            blink_color = info.get('blink_color', (0, 100, 0))
                         
                         if segment_id == 'bullseye':
                             if self.current_mode == 'classic':
