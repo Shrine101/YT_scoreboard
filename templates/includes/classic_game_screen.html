@@ -92,11 +92,17 @@
         </div>
         
         <!-- Right side: Dartboard and current throws -->
-        <div class="col-md-4 text-center">
-          <div class="dartboard-container mb-4">
-            <img src="{{ url_for('static', filename='images/dartboard.png') }}" 
-              alt="Dartboard" class="img-fluid" style="max-height: 500px; width: auto;">
-          </div>
+        <!-- Modified dartboard container with canvas overlay -->
+        <div class="dartboard-container mb-4 position-relative">
+          <img src="{{ url_for('static', filename='images/dartboard.png') }}" 
+            alt="Dartboard" class="img-fluid" style="max-height: 500px; width: auto;">
+          <canvas id="dart-canvas" class="position-absolute top-0 start-0 w-100 h-100"></canvas>
+          <!-- Clear button is now smaller and more subtle since it's optional -->
+          <button id="clear-darts-btn" class="btn btn-sm btn-outline-light position-absolute bottom-0 end-0 m-2" 
+                  style="opacity: 0.5; font-size: 0.7rem;">
+            Clear Darts
+          </button>
+        </div>
           
           <div class="row mt-4">
             {% for throw in game_data.current_throws %}
@@ -332,3 +338,575 @@
     text-align: center;
   }
 </style>
+
+
+<!-- Include this at the end of each game screen HTML file (before closing body tag) -->
+<script type="text/javascript">
+  // Dart Visualization Module
+  const DartVisualization = (function() {
+    // Private variables
+    let canvas;
+    let ctx;
+    let dartboardImage;
+    let dartHistory = [];
+    const maxDartsPerPlayer = 3; // Show last 3 darts per player
+    const dartsColors = [
+      '#ff0000', // Red for Player 1
+      '#0000ff', // Blue for Player 2
+      '#00ff00', // Green for Player 3
+      '#ffff00', // Yellow for Player 4
+      '#ff00ff', // Magenta for Player 5
+      '#00ffff', // Cyan for Player 6
+      '#ff8800', // Orange for Player 7
+      '#8800ff'  // Purple for Player 8
+    ];
+    
+    // Initialize canvas and set up event listeners
+    function init() {
+      // Create canvas element if it doesn't exist
+      if (!document.getElementById('dart-canvas')) {
+        createCanvasElement();
+      }
+      
+      canvas = document.getElementById('dart-canvas');
+      if (!canvas) return false;
+      
+      ctx = canvas.getContext('2d');
+      dartboardImage = document.querySelector('.dartboard-container img');
+      
+      // Set initial canvas size
+      resizeCanvas();
+      
+      // Set up resize event listener
+      window.addEventListener('resize', debounce(resizeCanvas, 250));
+      
+      // Add clear button if it doesn't exist
+      if (!document.getElementById('clear-darts-btn')) {
+        addClearButton();
+      }
+      
+      // Set up clear button event listener
+      const clearButton = document.getElementById('clear-darts-btn');
+      if (clearButton) {
+        clearButton.addEventListener('click', clearCanvas);
+      }
+      
+      console.log('Dart visualization initialized');
+      return true;
+    }
+    
+    // Create the canvas element and add it to the dartboard container
+    function createCanvasElement() {
+      const dartboardContainer = document.querySelector('.dartboard-container');
+      if (!dartboardContainer) return;
+      
+      // Add position-relative to container if not already present
+      if (!dartboardContainer.classList.contains('position-relative')) {
+        dartboardContainer.classList.add('position-relative');
+      }
+      
+      const canvas = document.createElement('canvas');
+      canvas.id = 'dart-canvas';
+      canvas.className = 'position-absolute top-0 start-0 w-100 h-100';
+      canvas.style.pointerEvents = 'none'; // Make sure canvas doesn't interfere with clicks
+      
+      dartboardContainer.appendChild(canvas);
+      
+      console.log('Canvas element created');
+    }
+    
+    // Add clear button to the dartboard container
+    function addClearButton() {
+      const dartboardContainer = document.querySelector('.dartboard-container');
+      if (!dartboardContainer) return;
+      
+      const button = document.createElement('button');
+      button.id = 'clear-darts-btn';
+      button.className = 'btn btn-sm btn-outline-light position-absolute top-0 end-0 m-2';
+      button.innerHTML = 'Clear Darts';
+      button.style.zIndex = '10';
+      button.style.opacity = '0.7';
+      
+      // Add hover effect
+      button.addEventListener('mouseenter', function() {
+        this.style.opacity = '1';
+      });
+      button.addEventListener('mouseleave', function() {
+        this.style.opacity = '0.7';
+      });
+      
+      dartboardContainer.appendChild(button);
+      
+      console.log('Clear button added');
+    }
+    
+    // Resize canvas to match dartboard image
+    function resizeCanvas() {
+      if (!canvas || !dartboardImage) return;
+      
+      // Set canvas dimensions to match the displayed image size
+      canvas.width = dartboardImage.clientWidth;
+      canvas.height = dartboardImage.clientHeight;
+      
+      // Redraw all darts after resizing
+      redrawAllDarts();
+      
+      console.log(`Canvas resized to ${canvas.width}x${canvas.height}`);
+    }
+    
+    // Convert polar coordinates (r, theta) to canvas (x, y)
+    function polarToCartesian(r, theta) {
+      // The dartboard image is assumed to be circular with center at the middle
+      // r is the radius from center (in the dartboard's units)
+      // theta is the angle in degrees (0 is at the top, clockwise)
+      
+      // Standard dartboard radius is about 225mm (from center to double ring)
+      const standardDartboardRadius = 225;
+      const canvasRadius = Math.min(canvas.width, canvas.height) / 2;
+      
+      // Calculate scaling factor
+      const scale = canvasRadius / standardDartboardRadius;
+      
+      // Convert theta from degrees to radians and adjust for canvas coordinate system
+      // In the dartboard, 0 degrees is at the top (12 o'clock)
+      // In standard math, 0 radians is at the right (3 o'clock)
+      const radians = (theta - 90) * (Math.PI / 180);
+      
+      // Calculate x and y
+      const x = canvas.width / 2 + r * scale * Math.cos(radians);
+      const y = canvas.height / 2 + r * scale * Math.sin(radians);
+      
+      return { x, y };
+    }
+    
+    // Simulate dart position based on score and multiplier
+    function simulatePosition(score, multiplier) {
+      // Basic dartboard rules:
+      // - Singles outer: r = approx 170-225mm
+      // - Singles inner: r = approx 105-170mm
+      // - Triples: r = approx 105mm
+      // - Doubles: r = approx 225mm
+      // - Bullseye (25): r = approx 6-15mm
+      // - Double bullseye (50): r = approx 0-6mm
+      
+      let r, theta;
+      
+      if (score === 25) {
+        // Bullseye
+        if (multiplier === 2) {
+          // Double bullseye (50)
+          r = Math.random() * 6; // 0-6mm
+        } else {
+          // Single bullseye (25)
+          r = 6 + Math.random() * 9; // 6-15mm
+        }
+        // Random angle for bullseye
+        theta = Math.random() * 360;
+      } else {
+        // Calculate the angle based on the number
+        // Dartboard numbers go clockwise: 20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5
+        const numberPositions = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5];
+        const numberIndex = numberPositions.indexOf(score);
+        if (numberIndex === -1) {
+          // Invalid score, use random position
+          theta = Math.random() * 360;
+        } else {
+          // Each number takes up 18 degrees (360 / 20)
+          // Add some randomness within the number's segment
+          theta = numberIndex * 18 + Math.random() * 18;
+        }
+        
+        if (multiplier === 3) {
+          // Triple ring
+          r = 95 + Math.random() * 20; // Around 105mm with some randomness
+        } else if (multiplier === 2) {
+          // Double ring
+          r = 215 + Math.random() * 20; // Around 225mm with some randomness
+        } else {
+          // Single
+          // Randomly choose inner or outer single
+          const innerSingle = Math.random() > 0.5;
+          if (innerSingle) {
+            r = 105 + Math.random() * 65; // 105-170mm (inner single)
+          } else {
+            r = 170 + Math.random() * 45; // 170-215mm (outer single, not hitting double)
+          }
+        }
+      }
+      
+      return { r, theta };
+    }
+    
+    // Add a new dart to the visualization with real position data if available
+    function addDart(playerId, score, multiplier, position_x, position_y) {
+      let r, theta;
+      
+      // If we have real position data, use it
+      if (position_x !== undefined && position_y !== undefined && position_x !== null && position_y !== null) {
+        r = position_x;
+        theta = position_y;
+        console.log(`Using real position data: r=${r}, theta=${theta}`);
+      } else {
+        // Otherwise simulate a position based on score and multiplier
+        const simulated = simulatePosition(score, multiplier);
+        r = simulated.r;
+        theta = simulated.theta;
+        console.log(`Using simulated position: r=${r}, theta=${theta} for score=${score}x${multiplier}`);
+      }
+      
+      // Create a new dart object
+      const dart = {
+        playerId,
+        r,
+        theta,
+        score,
+        multiplier,
+        timestamp: Date.now()
+      };
+      
+      // Add to history
+      dartHistory.push(dart);
+      
+      // Limit history size (keep last N darts per player)
+      pruneHistory();
+      
+      // Draw the new dart
+      drawDart(dart);
+      
+      return dart;
+    }
+    
+    // Draw a single dart on the canvas
+    function drawDart(dart) {
+      if (!ctx) return;
+      
+      // Convert polar to cartesian
+      const { x, y } = polarToCartesian(dart.r, dart.theta);
+      
+      // Determine color based on player ID (1-indexed)
+      const colorIndex = (dart.playerId - 1) % dartsColors.length;
+      const color = dartsColors[colorIndex];
+      
+      // Determine opacity based on recency
+      const opacity = calculateOpacity(dart);
+      
+      // Create a hex opacity value (00-FF)
+      const hexOpacity = Math.floor(opacity * 255).toString(16).padStart(2, '0');
+      
+      // Draw the dart marker
+      ctx.beginPath();
+      ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = `${color}${hexOpacity}`;
+      ctx.fill();
+      
+      // Add border
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      
+      // Add dart score label if it's the most recent dart for this player
+      const playerDarts = dartHistory.filter(d => d.playerId === dart.playerId);
+      playerDarts.sort((a, b) => b.timestamp - a.timestamp);
+      if (playerDarts[0].timestamp === dart.timestamp) {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '10px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        // Calculate score
+        const scoreText = dart.multiplier > 1 ? `${dart.score}x${dart.multiplier}` : `${dart.score}`;
+        
+        // Position the text slightly above the dart marker
+        ctx.fillText(scoreText, x, y - 12);
+      }
+    }
+    
+    // Calculate opacity based on how recent the dart is
+    function calculateOpacity(dart) {
+      // Get darts for this player
+      const playerDarts = dartHistory.filter(d => d.playerId === dart.playerId);
+      
+      // Sort by timestamp (newest first)
+      playerDarts.sort((a, b) => b.timestamp - a.timestamp);
+      
+      // Find index of this dart
+      const index = playerDarts.findIndex(d => d.timestamp === dart.timestamp);
+      
+      // Calculate opacity (newer darts are more opaque)
+      // For only one dart, use full opacity
+      if (playerDarts.length === 1) return 1.0;
+      
+      // Calculate opacity step (older darts are more transparent)
+      const baseOpacity = 0.4; // Minimum opacity
+      const step = (1 - baseOpacity) / (playerDarts.length - 1);
+      
+      // Newest dart is index 0, so we need to invert
+      const opacity = baseOpacity + step * (playerDarts.length - 1 - index);
+      
+      return opacity;
+    }
+    
+    // Redraw all darts in the history
+    function redrawAllDarts() {
+      if (!ctx) return;
+      
+      // Clear canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw each dart
+      dartHistory.forEach(drawDart);
+    }
+    
+    // Limit the number of darts per player in history
+    function pruneHistory() {
+      // Get unique player IDs
+      const playerIds = [...new Set(dartHistory.map(d => d.playerId))];
+      
+      let newHistory = [];
+      
+      // For each player, keep only the most recent darts
+      playerIds.forEach(playerId => {
+        const playerDarts = dartHistory.filter(d => d.playerId === playerId);
+        
+        if (playerDarts.length > maxDartsPerPlayer) {
+          // Sort by timestamp (newest first)
+          playerDarts.sort((a, b) => b.timestamp - a.timestamp);
+          
+          // Keep only the newest darts
+          newHistory = newHistory.concat(playerDarts.slice(0, maxDartsPerPlayer));
+        } else {
+          // Keep all darts for this player
+          newHistory = newHistory.concat(playerDarts);
+        }
+      });
+      
+      dartHistory = newHistory;
+    }
+    
+    // Clear all darts from the visualization
+    function clearCanvas() {
+      if (!ctx) return;
+      
+      // Clear canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Clear history
+      dartHistory = [];
+      
+      console.log('Canvas cleared');
+    }
+    
+    // Utility function to debounce resize events
+    function debounce(func, wait) {
+      let timeout;
+      return function() {
+        const context = this;
+        const args = arguments;
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(context, args), wait);
+      };
+    }
+    
+    // Public API
+    return {
+      initialize: init,
+      addDart: addDart,
+      clearDarts: clearCanvas,
+      redrawDarts: redrawAllDarts
+    };
+  })();
+  
+  // Integration script
+  document.addEventListener('DOMContentLoaded', function() {
+    // Initialize the dart visualization
+    DartVisualization.initialize();
+    
+    // Store the original updateLastThrow function
+    const originalUpdateLastThrow = window.updateLastThrow;
+    
+    // Track the last throw we visualized to avoid duplicates
+    window.lastVisualizedThrow = null;
+    
+    // Track the current player ID to detect player changes
+    window.currentDartPlayer = null;
+    
+    // Override the updateLastThrow function to add visualization
+    window.updateLastThrow = function(lastThrow, players, game_data) {
+      // Call the original function first
+      if (originalUpdateLastThrow) {
+        originalUpdateLastThrow(lastThrow, players, game_data);
+      }
+      
+      // Check if this is a valid throw with score
+      if (!lastThrow || !lastThrow.player_id || !lastThrow.score) {
+        return;
+      }
+      
+      // Create a key for this throw to check if we've already visualized it
+      const throwKey = `${lastThrow.player_id}-${lastThrow.score}-${lastThrow.multiplier}-${lastThrow.points}`;
+      
+      // If we've already visualized this throw, skip it
+      if (window.lastVisualizedThrow === throwKey) {
+        return;
+      }
+      
+      // Add dart to visualization (use position data if available, otherwise score and multiplier)
+      DartVisualization.addDart(
+        lastThrow.player_id, 
+        lastThrow.score, 
+        lastThrow.multiplier, 
+        lastThrow.position_x, 
+        lastThrow.position_y
+      );
+      
+      // Remember this throw as visualized
+      window.lastVisualizedThrow = throwKey;
+      
+      console.log(`Visualized throw: Player ${lastThrow.player_id}, Score ${lastThrow.score}x${lastThrow.multiplier}`);
+    };
+    
+    // Also look for new throws in current_throws that might indicate a recent throw
+    const originalUpdateGame = window.updateGame;
+    
+    window.updateGame = function(game_data) {
+      // Call the original function first
+      if (originalUpdateGame) {
+        originalUpdateGame(game_data);
+      }
+      
+      // Only process if we have current throws and a game state
+      if (!game_data || !game_data.current_player) {
+        return;
+      }
+      
+      // Check for player change - if so, clear the darts
+      if (window.currentDartPlayer !== null && 
+          window.currentDartPlayer !== game_data.current_player) {
+        // Player has changed - clear the darts
+        DartVisualization.clearDarts();
+        console.log(`Player changed from ${window.currentDartPlayer} to ${game_data.current_player} - cleared darts`);
+        
+        // Reset the last visualized throw
+        window.lastVisualizedThrow = null;
+      }
+      
+      // Update the current player
+      window.currentDartPlayer = game_data.current_player;
+      
+      // Process current throws if available
+      if (game_data.current_throws) {
+        // Look for throws with a score
+        for (const throwData of game_data.current_throws) {
+          if (!throwData || throwData.score === null || throwData.score === undefined) {
+            continue;
+          }
+          
+          // Create a key for this throw
+          const throwKey = `${game_data.current_player}-${throwData.score}-${throwData.multiplier}-${throwData.points}`;
+          
+          // If we've already visualized this throw, skip it
+          if (window.lastVisualizedThrow === throwKey) {
+            continue;
+          }
+          
+          // Check if this is a valid throw with score
+          if (throwData.score && throwData.multiplier) {
+            // Add dart to visualization
+            DartVisualization.addDart(
+              game_data.current_player, 
+              throwData.score, 
+              throwData.multiplier,
+              throwData.position_x,
+              throwData.position_y
+            );
+            
+            // Remember this throw as visualized
+            window.lastVisualizedThrow = throwKey;
+            
+            console.log(`Visualized current throw: Player ${game_data.current_player}, Score ${throwData.score}x${throwData.multiplier}`);
+          }
+        }
+      }
+      
+      // Also handle animations that may indicate player changes
+      if (game_data.animating && game_data.animation_type === 'third_throw' && 
+          game_data.next_player !== undefined && game_data.next_player !== null) {
+        // This is an animation transitioning to the next player
+        // Schedule a clearing of darts after animation completes
+        console.log(`Detected third throw animation, will clear darts when animation completes`);
+        
+        // Animation duration is typically 3 seconds, wait 3.5 seconds to be safe
+        setTimeout(() => {
+          // Only clear if the current player has actually changed
+          if (window.currentDartPlayer !== game_data.next_player) {
+            DartVisualization.clearDarts();
+            console.log(`Animation completed, cleared darts for next player ${game_data.next_player}`);
+          }
+        }, 3500);
+      }
+    };
+    
+    // Add window resize handler to redraw darts
+    window.addEventListener('resize', function() {
+      // Delay redraw to ensure dartboard is resized first
+      setTimeout(function() {
+        DartVisualization.redrawDarts();
+      }, 300);
+    });
+    
+    // Handle specific events for different game modes
+    
+    // If there's an "I Missed" button, listen for it to clear last visualization
+    const missedBtn = document.getElementById('i-missed-btn');
+    if (missedBtn) {
+      const originalClickHandler = missedBtn.onclick;
+      
+      missedBtn.addEventListener('click', function() {
+        // Wait for missed throw to be processed
+        setTimeout(() => {
+          // Reset lastVisualizedThrow to ensure next throw is visualized
+          window.lastVisualizedThrow = null;
+        }, 500);
+      });
+    }
+    
+    // Add CSS styles for the dart visualization
+    const style = document.createElement('style');
+    style.textContent = `
+      .dartboard-container {
+        position: relative;
+      }
+      
+      #dart-canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 10;
+      }
+      
+      #clear-darts-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 11;
+        background-color: rgba(0, 0, 0, 0.5);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        font-size: 0.8rem;
+        padding: 0.2rem 0.5rem;
+        opacity: 0.7;
+        transition: opacity 0.2s;
+      }
+      
+      #clear-darts-btn:hover {
+        opacity: 1;
+      }
+    `;
+    document.head.appendChild(style);
+    
+    console.log('Dart visualization integration complete');
+  });
+  </script>
