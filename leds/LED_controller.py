@@ -636,7 +636,7 @@ class LEDController:
         if segment_type == 'bullseye':
             print("Bullseye hit! Using bullseye animation.")
             # Just call the bullseye function with default color
-            self.led_control.bullseye()
+            #self.led_control.bullseye() #commented out cause it broke the game
             return
         
         # Calculate blink timing
