@@ -73,7 +73,6 @@ class DartPositionFinder:
         self.cam_locations = [[self.camera0location_x, self.camera0location_y],[self.camera1location_x, self.camera1location_y],[self.camera2location_x, self.camera2location_y], [self.camera3location_x, self.camera3location_y]]
         self.cam_lines = [(),(),(),()]
         self.cam_lines_updated = [(),(),(),()]
-        self.dart_positions = [[],[],[],[]]
         self.factor = 1.066 #if the real dart is further from the center than it thinks, increase this value
 
         with open("configs/dart_positions.yaml", "r") as file:
@@ -419,44 +418,56 @@ class DartPositionFinder:
         dart_num = dart_count % 3
         if dart_num == 0:
             dart_num = 3
+
+        try:
         
-        cams = [dart_positions["cam0"][0], dart_positions["cam1"][0], dart_positions["cam2"][0], dart_positions["cam3"][0]] # get un-normalized camera pixel coordinates of newest dart        
-        if dart_num == 1:
-            self.three_to_one_darts() # clear global variable storing camera dart readings (board has been cleared) 
-            self.dart_camera_pixels_current = cams
-        elif dart_num == 2:
-            for pos in range(4):
-                if cams[pos] == "N":
-                    cams[pos] = self.dart_camera_pixels_current[pos]
-                self.cam_lines[pos] = ()
-        elif dart_num == 3:
-            for pos in range(4):
-                #self.dart_camera_pixels_current[pos].append(cams[pos])
-                self.cam_lines[pos] = ()
+            cams = [dart_positions["cam0"][0], dart_positions["cam1"][0], dart_positions["cam2"][0], dart_positions["cam3"][0]] # get un-normalized camera pixel coordinates of newest dart        
+            if dart_num == 1:
+                self.three_to_one_darts() # clear global variable storing camera dart readings (board has been cleared) 
+                self.dart_camera_pixels_current = cams
+            elif dart_num == 2:
+                for pos in range(4):
+                    if cams[pos] == "N":
+                        cams[pos] = self.dart_camera_pixels_current[pos]
+                    self.cam_lines[pos] = ()
+            elif dart_num == 3:
+                for pos in range(4):
+                    #self.dart_camera_pixels_current[pos].append(cams[pos])
+                    self.cam_lines[pos] = ()
+            
+            cams = self.normal_x_coords(cams, self.camera_bounds) # normalize dart coordinate to 0-1
+            self.update_dart_camera_views_current(cams) # update global variable storing camera dart readings with nth dart
+            self.get_lines() # add lines from each camera to dart to global variable storing such lines
+            intersections = self.find_dart_positions_good(self.cam_lines) # get intersections of all lines and corresponding predicted dart positions from all globabl lines
+            
+            intersections = self.correct_radius(dart_num, intersections)
+            print(intersections)
+            print("-------------------------------------------------------------------------------")
         
-        cams = self.normal_x_coords(cams, self.camera_bounds) # normalize dart coordinate to 0-1
-        self.update_dart_camera_views_current(cams) # update global variable storing camera dart readings with nth dart
-        self.get_lines() # add lines from each camera to dart to global variable storing such lines
-        intersections = self.find_dart_positions_good(self.cam_lines) # get intersections of all lines and corresponding predicted dart positions from all globabl lines
-         
-        intersections = self.correct_radius(dart_num, intersections)
-        print(intersections)
-        print("-------------------------------------------------------------------------------")
-      
-        # DART MISS
-        if len(intersections[-1-self.miss_count]) == 0:
-            self.miss_count+=1
-            print(f"[MISS] No valid intersection for dart {dart_num}. Marking as miss.")
-            self.get_updated_lines(['N','N','N','N'])
-            return 0, 0, 250, 0, 250,0  # Score = 0, multiplier = 0, rest all 0
-      
-        self.get_updated_lines(intersections)
-        x, y = intersections[-1-self.miss_count]
-        r = math.sqrt(x**2 + y**2)
-        theta = math.degrees(math.atan(y/x))
-        score, multiplier = self.get_score(x,y)
-        return score, multiplier, r, theta, x, y
+            # DART MISS
+            # if len(intersections[-1-self.miss_count]) == 0:
+            #     self.miss_count+=1
+            #     print(f"[MISS] No valid intersection for dart {dart_num}. Marking as miss.")
+            #     self.get_updated_lines(['N','N','N','N'])
+            #     return 0, 0, 250, 0, 250,0  # Score = 0, multiplier = 0, rest all 0
         
+            self.get_updated_lines(intersections)
+            x, y = intersections[-1]
+            r = math.sqrt(x**2 + y**2)
+            theta = math.degrees(math.atan(y/x))
+            score, multiplier = self.get_score(x,y)
+            return score, multiplier, r, theta, x, y
+        except:
+            for camnum in range(0,4):
+                lines_updated = list(self.cam_lines_updated[camnum])
+                if(len(lines_updated[camnum]) == (dart_num-1)):
+                    lines_updated.append([0,0,0])
+                    self.cam_lines_updated[camnum] = tuple(lines_updated)
+                elif(len(lines_updated[camnum]) == dart_num):
+                    lines_updated[-1] = [0,0,0]
+                    self.cam_lines_updated[camnum] = tuple(lines_updated)
+            return 0, 0, 250, 0, 250, 0
+
     def set_bounds(self, bounds):
         for i in range(4):
             self.camera_bounds[i] = bounds[i]
