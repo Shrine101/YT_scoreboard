@@ -45,11 +45,15 @@ class LEDController:
         # Cricket segments
         self.cricket_segments = {15, 16, 17, 18, 19, 20, 25}
         
-        # Cricket colors
-        self.cricket_open_color = (100, 100, 100)  # White - open segments
-        self.cricket_player_closed_color = (0, 100, 0)  # Green - segments closed by current player
-        self.cricket_other_closed_color = (0, 0, 100)  # Blue - segments closed by other players
-        self.cricket_all_closed_color = (100, 0, 0)  # Red - segments closed by all players
+        # Cricket colors - updated per requirements
+        self.cricket_open_color = (100, 100, 100)           # White - open segments
+        self.cricket_player_closed_color = (0, 100, 0)      # Green - segments closed by current player only
+        self.cricket_other_closed_color = (0, 0, 100)       # Blue - segments closed by one other player only
+        self.cricket_all_closed_color = (100, 0, 0)         # Red - segments closed by 2+ players
+        self.cricket_hit_blink_color = (100, 100, 0)        # Yellow - blinking when hit
+        
+        # Track status changes during animations for cricket
+        self.pending_cricket_updates = {}  # Format: {segment: new_status}
         
         # Around the Clock configuration
         self.around_clock_colors = {
@@ -379,7 +383,7 @@ class LEDController:
         print("Classic mode set up with custom red and blue segments")
 
     def setup_cricket_mode(self):
-        """Set up LEDs for cricket mode."""
+        """Set up LEDs for cricket mode with the new color scheme."""
         # Clear all LEDs first to reset
         self.led_control.clearAll(wait_ms=1)
         
@@ -389,10 +393,17 @@ class LEDController:
         # Get current player
         self.get_current_player()
         
+        # Clear any pending cricket updates
+        self.pending_cricket_updates = {}
+        
         # Set up cricket segments with appropriate colors
         for segment in self.cricket_segments:
             # Skip if not in mapping (though bullseye is a special case)
             if segment != 25 and segment not in self.led_control.DARTBOARD_MAPPING:
+                continue
+            
+            # Skip bullseye (25) as per requirements - only animate when hit
+            if segment == 25:
                 continue
             
             # Get segment state
@@ -405,14 +416,24 @@ class LEDController:
             segment_color = self.get_segment_color_for_cricket(segment_state)
             
             # Apply color to all segment parts
-            if segment == 25:  # Bullseye
-                self.led_control.bullseye(segment_color)
-            else:
-                # All segments (single, double, triple) get the same color in cricket
-                self.led_control.innerSingleSeg(segment, segment_color)
-                self.led_control.outerSingleSeg(segment, segment_color)
-                self.led_control.doubleSeg(segment, segment_color)
-                self.led_control.tripleSeg(segment, segment_color)
+            # All segments (single, double, triple) get the same color in cricket
+            self.led_control.innerSingleSeg(segment, segment_color, wait_ms=1)
+            self.led_control.outerSingleSeg(segment, segment_color, wait_ms=1)
+            self.led_control.doubleSeg(segment, segment_color, wait_ms=1)
+            self.led_control.tripleSeg(segment, segment_color, wait_ms=1)
+            
+            print(f"Cricket segment {segment} set to {self.color_name(segment_color)}")
+
+    def color_name(self, color):
+        """Get a human-readable name for a color."""
+        r, g, b = color
+        if r > 90 and g > 90 and b > 90: return "WHITE"
+        if r > 90 and g > 90 and b < 10: return "YELLOW"
+        if r > 90 and g < 10 and b < 10: return "RED"
+        if r < 10 and g > 90 and b < 10: return "GREEN"
+        if r < 10 and g < 10 and b > 90: return "BLUE"
+        if r == 0 and g == 0 and b == 0: return "OFF"
+        return f"RGB({r},{g},{b})"
 
     def setup_around_clock_mode(self):
         """Set up LEDs for Around the Clock mode."""
@@ -504,23 +525,35 @@ class LEDController:
             self.led_control.print_board_state()
 
     def get_segment_color_for_cricket(self, segment_state):
-        """Determine the color for a cricket segment based on its state."""
-        # If closed by all players, return red
+        """
+        Determine the color for a cricket segment based on its state.
+        
+        New color scheme:
+        - White (100,100,100): Open numbers
+        - Green (0,100,0): Closed by current player only
+        - Blue (0,0,100): Closed by exactly one other player
+        - Red (100,0,0): Closed by 2+ players (globally closed)
+        """
+        # If closed by 2+ players, return red
         if segment_state.get('all_closed', False):
-            return self.cricket_all_closed_color
+            return self.cricket_all_closed_color  # Red
         
-        # If closed by current player, return green
-        if segment_state.get('player_closed', {}).get(self.current_player, False):
-            return self.cricket_player_closed_color
-        
-        # If closed by any other player, return blue
+        # Count closed players
         player_closed = segment_state.get('player_closed', {})
-        for player, closed in player_closed.items():
-            if player != self.current_player and closed:
-                return self.cricket_other_closed_color
+        closed_count = sum(1 for closed in player_closed.values() if closed)
         
-        # Otherwise, return white (open)
-        return self.cricket_open_color
+        # Check if current player has closed this segment
+        current_player_closed = player_closed.get(self.current_player, False)
+        
+        if current_player_closed and closed_count == 1:
+            # Only current player has closed it
+            return self.cricket_player_closed_color  # Green
+        elif not current_player_closed and closed_count == 1:
+            # Exactly one other player has closed it
+            return self.cricket_other_closed_color  # Blue
+        else:
+            # Open segment (or complex case, default to open)
+            return self.cricket_open_color  # White
 
     def get_active_target_segments(self):
         """Get the currently active target segments from the moving_target database"""
@@ -577,9 +610,89 @@ class LEDController:
                 # If it's a miss, only blink the hit segment in red
                 print(f"Target MISS! Blinking hit segment {score} ({base_segment_type}) in red")
                 self._setup_target_miss_animation(score, base_segment_type, start_time, end_time)
+        elif self.current_mode == 'cricket':
+            # Cricket mode processing - new behavior for cricket
+            return self.process_cricket_dart_event(event)
         else:
             # For other game modes, use the existing logic
             return self.process_dart_event_classic(event)
+
+    def process_cricket_dart_event(self, event):
+        """
+        Process a dart event specifically for cricket mode.
+        - All numbers should blink yellow when hit
+        - Cricket numbers (15-20) return to their status color after animation
+        - Non-cricket numbers return to off (black) after animation
+        - Status changes should wait until after blinking animation finishes
+        """
+        score = event['score']
+        multiplier = event['multiplier']
+        segment_type = event['segment_type']
+        
+        # Check if this is a cricket number
+        is_cricket_number = score in self.cricket_segments
+        
+        # For bullseye, use the special bullseye animation
+        if segment_type == 'bullseye':
+            print("Bullseye hit! Using bullseye animation.")
+            # Just call the bullseye function with default color
+            self.led_control.bullseye()
+            return
+        
+        # Calculate blink timing
+        start_time = time.time()
+        end_time = start_time + self.blink_duration
+        
+        # Create a segment key to track blinking status
+        if segment_type == 'double':
+            segment_id = f'double_{score}'
+        elif segment_type == 'triple':
+            segment_id = f'triple_{score}'
+        elif segment_type == 'inner_single':
+            segment_id = f'inner_single_{score}'
+        elif segment_type == 'outer_single':
+            segment_id = f'outer_single_{score}'
+        else:
+            return
+            
+        # Determine original color based on if it's a cricket number or not
+        if is_cricket_number and score != 25:  # Handle non-bullseye cricket numbers
+            print(f"Cricket number {score} hit! Setting up yellow blinking animation.")
+            
+            # Get the current color based on cricket state for this segment
+            segment_state = self.cricket_state.get(score, {
+                'player_closed': {self.current_player: False},
+                'all_closed': False
+            })
+            
+            original_color = self.get_segment_color_for_cricket(segment_state)
+            
+            # Mark this segment as having its status pending update after animation
+            self.pending_cricket_updates[score] = True
+        else:
+            # For non-cricket numbers, original color is black (off)
+            print(f"Non-cricket number {score} hit! Setting up yellow blinking animation.")
+            original_color = (0, 0, 0)  # Black/off
+        
+        # Create blinking entry with yellow blink color for all numbers
+        self.blinking_segments[segment_id] = {
+            'start_time': start_time,
+            'end_time': end_time,
+            'original_color': original_color,
+            'score': score,
+            'segment_type': segment_type,
+            'blink_count': self.blink_count,
+            'blinks_completed': 0,
+            'current_state': 'off',  # Start in 'off' state
+            'last_toggle': start_time,
+            'blink_color': self.cricket_hit_blink_color,  # Yellow for cricket hits
+            'is_cricket': True  # Flag to identify cricket segments
+        }
+        
+        # Immediately start the blinking - this will toggle to the yellow color
+        self.update_blinking_segments(True)  # Force update
+        
+        print(f"Segment {score} will blink yellow and return to {'appropriate state color' if is_cricket_number else 'black'}")
 
     def _setup_target_hit_animation(self, target_number, start_time, end_time):
         """Setup blinking animation for successful target hit (green)."""
@@ -746,7 +859,31 @@ class LEDController:
                 
             # Check if this segment's blinking period has expired
             if 'end_time' in info and current_time > info['end_time']:
-                if self.current_mode == 'classic':
+                # Handle different game modes differently when animation ends
+                if self.current_mode == 'cricket' and info.get('is_cricket', False):
+                    # For cricket mode, check if this segment needs status update
+                    score = info['score']
+                    if score in self.pending_cricket_updates:
+                        # Get updated state for this segment
+                        segment_state = self.cricket_state.get(score, {
+                            'player_closed': {self.current_player: False},
+                            'all_closed': False
+                        })
+                        # Get new color based on current state
+                        new_color = self.get_segment_color_for_cricket(segment_state)
+                        
+                        # Apply new color to all parts of the segment
+                        if score in self.led_control.DARTBOARD_MAPPING:
+                            self.led_control.innerSingleSeg(score, new_color, wait_ms=1)
+                            self.led_control.outerSingleSeg(score, new_color, wait_ms=1)
+                            self.led_control.doubleSeg(score, new_color, wait_ms=1)
+                            self.led_control.tripleSeg(score, new_color, wait_ms=1)
+                            
+                            print(f"Cricket animation ended: Updating segment {score} to {self.color_name(new_color)}")
+                        
+                        # Remove from pending updates
+                        del self.pending_cricket_updates[score]
+                elif self.current_mode == 'classic':
                     # In classic mode, restore to original color (red or blue) when done blinking
                     if segment_id == 'bullseye':
                         # Bullseye has no LEDs in classic mode, so do nothing
@@ -841,8 +978,11 @@ class LEDController:
                     
                     # Toggle the color based on the new state
                     if new_state == 'on':
-                        # In classic mode, always use green for blinking ON state
-                        if self.current_mode == 'classic':
+                        # In cricket mode, use yellow for blinking
+                        if self.current_mode == 'cricket' and info.get('is_cricket', False):
+                            blink_color = self.cricket_hit_blink_color  # Yellow
+                        elif self.current_mode == 'classic':
+                            # In classic mode, always use green for blinking ON state
                             blink_color = (0, 100, 0)  # Green
                         else:
                             # For other modes, use custom blink color if set, otherwise green
@@ -964,14 +1104,15 @@ class LEDController:
                         print(f"Current player changed from {old_player} to {self.current_player}")
                         self.setup_cricket_mode()
                     else:
-                        # Check for cricket state changes
-                        old_state = self.cricket_state.copy()
-                        self.get_cricket_state()
-                        
-                        # If state changed, update the display
-                        if old_state != self.cricket_state:
-                            print("Cricket state changed, updating display")
-                            self.setup_cricket_mode()
+                        # Check for cricket state changes, but only if no animations are active
+                        if not self.blinking_segments and not self.pending_cricket_updates:
+                            old_state = self.cricket_state.copy()
+                            self.get_cricket_state()
+                            
+                            # If state changed, update the display
+                            if old_state != self.cricket_state:
+                                print("Cricket state changed, updating display")
+                                self.setup_cricket_mode()
                 # If in around_clock mode, check for player/target changes
                 elif self.current_mode == 'around_clock':
                     old_player = self.current_player
