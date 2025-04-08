@@ -5,6 +5,7 @@ from LEDs import LEDs
 from datetime import datetime
 from LEDs_db_init import initialize_leds_database
 from moving_target_db_init import initialize_moving_target_database
+import random
 
 class LEDController:
     def __init__(self, db_path='LEDs.db', poll_interval=0.1, 
@@ -60,11 +61,15 @@ class LEDController:
         self.white_single_segments = {1, 4, 6, 15, 17, 19, 16, 11, 9, 5}    # Numbers with white singles
         self.current_around_clock_target = 1
         
-        # Moving target related attributes - Updated with clockwise sequence
+        # Moving target related attributes
         self.moving_target_db_path = 'moving_target.db'
         self.target_move_interval = 5.0  # seconds
         self.last_target_move_time = time.time()
-        # Clockwise sequence around dartboard
+        
+        # New flag to track when to move target after animation
+        self.move_target_after_animation = False
+        
+        # Clockwise sequence around dartboard (not used with random movement, but kept for compatibility)
         self.moving_target_sequence = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5]
         self.current_target_index = 0
         self.current_target_number = self.moving_target_sequence[0]  # Initialize to first number (20)
@@ -175,6 +180,15 @@ class LEDController:
             
             self.cricket_state = cricket_state
             return cricket_state
+    
+    def get_random_target_number(self):
+        """Get a random target number from 1-20 (not bullseye)."""
+        # All possible numbers (excluding bullseye which is 25)
+        possible_numbers = list(range(1, 21))
+        
+        # Select a random number from all possibilities
+        # Note: This allows the same target to be selected again
+        return random.choice(possible_numbers)
 
     def get_around_clock_target(self, player_id):
         """Get the current target number for a player in Around the Clock mode."""
@@ -206,7 +220,12 @@ class LEDController:
             return 1  # Default to target 1
 
     def update_moving_target(self):
-        """Update the moving target by changing which segments are active."""
+        """
+        Update the moving target by changing which segments are active.
+        The target moves after a player throws a dart and the hit/miss animation has completed.
+        The target moves to a random number (not bullseye).
+        The target will also move after a long period of inactivity.
+        """
         current_time = time.time()
         
         # Don't move the target if there are any blinking segments (animation in progress)
@@ -215,11 +234,23 @@ class LEDController:
             self.last_target_move_time = current_time
             return
         
-        # Check if it's time to move the target
-        if current_time - self.last_target_move_time >= self.target_move_interval:
-            # Move to the next target
-            self.current_target_index = (self.current_target_index + 3) % len(self.moving_target_sequence)
-            new_target = self.moving_target_sequence[self.current_target_index]
+        # Check if we should move the target after an animation or based on timer
+        should_move = False
+        reason = None
+        
+        if self.move_target_after_animation:
+            # Reset the flag
+            self.move_target_after_animation = False
+            should_move = True
+            reason = "dart throw and animation completion"
+        #elif current_time - self.last_target_move_time >= self.target_move_interval:
+            # Also move if it's been a long time since last movement (timeout)
+            #should_move = True
+            #reason = "timeout (no dart thrown recently)"
+        
+        if should_move:
+            # Select a random target number
+            new_target = self.get_random_target_number()
             
             # Store previous target for transition
             self.previous_target_number = self.current_target_number
@@ -255,7 +286,7 @@ class LEDController:
             
             # Update the last move time
             self.last_target_move_time = current_time
-            print(f"Moved target to number {new_target}")
+            print(f"Moved target to random number {new_target} after {reason}")
 
     def update_target_position(self, target_number):
         """
@@ -878,6 +909,15 @@ class LEDController:
         # Remove expired segments
         for segment_id in to_remove:
             del self.blinking_segments[segment_id]
+            
+        # After removing all expired segments, check if:
+        # 1. We were in moving target mode
+        # 2. There were animations (blinking segments) that just finished
+        # 3. There are no more active animations
+        if self.current_mode == 'moving_target' and to_remove and not self.blinking_segments:
+            # Set the flag to move the target after animation completes
+            self.move_target_after_animation = True
+            print("Animation complete - target will move on next update")
 
     def run(self):
         """Main processing loop for the LED controller."""
@@ -911,7 +951,7 @@ class LEDController:
                         self.setup_neutral_mode()
                 
                 # Handle moving target mode updates - Only update if we're in moving target mode and no animations
-                if self.current_mode == 'moving_target' and not self.blinking_segments:
+                if self.current_mode == 'moving_target':
                     self.update_moving_target()
                 
                 # If in cricket mode, check for player/state changes
