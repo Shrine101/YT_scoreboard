@@ -50,6 +50,67 @@ class DartProcessor:
         finally:
             conn.close()
 
+    def draw_dartboard_score(self, dart_positions: list[tuple[float, float]] = None,score=None,
+        save_path: str = '../static/dartboard_scoring.png'):
+
+        """Visualize dartboard with optional dart positions."""
+        plt.figure(figsize=(12, 12))
+
+        double_bull_radius = 6.35
+        bull_radius = 16
+        triple_inner_radius = 99
+        triple_outer_radius = 107
+        double_inner_radius = 162
+        double_outer_radius = 170
+        segments = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17,
+                         3, 19, 7, 16, 8, 11, 14, 9, 12, 5]
+
+        
+        # Draw circles for different scoring regions
+        circles = [
+            (double_outer_radius, 'black', 'Double Ring'),
+            (double_inner_radius, 'black', 'Double inner Ring'),
+            (triple_outer_radius, 'black', 'Triple Ring'),
+            (triple_inner_radius, 'black', 'Triple inner ring'),
+            (bull_radius, 'green', 'Bull'),
+            (double_bull_radius, 'red', 'Double Bull')
+        ]
+        
+        for radius, color, label in circles:
+            circle = plt.Circle((0, 0), radius, fill=False, color=color,
+                              label=label if label else None)
+            plt.gca().add_artist(circle)
+        
+        # Draw segment lines and numbers with 9 degree offset
+        for i in range(20):
+            angle = np.radians(i * 18 - 9)  # 18 degrees per segment, -9 for correct orientation
+            dx = np.sin(angle) * double_outer_radius
+            dy = np.cos(angle) * double_outer_radius
+            plt.plot([0, dx], [0, dy], 'k-', linewidth=0.5)
+            
+            # Add segment numbers
+            text_radius = triple_inner_radius  # Place numbers between triple and double
+            text_x = np.sin(angle + np.radians(9)) * text_radius  # +9 degrees for center of segment
+            text_y = np.cos(angle + np.radians(9)) * text_radius
+            plt.text(text_x, text_y, str(segments[i]), 
+                    ha='center', va='center')
+        
+        # Plot dart positions if provided 
+        plt.plot(dart_positions[0], dart_positions[1], 'ro', markersize=10, label=f'Dart: {score}')
+        
+        plt.axis('equal')
+        plt.grid(True)
+        plt.title('Dartboard Scoring Regions')
+        plt.xlabel('X Position (mm)')
+        plt.ylabel('Y Position (mm)')
+        
+        # Set axis limits to show full board with some padding
+        limit = self.double_outer_radius * 1.1
+
+        plt.legend()
+        plt.show()
+
+
     def reset_animation_state(self):
         """Reset the animation state in the database"""
         with self.get_game_connection() as conn:
@@ -404,6 +465,14 @@ class DartProcessor:
         else:
             print(f"WARNING: Could not determine segment type for throw: Score={score}, Multiplier={multiplier}")
 
+    def convert_to_cart(self,r,theta_deg):
+        r = position_x
+        theta_deg = position_y
+        theta_rad = np.radians(theta_deg)
+        x = r * np.cos(theta_rad)
+        y = r * np.sin(theta_rad)
+        dart_position = [(x, y)]
+
     def process_throw(self, throw):
         """Process a single throw and update game state"""
         # Calculate points (score * multiplier)
@@ -422,6 +491,7 @@ class DartProcessor:
             position_y = throw['position_y']  # This is actually theta in polar coordinates
         except (IndexError, KeyError):
             position_y = 0
+
         
         # Get current game state
         game_state = self.get_current_game_state()
@@ -454,6 +524,10 @@ class DartProcessor:
         
         # Update the last throw record
         self.update_last_throw(score, multiplier, points, current_player)
+
+        # NEW: Draw scoring visualization
+        #dart_position = [(real_position_x, real_position_y)]  # Must be list of tuples
+        #self.draw_dartboard_score(dart_positions=dart_position, score=points)
         
         # Calculate total points for current throws
         total_current_points = sum(t['points'] for t in current_throws if t['throw_number'] != throw_position and t['score'] is not None) + points

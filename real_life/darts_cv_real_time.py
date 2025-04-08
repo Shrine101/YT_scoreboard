@@ -29,7 +29,10 @@ class DartDetection:
         self.detector.update_state(self.cv_running)
 
     def return_takeout_state(self):
-        return self.detector.is_takeout  
+        is_takeout = False
+        with self.lock:
+            is_takeout = self.detector.is_takeout if hasattr(self.detector, 'is_takeout') else None
+            return is_takeout
 
     def _cv_background_loop(self):
         """Run DartDetectionLive.run_loop() which will loop forever (until success=False)."""

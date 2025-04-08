@@ -117,15 +117,27 @@ def main():
         print("Starting dart detection simulation...")
         db_writer.dart_detector.start()
         
-        # Main loop
         while True:
-            # Get and record next throw
-            throw = db_writer.dart_detector.get_next_throw()
-            if throw:
-                db_writer.record_throw(throw)
-
+            # First check if we're in takeout mode
             is_takeout = db_writer.dart_detector.return_takeout_state()
-            db_writer.set_ready_state(is_takeout) 
+
+            if is_takeout:
+                # If in takeout mode, set not ready only if state change
+                db_writer.set_ready_state(False)
+                # No need to check for throws during takeout
+                time.sleep(0.1)
+            else:
+                # Only check for throws if not in takeout mode
+                throw = db_writer.dart_detector.get_next_throw()
+                if throw:
+                    # record_throw will handle setting ready=False and then True
+                    db_writer.record_throw(throw)
+                else:
+                    # If no throw and not in takeout, set ready only if not already ready
+                    db_writer.set_ready_state(True)
+
+
+            time.sleep(0.05)
             
     except KeyboardInterrupt:
         print("\nStopping dart detection...")

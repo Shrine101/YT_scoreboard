@@ -466,7 +466,7 @@ class LEDController:
             # Inner and outer single segments are now left off
         
         # Bullseye: Purple
-        self.led_control.bullseye((100, 0, 100))  # Purple
+        # self.led_control.bullseye((100, 0, 100))  # Purple
         
         # Display board state if MockLEDs is being used
         if hasattr(self.led_control, 'print_board_state'):
@@ -612,9 +612,8 @@ class LEDController:
         elif segment_type == 'outer_single':
             self.led_control.outerSingleSeg(score, red_color, wait_ms=1)
         elif segment_type == 'bullseye':
-            # Handle bullseye if your LED controller supports it
-            if hasattr(self.led_control, 'bullseye'):
-                self.led_control.bullseye(red_color, wait_ms=1)
+            # Use the bullseye animation but with red color for miss
+            self.led_control.bullseye(color=red_color, wait_ms=1)
         
         # Determine the original color of this segment (off/black for most segments)
         original_color = (0, 0, 0)  # Default black/off
@@ -649,90 +648,9 @@ class LEDController:
         
         # Special case for bullseye
         if segment_type == 'bullseye':
-            print("Bullseye hit! All segments will blink green simultaneously.")
-            # Create a special bullseye master record to track synchronized blinking
-            master_record = {
-                'start_time': start_time,
-                'end_time': end_time,
-                'blink_count': self.blink_count,
-                'blinks_completed': 0,
-                'current_state': 'off',  # Start in 'off' state
-                'last_toggle': start_time,
-                'blink_color': (0, 100, 0),  # Green for blinking
-                'is_bullseye_master': True  # Mark this as the master record
-            }
-            
-            self.blinking_segments['bullseye_master'] = master_record
-            
-            # First, turn all LEDs to their original colors to ensure a clean start
-            for number in range(1, 21):
-                if number not in self.led_control.DARTBOARD_MAPPING:
-                    continue
-                    
-                # Get the original colors for this number
-                if number in [20, 18, 13, 10, 2, 3, 7, 8, 14, 12]:
-                    single_color = (100, 0, 0)  # RED
-                    ring_color = (0, 0, 100)    # BLUE
-                else:  # numbers 1, 4, 6, 15, 17, 19, 16, 11, 9, 5
-                    single_color = (0, 0, 100)  # BLUE
-                    ring_color = (100, 0, 0)    # RED
-                
-                # Apply original colors
-                self.led_control.innerSingleSeg(number, single_color)
-                self.led_control.outerSingleSeg(number, single_color)
-                self.led_control.doubleSeg(number, ring_color)
-                self.led_control.tripleSeg(number, ring_color)
-                
-                # Set up segment records with references to the master
-                self.blinking_segments[f'inner_single_{number}_bull'] = {
-                    'master_ref': 'bullseye_master',
-                    'original_color': single_color,
-                    'score': number,
-                    'segment_type': 'inner_single',
-                    'blink_color': (0, 100, 0)  # Green for blinking
-                }
-                
-                self.blinking_segments[f'outer_single_{number}_bull'] = {
-                    'master_ref': 'bullseye_master',
-                    'original_color': single_color,
-                    'score': number,
-                    'segment_type': 'outer_single',
-                    'blink_color': (0, 100, 0)  # Green for blinking
-                }
-                
-                self.blinking_segments[f'double_{number}_bull'] = {
-                    'master_ref': 'bullseye_master',
-                    'original_color': ring_color,
-                    'score': number,
-                    'segment_type': 'double',
-                    'blink_color': (0, 100, 0)  # Green for blinking
-                }
-                
-                self.blinking_segments[f'triple_{number}_bull'] = {
-                    'master_ref': 'bullseye_master',
-                    'original_color': ring_color,
-                    'score': number,
-                    'segment_type': 'triple',
-                    'blink_color': (0, 100, 0)  # Green for blinking
-                }
-            
-            # Now, turn all LEDs green for the first "on" state
-            for number in range(1, 21):
-                if number not in self.led_control.DARTBOARD_MAPPING:
-                    continue
-                
-                # Turn all segments to green for the first blink
-                self.led_control.innerSingleSeg(number, (0, 100, 0))
-                self.led_control.outerSingleSeg(number, (0, 100, 0))
-                self.led_control.doubleSeg(number, (0, 100, 0))
-                self.led_control.tripleSeg(number, (0, 100, 0))
-            
-            # Update master record to "on" state since we just turned everything green
-            master_record['current_state'] = 'on'
-            
-            # Immediately start blinking cycle
-            # We'll need to force the first toggle to make it start
-            self.update_blinking_segments(True)  # Force update
+            print("Bullseye hit! Using bullseye animation.")
+            # Just call the bullseye function with default gold color
+            self.led_control.bullseye()
             return
         
         # Normal case (not bullseye)
@@ -789,100 +707,10 @@ class LEDController:
         # Process each blinking segment
         to_remove = []
         
-        # First check for bullseye master record which controls synchronized blinking
-        if 'bullseye_master' in self.blinking_segments:
-            master = self.blinking_segments['bullseye_master']
-            
-            # Check if the bullseye blinking period has expired
-            if current_time > master['end_time']:
-                print("Bullseye blinking complete, restoring original colors")
-                
-                # Find all segments controlled by this master
-                bullseye_segments = [k for k in self.blinking_segments.keys() if k.endswith('_bull')]
-                
-                # Restore all segments to their original colors
-                for segment_id in bullseye_segments:
-                    info = self.blinking_segments[segment_id]
-                    score = info['score']
-                    segment_type = info['segment_type']
-                    original_color = info['original_color']
-                    
-                    if segment_type == 'double':
-                        self.led_control.doubleSeg(score, original_color)
-                    elif segment_type == 'triple':
-                        self.led_control.tripleSeg(score, original_color)
-                    elif segment_type == 'inner_single':
-                        self.led_control.innerSingleSeg(score, original_color)
-                    elif segment_type == 'outer_single':
-                        self.led_control.outerSingleSeg(score, original_color)
-                    
-                    # Mark for removal
-                    to_remove.append(segment_id)
-                
-                # Also remove the master record
-                to_remove.append('bullseye_master')
-            else:
-                # Calculate if we need to toggle the blink state for all segments
-                blink_interval = 1.0 / (self.blink_frequency * 2)  # Each blink requires two toggles (on, off)
-                time_since_toggle = current_time - master['last_toggle']
-                
-                if force_update or time_since_toggle >= blink_interval:
-                    # Time to toggle the state for all segments
-                    new_state = 'on' if master['current_state'] == 'off' else 'off'
-                    
-                    # Track completed blinks - a blink is completed when going from on->off
-                    if new_state == 'off' and master['current_state'] == 'on':
-                        master['blinks_completed'] += 1
-                        
-                        # If we've completed our blinks but still have time, end early
-                        if master['blinks_completed'] >= master['blink_count']:
-                            master['end_time'] = current_time
-                            return  # Skip the rest of the processing
-                    
-                    # Apply the same state to all segments
-                    for number in range(1, 21):
-                        if number not in self.led_control.DARTBOARD_MAPPING:
-                            continue
-                            
-                        if new_state == 'on':
-                            # Turn all segments green
-                            self.led_control.innerSingleSeg(number, (0, 100, 0))
-                            self.led_control.outerSingleSeg(number, (0, 100, 0))
-                            self.led_control.doubleSeg(number, (0, 100, 0))
-                            self.led_control.tripleSeg(number, (0, 100, 0))
-                        else:
-                            # Restore original colors during "off" part of the blink
-                            # Get the original colors for this number
-                            if number in [20, 18, 13, 10, 2, 3, 7, 8, 14, 12]:
-                                single_color = (100, 0, 0)  # RED
-                                ring_color = (0, 0, 100)    # BLUE
-                            else:  # numbers 1, 4, 6, 15, 17, 19, 16, 11, 9, 5
-                                single_color = (0, 0, 100)  # BLUE
-                                ring_color = (100, 0, 0)    # RED
-                                
-                            # Apply original colors
-                            self.led_control.innerSingleSeg(number, single_color)
-                            self.led_control.outerSingleSeg(number, single_color)
-                            self.led_control.doubleSeg(number, ring_color)
-                            self.led_control.tripleSeg(number, ring_color)
-                    
-                    # Update master record
-                    master['current_state'] = new_state
-                    master['last_toggle'] = current_time
-                    
-                    # Print status for debugging
-                    if new_state == 'on':
-                        print(f"Bullseye blink: All segments ON (green) - Blink {master['blinks_completed'] + 1}/{master['blink_count']}")
-                    else:
-                        print(f"Bullseye blink: All segments OFF (original colors)")
-                
-                # Skip processing other segments since bullseye master is active
-                return
-        
-        # Process regular blinking segments (when no bullseye master is active)
+        # Process regular blinking segments
         for segment_id, info in self.blinking_segments.items():
-            # Skip segments controlled by bullseye master and the master itself
-            if segment_id == 'bullseye_master' or segment_id.endswith('_bull') or 'master_ref' in info:
+            # Skip segments with master_ref
+            if 'master_ref' in info:
                 continue
                 
             # Check if this segment's blinking period has expired

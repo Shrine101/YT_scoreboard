@@ -41,7 +41,7 @@ class LEDs:
             4: 5, 18: 6, 1: 7, 20: 8, 5: 9,
             12: 10, 9: 11, 14: 12, 11: 13, 8: 14,
             16: 15, 7: 16, 19: 17, 3: 18, 17: 19
-        }c
+        }
 
         # Initialize the LED strip
         self.strip = PixelStrip(
@@ -353,48 +353,30 @@ class LEDs:
         # Print console status
         print(f"{self.get_fore_color(color)}Inner Single Segment: Dartboard {dartboard_num} - {self.color_name(color)}{Style.RESET_ALL}")
     
-    def bullseye(self, wait_ms=1):
-        pass 
-        # """Gold outward cumulative build, then synchronized inward ring flashes."""
-        # gold = (250, 90, 0)
-        
-        # # Track for console output
-        # self.track_segment_change(25, "bullseye", gold)
-        
-        # # Update board state
-        # self.board_state['bullseye'] = gold
-        
-        # # Print console status
-        # print(f"{self.get_fore_color(gold)}Bullseye: {self.color_name(gold)}{Style.RESET_ALL}")
-        
-        # # Control real LEDs
-        # num_rings = self.NUM_LED_PER_STRIP
-        # active_strips = [0, 5, 10, 15]  # 4 strips equally spaced out of 20
+    def bullseye(self, color, wait_ms=500):
+        """Lights up all inner single segments at once, then turns them off after a short delay."""
 
-        # # Phase 1: Radiate outward (build-up)
-        # for ring in range(num_rings):
-            # for strip_num in active_strips:
-                # if strip_num % 2 == 0:
-                    # pixel = strip_num * num_rings + ring
-                # else:
-                    # pixel = strip_num * num_rings + (num_rings - ring - 1)
-                # self.strip.setPixelColor(pixel, Color(*gold))
-            # self.strip.show()  # show after setting full ring
-            # time.sleep(wait_ms / 1000.0)
+        # Track for console output
+        self.track_segment_change(25, "bullseye", color)
 
-        # # Phase 2: Collapse inward one ring at a time, all at once
-        # for ring in reversed(range(num_rings)):
-            # self.clearAll(wait_ms=0)  # clear entire board first
-            # for strip_num in active_strips:
-                # if strip_num % 2 == 0:
-                    # pixel = strip_num * num_rings + ring
-                # else:
-                    # pixel = strip_num * num_rings + (num_rings - ring - 1)
-                # self.strip.setPixelColor(pixel, Color(*gold))
-            # self.strip.show()  # synchronized flash
-            # time.sleep(wait_ms / 1000.0)
+        # Update board state
+        self.board_state['bullseye'] = color
 
-        # self.clearAll(wait_ms=10)
+        # Print console status
+        print(f"{self.get_fore_color(color)}Bullseye: {self.color_name(color)}{Style.RESET_ALL}")
+
+        # Light up inner single segment for all dartboard numbers
+        for dartboard_num in self.DARTBOARD_MAPPING.keys():
+            self.innerSingleSeg(dartboard_num, color, wait_ms=0)  # no delay between strips
+
+        # Hold the state for a moment before clearing
+        time.sleep(wait_ms / 1000.0)
+
+        # Light up inner single segment for all dartboard numbers
+        for dartboard_num in self.DARTBOARD_MAPPING.keys():
+            self.innerSingleSeg(dartboard_num, (0,0,0), wait_ms=0)  # no delay between strips
+
+
     
     def print_board_state(self):
         """Print a representation of the current board state to the console."""

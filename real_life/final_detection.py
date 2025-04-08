@@ -15,6 +15,8 @@ class DartDetectionLive:
         self.x = None
         self.y = None
 
+        self.good_2_throw = False
+
         self.num_cameras = 4
         self.cam_indexes = [0,2,4,6]
         self.streams = []
@@ -407,8 +409,9 @@ class DartDetectionLive:
             self.false_trigger_count[cam]= 0
             self.movement_duration[cam] = 0
         time.sleep(1)
-        print("Takeout done for all cameras")
+        
         self.is_takeout = False #TODO: i think the key to avoiding double takeouts is here
+        print(f"Takeout done for all cameras: {self.is_takeout}")
 
     def log_dart_position(self, dart_count, positions):
         """Log dart positions from all cameras into the YAML file."""
